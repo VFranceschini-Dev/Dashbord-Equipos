@@ -23,6 +23,7 @@ import {
   LineChart,
   Line,
 } from 'recharts';
+import MeshMonitor from './MeshMonitor';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts } = useApp();
@@ -269,6 +270,24 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* MeshCentral Remote Monitoring */}
+      <MeshMonitor />
+
+      {/* Footer Credits */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <p className="text-sm font-medium text-blue-100 mb-1">Dashboard desarrollado por</p>
+            <h3 className="text-2xl font-bold">Sistemas PEDSA</h3>
+            <p className="text-sm text-blue-200 mt-1">Soluciones tecnológicas para tu empresa</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-blue-200">Versión 2.0</p>
+            <p className="text-xs text-blue-300 mt-1">Integración MeshCentral</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
