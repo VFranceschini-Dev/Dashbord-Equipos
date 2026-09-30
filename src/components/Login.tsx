@@ -4,7 +4,7 @@ import { Printer, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export default function Login() {
   const { login } = useAuth();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -17,9 +17,9 @@ export default function Login() {
 
     // Simular delay de red
     setTimeout(() => {
-      const success = login(username, password);
+      const success = login(email, password);
       if (!success) {
-        setError('Usuario o contraseña incorrectos');
+        setError('Email o contraseña incorrectos');
       }
       setLoading(false);
     }, 500);
@@ -50,17 +50,17 @@ export default function Login() {
           <h2 className="text-2xl font-bold text-gray-800 mb-6">Iniciar Sesión</h2>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Username */}
+            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Usuario
+                Email
               </label>
               <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                placeholder="Ingresa tu usuario"
+                placeholder="ejemplo@donnet.com.ar"
                 required
                 disabled={loading}
               />
@@ -103,7 +103,7 @@ export default function Login() {
             {/* Submit button */}
             <button
               type="submit"
-              disabled={loading || !username || !password}
+              disabled={loading || !email || !password}
               className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
@@ -122,10 +122,10 @@ export default function Login() {
 
           {/* Demo credentials */}
           <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm font-semibold text-blue-900 mb-2">Credenciales de prueba:</p>
+            <p className="text-sm font-semibold text-blue-900 mb-2">Credenciales de acceso:</p>
             <div className="space-y-1 text-xs text-blue-800">
-              <p><span className="font-medium">Administrador:</span> admin / admin123</p>
-              <p><span className="font-medium">Usuario:</span> usuario / user123</p>
+              <p><span className="font-medium">Administrador:</span> soporte@donnet.com.ar</p>
+              <p><span className="font-medium">Usuario:</span> usuario@donnet.com.ar</p>
             </div>
           </div>
         </div>

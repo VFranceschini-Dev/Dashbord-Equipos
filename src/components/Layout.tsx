@@ -90,10 +90,10 @@ export default function Layout({ children }: { children: ReactNode }) {
         <div className="p-4 border-t border-slate-700">
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-xs font-bold">
-              {user?.name?.charAt(0) || 'U'}
+              {user?.email?.charAt(0).toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.name || 'Usuario'}</p>
+              <p className="text-sm font-medium truncate">{user?.email || 'Usuario'}</p>
               <p className="text-xs text-slate-400">{user?.role === 'admin' ? 'Administrador' : 'Usuario'}</p>
             </div>
             <button

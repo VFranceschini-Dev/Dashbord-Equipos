@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface User {
-  username: string;
+  email: string;
   name: string;
   role: 'admin' | 'user';
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => boolean;
+  login: (email: string, password: string) => boolean;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -17,8 +17,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Credenciales por defecto
 const DEFAULT_USERS = [
-  { username: 'admin', password: 'admin123', name: 'Carlos Méndez', role: 'admin' as const },
-  { username: 'usuario', password: 'user123', name: 'Ana García', role: 'user' as const },
+  { email: 'soporte@donnet.com.ar', password: '6mn78az39*', name: 'Administrador', role: 'admin' as const },
+  { email: 'usuario@donnet.com.ar', password: 'user123', name: 'Ana García', role: 'user' as const },
 ];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -28,13 +28,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return savedUser ? JSON.parse(savedUser) : null;
   });
 
-  const login = (username: string, password: string): boolean => {
+  const login = (email: string, password: string): boolean => {
     const foundUser = DEFAULT_USERS.find(
-      u => u.username === username && u.password === password
+      u => u.email === email && u.password === password
     );
     
     if (foundUser) {
-      const userData = { username: foundUser.username, name: foundUser.name, role: foundUser.role };
+      const userData = { email: foundUser.email, name: foundUser.name, role: foundUser.role };
       setUser(userData);
       localStorage.setItem('toner_user', JSON.stringify(userData));
       return true;
