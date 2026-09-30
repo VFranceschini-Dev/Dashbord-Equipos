@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { Page } from '../types';
 import {
   LayoutDashboard,
@@ -10,6 +11,7 @@ import {
   Bell,
   Menu,
   X,
+  LogOut,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -23,6 +25,7 @@ const navItems: { page: Page; label: string; icon: ReactNode }[] = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { currentPage, setCurrentPage, unreadAlerts, alerts, markAlertRead } = useApp();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
 
@@ -87,12 +90,19 @@ export default function Layout({ children }: { children: ReactNode }) {
         <div className="p-4 border-t border-slate-700">
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-xs font-bold">
-              CM
+              {user?.name?.charAt(0) || 'U'}
             </div>
-            <div>
-              <p className="text-sm font-medium">Carlos Méndez</p>
-              <p className="text-xs text-slate-400">Administrador</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{user?.name || 'Usuario'}</p>
+              <p className="text-xs text-slate-400">{user?.role === 'admin' ? 'Administrador' : 'Usuario'}</p>
             </div>
+            <button
+              onClick={logout}
+              className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+              title="Cerrar sesión"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </aside>

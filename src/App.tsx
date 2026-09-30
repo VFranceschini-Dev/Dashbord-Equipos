@@ -1,5 +1,7 @@
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider, useApp } from './context/AppContext';
 import Layout from './components/Layout';
+import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Printers from './components/Printers';
 import Inventory from './components/Inventory';
@@ -25,12 +27,26 @@ function PageRouter() {
   }
 }
 
-export default function App() {
+function AppContent() {
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
   return (
     <AppProvider>
       <Layout>
         <PageRouter />
       </Layout>
     </AppProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
