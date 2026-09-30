@@ -12,7 +12,7 @@ export default function MeshMonitor() {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [expandedView, setExpandedView] = useState(false);
-  const [showIframe, setShowIframe] = useState(false);
+  const [showIframe, setShowIframe] = useState(true); // Cambiado a true para mostrar por defecto
 
   useEffect(() => {
     fetchMeshDevices();
@@ -116,17 +116,11 @@ export default function MeshMonitor() {
             <button
               onClick={fetchMeshDevices}
               disabled={loading}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-              title="Actualizar"
-            >
-              <RefreshCw className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button
-              onClick={() => setShowIframe(!showIframe)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              title="Actualizar datos"
             >
-              <ExternalLink className="w-4 h-4" />
-              {showIframe ? 'Ocultar Panel' : 'Abrir MeshCentral'}
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Actualizar
             </button>
           </div>
         </div>
@@ -182,28 +176,41 @@ export default function MeshMonitor() {
           <span className="text-gray-400">• Actualización automática cada 30s</span>
         </div>
 
-        {/* MeshCentral Iframe */}
-        {showIframe && (
-          <div className="mb-6 rounded-lg overflow-hidden border border-gray-200">
-            <div className="bg-gray-100 px-4 py-2 flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Panel MeshCentral</span>
+        {/* MeshCentral Iframe - Embebido */}
+        <div className="mb-6 rounded-lg overflow-hidden border-2 border-blue-200 shadow-lg">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Monitor className="w-5 h-5 text-white" />
+              <span className="text-sm font-semibold text-white">Panel MeshCentral - Monitoreo en Tiempo Real</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowIframe(!showIframe)}
+                className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white rounded text-xs font-medium transition-colors"
+              >
+                {showIframe ? 'Ocultar Panel' : 'Mostrar Panel'}
+              </button>
               <a 
                 href="https://mesh.donnet.com.ar" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                className="px-3 py-1 bg-white text-blue-600 hover:bg-blue-50 rounded text-xs font-medium transition-colors flex items-center gap-1"
               >
                 Abrir en nueva pestaña <ExternalLink className="w-3 h-3" />
               </a>
             </div>
-            <iframe
-              src="https://mesh.donnet.com.ar"
-              title="MeshCentral"
-              className="w-full h-[500px] border-0"
-              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-            />
           </div>
-        )}
+          {showIframe && (
+            <div className="bg-gray-50">
+              <iframe
+                src="https://mesh.donnet.com.ar"
+                title="MeshCentral"
+                className="w-full h-[600px] border-0"
+                sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-top-navigation"
+              />
+            </div>
+          )}
+        </div>
 
         {/* Devices List */}
         <div className="space-y-3">
