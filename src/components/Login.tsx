@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Printer, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Printer, Eye, EyeOff, AlertCircle, Shield } from 'lucide-react';
 
 export default function Login() {
   const { login } = useAuth();
@@ -15,11 +15,10 @@ export default function Login() {
     setError('');
     setLoading(true);
 
-    // Simular delay de red
     setTimeout(() => {
       const success = login(email, password);
       if (!success) {
-        setError('Email o contraseña incorrectos');
+        setError('Credenciales inválidas. Verifique su email y contraseña.');
       }
       setLoading(false);
     }, 500);
@@ -27,7 +26,6 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4">
-      {/* Background pattern */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute inset-0" style={{
           backgroundImage: `radial-gradient(circle at 25px 25px, white 2px, transparent 0)`,
@@ -36,7 +34,6 @@ export default function Login() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo and title */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-600 rounded-2xl shadow-2xl shadow-blue-600/30 mb-4">
             <Printer size={40} className="text-white" />
@@ -45,41 +42,36 @@ export default function Login() {
           <p className="text-blue-200">Sistema de Gestión de Impresoras</p>
         </div>
 
-        {/* Login card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-6">Iniciar Sesión</h2>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                placeholder="ejemplo@donnet.com.ar"
+                placeholder="usuario@empresa.com"
                 required
                 disabled={loading}
+                autoComplete="email"
               />
             </div>
 
-            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Contraseña
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                  placeholder="Ingresa tu contraseña"
+                  placeholder="••••••••"
                   required
                   disabled={loading}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -92,7 +84,6 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Error message */}
             {error && (
               <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                 <AlertCircle size={18} />
@@ -100,7 +91,6 @@ export default function Login() {
               </div>
             )}
 
-            {/* Submit button */}
             <button
               type="submit"
               disabled={loading || !email || !password}
@@ -120,19 +110,19 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Demo credentials */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm font-semibold text-blue-900 mb-2">Credenciales de acceso:</p>
-            <div className="space-y-1 text-xs text-blue-800">
-              <p><span className="font-medium">Administrador:</span> soporte@donnet.com.ar</p>
-              <p><span className="font-medium">Usuario:</span> usuario@donnet.com.ar</p>
+          {/* Mensaje de seguridad */}
+          <div className="mt-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-start gap-2">
+              <Shield size={16} className="text-gray-500 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-gray-600">
+                Conexión segura. Si olvidó su contraseña, contacte al administrador del sistema.
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-blue-200 text-sm mt-6">
-          © 2024 Sistema de Control de Tóner
+          © 2024 Sistema de Control de Tóner - Desarrollado por Sistemas PEDSA
         </p>
       </div>
     </div>

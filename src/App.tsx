@@ -7,6 +7,10 @@ import Printers from './components/Printers';
 import Inventory from './components/Inventory';
 import Movements from './components/Movements';
 import Reports from './components/Reports';
+import Equipments from './components/Equipments';
+import Suppliers from './components/Suppliers';
+import Collaborators from './components/Collaborators';
+import Vouchers from './components/Vouchers';
 
 function PageRouter() {
   const { currentPage } = useApp();
@@ -22,6 +26,14 @@ function PageRouter() {
       return <Movements />;
     case 'reports':
       return <Reports />;
+    case 'equipments':
+      return <Equipments />;
+    case 'suppliers':
+      return <Suppliers />;
+    case 'collaborators':
+      return <Collaborators />;
+    case 'vouchers':
+      return <Vouchers />;
     default:
       return <Dashboard />;
   }
