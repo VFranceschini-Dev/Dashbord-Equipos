@@ -3,9 +3,10 @@ import { useApp } from '../context/AppContext';
 import { 
   Monitor, Wifi, WifiOff, RefreshCw, ExternalLink, Server, Clock, 
   AlertTriangle, Maximize2, Minimize2, Globe, Shield, Activity,
-  ChevronDown, ChevronUp, Zap
+  ChevronDown, ChevronUp, Zap, Settings, Cpu, HardDrive
 } from 'lucide-react';
 import { meshCentralService, MeshNode } from '../services/meshCentral';
+import MeshConfig from './MeshConfig';
 
 const WORK_START_HOUR = 8;
 const WORK_END_HOUR = 18;
@@ -18,19 +19,50 @@ export default function MeshMonitor() {
   const [expandedView, setExpandedView] = useState(false);
   const [showIframe, setShowIframe] = useState(true);
   const [showDevices, setShowDevices] = useState(true);
+  const [showConfig, setShowConfig] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    fetchMeshDevices();
+    // Verificar si hay credenciales configuradas
+    const creds = meshCentralService.getCredentials();
+    if (creds) {
+      fetchMeshDevices();
+    } else {
+      setLoading(false);
+      setShowConfig(true);
+    }
+
+    // Actualizar cada 30 segundos
     const interval = setInterval(fetchMeshDevices, 30000);
-    return () => clearInterval(interval);
+
+    // Listener para actualizaciones en tiempo real
+    const unsubscribe = meshCentralService.addListener((event, data) => {
+      if (event === 'nodesUpdated') {
+        setDevices(data);
+        setLastUpdate(new Date());
+        checkAfterHoursDevices(data);
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, []);
 
   const fetchMeshDevices = async () => {
+    const creds = meshCentralService.getCredentials();
+    if (!creds) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const nodes = await meshCentralService.getNodes();
       setDevices(nodes);
       setLastUpdate(new Date());
+      setIsConnected(meshCentralService.isConnected());
       checkAfterHoursDevices(nodes);
     } catch (error) {
       console.error('Error al obtener dispositivos:', error);
@@ -45,7 +77,7 @@ export default function MeshMonitor() {
     const isAfterHours = currentHour < WORK_START_HOUR || currentHour >= WORK_END_HOUR;
     const isWeekend = now.getDay() === 0 || now.getDay() === 6;
 
-    if (isAfterHours || isWeekend) {
+    if ((isAfterHours || isWeekend) && nodes.length > 0) {
       const onlineAfterHours = nodes.filter(n => n.status === 'connected');
       if (onlineAfterHours.length > 0) {
         const existingAlert = alerts.find(a => 
@@ -89,6 +121,19 @@ export default function MeshMonitor() {
     return currentHour < WORK_START_HOUR || currentHour >= WORK_END_HOUR || isWeekend;
   };
 
+  const handleConfigured = () => {
+    setShowConfig(false);
+    fetchMeshDevices();
+  };
+
+  // Agrupar dispositivos por grupo
+  const devicesByGroup = devices.reduce((acc, device) => {
+    const group = device.group || 'Sin grupo';
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(device);
+    return acc;
+  }, {} as Record<string, MeshNode[]>);
+
   return (
     <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 ${
       expandedView ? 'fixed inset-4 z-50 overflow-auto' : ''
@@ -111,7 +156,9 @@ export default function MeshMonitor() {
                 <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30">
                   <Monitor className="w-7 h-7 text-white" />
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
+                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center ${
+                  isConnected ? 'bg-emerald-500' : 'bg-gray-400'
+                }`}>
                   <Activity className="w-3 h-3 text-white" />
                 </div>
               </div>
@@ -122,6 +169,13 @@ export default function MeshMonitor() {
             </div>
             
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowConfig(!showConfig)}
+                className="p-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors border border-white/20"
+                title="Configurar conexión"
+              >
+                <Settings className="w-4 h-4 text-white" />
+              </button>
               <button
                 onClick={() => setExpandedView(!expandedView)}
                 className="p-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors border border-white/20"
@@ -175,6 +229,13 @@ export default function MeshMonitor() {
       </div>
 
       <div className="p-6">
+        {/* Configuración */}
+        {showConfig && (
+          <div className="mb-6">
+            <MeshConfig onConfigured={handleConfigured} />
+          </div>
+        )}
+
         {/* After Hours Alert */}
         {isAfterHours() && onlineCount > 0 && (
           <div className="mb-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl flex items-start gap-3">
@@ -239,16 +300,10 @@ export default function MeshMonitor() {
           {/* Iframe content */}
           {showIframe && (
             <div className="relative bg-white">
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-0">
-                <div className="text-center">
-                  <RefreshCw className="w-8 h-8 text-gray-300 animate-spin mx-auto mb-2" />
-                  <p className="text-xs text-gray-400">Cargando MeshCentral...</p>
-                </div>
-              </div>
               <iframe
                 src="https://mesh.donnet.com.ar"
                 title="MeshCentral"
-                className="w-full h-[600px] border-0 relative z-10"
+                className="w-full h-[600px] border-0"
                 sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-top-navigation"
               />
             </div>
@@ -272,54 +327,74 @@ export default function MeshMonitor() {
           </button>
 
           {showDevices && (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {devices.length === 0 ? (
                 <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
                   <Server className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <p className="text-lg font-medium text-gray-600 mb-2">Sin dispositivos monitoreados</p>
-                  <p className="text-sm text-gray-500">Los equipos aparecerán aquí cuando se conecten a MeshCentral</p>
+                  <p className="text-lg font-medium text-gray-600 mb-2">
+                    {meshCentralService.getCredentials() ? 'Sin dispositivos monitoreados' : 'No configurado'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {meshCentralService.getCredentials() 
+                      ? 'Los equipos aparecerán aquí cuando se conecten a MeshCentral'
+                      : 'Configure las credenciales de MeshCentral para comenzar'}
+                  </p>
+                  {!meshCentralService.getCredentials() && (
+                    <button 
+                      onClick={() => setShowConfig(true)}
+                      className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                    >
+                      Configurar MeshCentral
+                    </button>
+                  )}
                 </div>
               ) : (
-                devices.map(device => (
-                  <div
-                    key={device.id}
-                    className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all duration-200 group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`p-2.5 rounded-xl ${
-                        device.status === 'connected' 
-                          ? 'bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200' 
-                          : 'bg-gradient-to-br from-red-50 to-rose-50 border border-red-200'
-                      }`}>
-                        {device.status === 'connected' ? (
-                          <Wifi className="w-5 h-5 text-emerald-600" />
-                        ) : (
-                          <WifiOff className="w-5 h-5 text-red-600" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{device.name}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
-                          {device.ip && <span className="font-mono">{device.ip}</span>}
-                          {device.ip && device.os && <span>•</span>}
-                          {device.os && <span>{device.os}</span>}
-                          {device.group && <><span>•</span><span className="px-2 py-0.5 bg-gray-100 rounded">{device.group}</span></>}
+                Object.entries(devicesByGroup).map(([group, groupDevices]) => (
+                  <div key={group} className="space-y-2">
+                    <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2">
+                      {group} ({groupDevices.filter(d => d.status === 'connected').length}/{groupDevices.length} conectados)
+                    </h5>
+                    {groupDevices.map(device => (
+                      <div
+                        key={device.id}
+                        className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all duration-200 group"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`p-2.5 rounded-xl ${
+                            device.status === 'connected' 
+                              ? 'bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200' 
+                              : 'bg-gradient-to-br from-red-50 to-rose-50 border border-red-200'
+                          }`}>
+                            {device.status === 'connected' ? (
+                              <Wifi className="w-5 h-5 text-emerald-600" />
+                            ) : (
+                              <WifiOff className="w-5 h-5 text-red-600" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{device.name}</p>
+                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5 flex-wrap">
+                              {device.ip && <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{device.ip}</span>}
+                              {device.os && <span className="flex items-center gap-1"><Cpu size={10} /> {device.os}</span>}
+                              {device.ram && <span className="flex items-center gap-1"><HardDrive size={10} /> {device.ram}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                            device.status === 'connected'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            <span className={`w-2 h-2 rounded-full ${
+                              device.status === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'
+                            }`}></span>
+                            {device.status === 'connected' ? 'Conectado' : 'Desconectado'}
+                          </div>
+                          <p className="text-xs text-gray-400 mt-1">{formatLastSeen(device.lastSeen)}</p>
                         </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-                        device.status === 'connected'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-red-100 text-red-700'
-                      }`}>
-                        <span className={`w-2 h-2 rounded-full ${
-                          device.status === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'
-                        }`}></span>
-                        {device.status === 'connected' ? 'Conectado' : 'Desconectado'}
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">{formatLastSeen(device.lastSeen)}</p>
-                    </div>
+                    ))}
                   </div>
                 ))
               )}
@@ -342,7 +417,7 @@ export default function MeshMonitor() {
           </p>
           <div className="flex items-center gap-1 text-xs text-gray-400">
             <Shield className="w-3 h-3" />
-            <span>Conexión segura</span>
+            <span>Conexión segura WebSocket</span>
           </div>
         </div>
       </div>
