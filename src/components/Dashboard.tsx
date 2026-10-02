@@ -1,5 +1,4 @@
 import { useApp } from '../context/AppContext';
-import MeshMonitor from './MeshMonitor';
 import {
   Printer, Package, AlertTriangle, Monitor, Server, Users, Building2, FileText,
   TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight
@@ -11,8 +10,8 @@ export default function Dashboard() {
   const activePrinters = printers.filter(p => p.status === 'active').length;
   const lowStockItems = toners.filter(t => t.stock <= t.minStock).length;
   const totalTonerValue = toners.reduce((sum, t) => sum + t.stock * t.unitPrice, 0);
+  const totalMovements = movements.length;
   const unreadAlerts = alerts.filter(a => !a.read).length;
-  const afterHoursAlerts = alerts.filter(a => a.type === 'after_hours' && !a.read).length;
 
   const mainStats = [
     {
@@ -94,13 +93,13 @@ export default function Dashboard() {
       page: 'inventory' as const,
     },
     {
-      title: 'After Hours',
-      value: afterHoursAlerts,
-      subtitle: 'Fuera de horario',
+      title: 'Movimientos',
+      value: totalMovements,
+      subtitle: 'Total registrado',
       icon: Clock,
-      color: 'text-rose-600',
-      bg: 'bg-rose-50',
-      page: 'dashboard' as const,
+      color: 'text-purple-600',
+      bg: 'bg-purple-50',
+      page: 'movements' as const,
     },
   ];
 
@@ -124,7 +123,7 @@ export default function Dashboard() {
               Bienvenido al Sistema de Control
             </h1>
             <p className="text-blue-200 text-sm lg:text-base">
-              Gestión integral de equipamientos, impresoras y monitoreo remoto
+              Gestión integral de equipamientos, impresoras e inventario
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -182,9 +181,6 @@ export default function Dashboard() {
           );
         })}
       </div>
-
-      {/* MeshCentral Monitor - EMBEBIDO MEJORADO */}
-      <MeshMonitor />
 
       {/* Secondary Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -274,7 +270,7 @@ export default function Dashboard() {
                 { label: 'Colaboradores', icon: Users, color: 'bg-violet-100 text-violet-700' },
                 { label: 'Proveedores', icon: Building2, color: 'bg-emerald-100 text-emerald-700' },
                 { label: 'Comprobantes', icon: FileText, color: 'bg-amber-100 text-amber-700' },
-                { label: 'MeshCentral', icon: Server, color: 'bg-rose-100 text-rose-700' },
+                { label: 'Impresoras', icon: Printer, color: 'bg-rose-100 text-rose-700' },
               ].map((item, i) => {
                 const Icon = item.icon;
                 return (
@@ -305,23 +301,11 @@ export default function Dashboard() {
                   Dashboard desarrollado por Sistemas PEDSA
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Sistema integral de gestión de impresión, equipamientos y monitoreo remoto
+                  Sistema integral de gestión de impresión y equipamientos
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Monitoreo en tiempo real</p>
-                <a
-                  href="https://mesh.donnet.com.ar"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
-                >
-                  mesh.donnet.com.ar ↗
-                </a>
-              </div>
-              <div className="h-10 w-px bg-gray-200" />
               <div className="text-right">
                 <p className="text-xs text-gray-400">Versión</p>
                 <p className="text-xs font-semibold text-gray-700">2.0.0</p>
