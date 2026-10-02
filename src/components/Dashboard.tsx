@@ -309,11 +309,8 @@ export default function Dashboard() {
               </div>
               <div>
                 <h3 className="text-base font-bold text-gray-800">
-                  Dashboard desarrollado por Sistemas PEDSA
+                  Desarrollado por Area Sistemas PEDSA
                 </h3>
-                <p className="text-sm text-gray-500">
-                  Sistema integral de gestión de impresión y equipamientos
-                </p>
               </div>
             </div>
             <div className="flex items-center gap-4">
