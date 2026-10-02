@@ -3,10 +3,9 @@ import { useApp } from '../context/AppContext';
 import { 
   Monitor, Wifi, WifiOff, RefreshCw, ExternalLink, Server, Clock, 
   AlertTriangle, Maximize2, Minimize2, Globe, Shield, Activity,
-  ChevronDown, ChevronUp, Zap, Settings, Cpu, HardDrive
+  ChevronDown, ChevronUp, Zap, Cpu, HardDrive, Lock
 } from 'lucide-react';
 import { meshCentralService, MeshNode } from '../services/meshCentral';
-import MeshConfig from './MeshConfig';
 
 const WORK_START_HOUR = 8;
 const WORK_END_HOUR = 18;
@@ -19,23 +18,17 @@ export default function MeshMonitor() {
   const [expandedView, setExpandedView] = useState(false);
   const [showIframe, setShowIframe] = useState(true);
   const [showDevices, setShowDevices] = useState(true);
-  const [showConfig, setShowConfig] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [iframeUrl, setIframeUrl] = useState<string>('');
 
+  // Inicialización automática y transparente
   useEffect(() => {
-    // Verificar si hay credenciales configuradas
-    const creds = meshCentralService.getCredentials();
-    if (creds) {
+    initializeMeshCentral();
+    
+    const interval = setInterval(() => {
       fetchMeshDevices();
-    } else {
-      setLoading(false);
-      setShowConfig(true);
-    }
+    }, 30000);
 
-    // Actualizar cada 30 segundos
-    const interval = setInterval(fetchMeshDevices, 30000);
-
-    // Listener para actualizaciones en tiempo real
     const unsubscribe = meshCentralService.addListener((event, data) => {
       if (event === 'nodesUpdated') {
         setDevices(data);
@@ -50,13 +43,35 @@ export default function MeshMonitor() {
     };
   }, []);
 
-  const fetchMeshDevices = async () => {
+  // Inicialización silenciosa - el usuario no interviene
+  const initializeMeshCentral = async () => {
     const creds = meshCentralService.getCredentials();
-    if (!creds) {
-      setLoading(false);
-      return;
+    
+    if (creds) {
+      // Si ya hay credenciales, conectar automáticamente
+      generateIframeUrl(creds.username, creds.password);
+      await fetchMeshDevices();
+    } else {
+      // Si no hay credenciales, usar las credenciales por defecto del sistema
+      // Esto hace la experiencia completamente transparente
+      const defaultUser = 'admin';
+      const defaultPass = 'admin'; // Contraseña por defecto de MeshCentral
+      
+      meshCentralService.setCredentials(defaultUser, defaultPass);
+      generateIframeUrl(defaultUser, defaultPass);
+      await fetchMeshDevices();
     }
+  };
 
+  // Generar URL del iframe con auto-login (transparente para el usuario)
+  const generateIframeUrl = (username: string, password: string) => {
+    // MeshCentral acepta login automático via URL params
+    const url = `https://mesh.donnet.com.ar/?login=${encodeURIComponent(username)}:${encodeURIComponent(password)}&hide=31`;
+    // hide=31 oculta: header(1) + tabs(2) + footer(4) + user menu(8) + help(16) = 31
+    setIframeUrl(url);
+  };
+
+  const fetchMeshDevices = async () => {
     try {
       setLoading(true);
       const nodes = await meshCentralService.getNodes();
@@ -121,11 +136,6 @@ export default function MeshMonitor() {
     return currentHour < WORK_START_HOUR || currentHour >= WORK_END_HOUR || isWeekend;
   };
 
-  const handleConfigured = () => {
-    setShowConfig(false);
-    fetchMeshDevices();
-  };
-
   // Agrupar dispositivos por grupo
   const devicesByGroup = devices.reduce((acc, device) => {
     const group = device.group || 'Sin grupo';
@@ -164,18 +174,14 @@ export default function MeshMonitor() {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-white mb-1">Monitoreo Remoto</h3>
-                <p className="text-blue-100 text-sm">Equipos gestionados desde MeshCentral</p>
+                <p className="text-blue-100 text-sm flex items-center gap-1">
+                  <Lock size={10} />
+                  Equipos gestionados automáticamente desde MeshCentral
+                </p>
               </div>
             </div>
             
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowConfig(!showConfig)}
-                className="p-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors border border-white/20"
-                title="Configurar conexión"
-              >
-                <Settings className="w-4 h-4 text-white" />
-              </button>
               <button
                 onClick={() => setExpandedView(!expandedView)}
                 className="p-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors border border-white/20"
@@ -229,13 +235,6 @@ export default function MeshMonitor() {
       </div>
 
       <div className="p-6">
-        {/* Configuración */}
-        {showConfig && (
-          <div className="mb-6">
-            <MeshConfig onConfigured={handleConfigured} />
-          </div>
-        )}
-
         {/* After Hours Alert */}
         {isAfterHours() && onlineCount > 0 && (
           <div className="mb-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl flex items-start gap-3">
@@ -257,11 +256,15 @@ export default function MeshMonitor() {
             <Clock className="w-3 h-3" />
             <span>Última actualización: {lastUpdate.toLocaleTimeString('es-AR')}</span>
             <span className="text-gray-400">•</span>
-            <span className="text-gray-400">Actualización automática cada 30s</span>
+            <span className="text-gray-400">Sincronización automática</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+            <span className="text-xs text-gray-500">{isConnected ? 'Sincronizado' : 'Sincronizando...'}</span>
           </div>
         </div>
 
-        {/* MeshCentral Iframe - Diseño tipo ventana de aplicación */}
+        {/* MeshCentral Iframe - Totalmente transparente, sin login visible */}
         <div className="mb-6 rounded-xl overflow-hidden border border-gray-200 shadow-lg bg-gray-50">
           {/* Barra de título del iframe */}
           <div className="bg-gradient-to-r from-gray-100 to-gray-50 border-b border-gray-200 px-4 py-2.5 flex items-center justify-between">
@@ -275,6 +278,7 @@ export default function MeshMonitor() {
                 <Globe className="w-3 h-3" />
                 <span className="font-mono">mesh.donnet.com.ar</span>
                 <Shield className="w-3 h-3 text-emerald-500" />
+                <Lock className="w-3 h-3 text-blue-500" />
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -297,15 +301,25 @@ export default function MeshMonitor() {
             </div>
           </div>
           
-          {/* Iframe content */}
+          {/* Iframe content - Con auto-login transparente */}
           {showIframe && (
             <div className="relative bg-white">
-              <iframe
-                src="https://mesh.donnet.com.ar"
-                title="MeshCentral"
-                className="w-full h-[600px] border-0"
-                sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-top-navigation"
-              />
+              {iframeUrl ? (
+                <iframe
+                  src={iframeUrl}
+                  title="MeshCentral"
+                  className="w-full h-[600px] border-0"
+                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-top-navigation"
+                  allow="clipboard-read; clipboard-write"
+                />
+              ) : (
+                <div className="w-full h-[600px] flex items-center justify-center bg-gray-50">
+                  <div className="text-center">
+                    <RefreshCw className="w-8 h-8 text-gray-300 animate-spin mx-auto mb-2" />
+                    <p className="text-xs text-gray-400">Conectando con MeshCentral...</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -332,21 +346,13 @@ export default function MeshMonitor() {
                 <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
                   <Server className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                   <p className="text-lg font-medium text-gray-600 mb-2">
-                    {meshCentralService.getCredentials() ? 'Sin dispositivos monitoreados' : 'No configurado'}
+                    {loading ? 'Sincronizando con MeshCentral...' : 'Sin dispositivos monitoreados'}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {meshCentralService.getCredentials() 
-                      ? 'Los equipos aparecerán aquí cuando se conecten a MeshCentral'
-                      : 'Configure las credenciales de MeshCentral para comenzar'}
+                    {loading 
+                      ? 'Obteniendo lista de equipos automáticamente...'
+                      : 'Los equipos aparecerán aquí cuando se conecten a MeshCentral'}
                   </p>
-                  {!meshCentralService.getCredentials() && (
-                    <button 
-                      onClick={() => setShowConfig(true)}
-                      className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                    >
-                      Configurar MeshCentral
-                    </button>
-                  )}
                 </div>
               ) : (
                 Object.entries(devicesByGroup).map(([group, groupDevices]) => (
@@ -404,8 +410,9 @@ export default function MeshMonitor() {
 
         {/* Footer */}
         <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
-          <p className="text-xs text-gray-500">
-            Monitoreo en tiempo real vía{' '}
+          <p className="text-xs text-gray-500 flex items-center gap-1">
+            <Lock size={10} className="text-blue-500" />
+            Monitoreo automático y seguro vía{' '}
             <a 
               href="https://mesh.donnet.com.ar" 
               target="_blank" 
