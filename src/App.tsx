@@ -13,6 +13,7 @@ import Suppliers from './components/Suppliers';
 import Collaborators from './components/Collaborators';
 import Vouchers from './components/Vouchers';
 import AdminPanel from './components/AdminPanel';
+import MeshTestConnection from './components/MeshTestConnection';
 
 function PageRouter() {
   const { currentPage } = useApp();
@@ -38,6 +39,8 @@ function PageRouter() {
       return <Vouchers />;
     case 'admin':
       return <AdminPanel />;
+    case 'mesh-test':
+      return <MeshTestConnection />;
     default:
       return <Dashboard />;
   }

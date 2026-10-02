@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
-  Monitor, Users, Building2, FileText, ChevronRight, Settings, Sun, Moon
+  Monitor, Users, Building2, FileText, ChevronRight, Settings, Sun, Moon, Server
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -19,6 +19,7 @@ const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'inventory', label: 'Inventario', icon: <Package size={20} /> },
   { page: 'movements', label: 'Movimientos', icon: <ArrowLeftRight size={20} /> },
   { page: 'reports', label: 'Reportes', icon: <BarChart3 size={20} /> },
+  { page: 'mesh-test', label: 'Test MeshCentral', icon: <Server size={20} /> },
   { page: 'admin', label: 'Administración', icon: <Settings size={20} /> },
 ];
 

@@ -3,7 +3,6 @@ import {
   Printer, Package, AlertTriangle, Monitor, Server, Users, Building2, FileText,
   TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight, Zap, Target
 } from 'lucide-react';
-import MeshPCWidget from './MeshPCWidget';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts, equipments, suppliers, collaborators, setCurrentPage } = useApp();
@@ -218,9 +217,6 @@ export default function Dashboard() {
           );
         })}
       </div>
-
-      {/* MeshCentral PCs Widget */}
-      <MeshPCWidget />
 
       {/* Alerts Section */}
       {unreadAlerts > 0 && (
