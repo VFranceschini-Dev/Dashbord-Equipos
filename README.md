@@ -149,8 +149,8 @@ El sistema utiliza un diseño moderno inspirado en Figma con:
 
 ## 📄 Licencia
 
-Todos los derechos reservados - Sistemas PEDSA
+Todos los derechos reservados - VFranceschini-Dev
 
 ---
 
-Para más información o soporte, contacta a Sistemas PEDSA.
+Para más información o soporte
