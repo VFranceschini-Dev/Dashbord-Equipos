@@ -591,3 +591,91 @@ body {
   background-image: radial-gradient(#d1d5db 1px, transparent 1px);
   background-size: 20px 20px;
 }
+
+/* ===================================
+   DARK MODE
+   =================================== */
+
+.dark body {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.dark .bg-white {
+  background: #1e293b;
+}
+
+.dark .bg-gray-50 {
+  background: #0f172a;
+}
+
+.dark .bg-gray-100 {
+  background: #334155;
+}
+
+.dark .text-gray-900 {
+  color: #f1f5f9;
+}
+
+.dark .text-gray-800 {
+  color: #e2e8f0;
+}
+
+.dark .text-gray-700 {
+  color: #cbd5e1;
+}
+
+.dark .text-gray-600 {
+  color: #94a3b8;
+}
+
+.dark .text-gray-500 {
+  color: #64748b;
+}
+
+.dark .text-gray-400 {
+  color: #475569;
+}
+
+.dark .border-gray-200 {
+  border-color: #334155;
+}
+
+.dark .border-gray-100 {
+  border-color: #1e293b;
+}
+
+.dark .hover\:bg-gray-100:hover {
+  background: #334155;
+}
+
+.dark .hover\:bg-gray-50:hover {
+  background: #1e293b;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  background: #1e293b;
+  border-color: #3b82f6;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

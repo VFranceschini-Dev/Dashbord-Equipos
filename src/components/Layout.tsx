@@ -1,10 +1,11 @@
 import { ReactNode } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
-  Monitor, Users, Building2, FileText, ChevronRight, Settings
+  Monitor, Users, Building2, FileText, ChevronRight, Settings, Sun, Moon
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -18,6 +19,7 @@ const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'inventory', label: 'Inventario', icon: <Package size={20} /> },
   { page: 'movements', label: 'Movimientos', icon: <ArrowLeftRight size={20} /> },
   { page: 'reports', label: 'Reportes', icon: <BarChart3 size={20} /> },
+  { page: 'admin', label: 'Administración', icon: <Settings size={20} /> },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -128,6 +130,9 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Theme Toggle */}
+            <ThemeToggle />
+            
             {/* Alerts */}
             <div className="relative">
               <button 
@@ -200,10 +205,29 @@ export default function Layout({ children }: { children: ReactNode }) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50 dark:bg-gray-900">
           {children}
         </main>
       </div>
     </div>
+  );
+}
+
+// Theme Toggle Component
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  
+  return (
+    <button
+      onClick={toggleTheme}
+      className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
+      title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+    >
+      {theme === 'light' ? (
+        <Moon size={22} className="text-gray-600" />
+      ) : (
+        <Sun size={22} className="text-yellow-500" />
+      )}
+    </button>
   );
 }
