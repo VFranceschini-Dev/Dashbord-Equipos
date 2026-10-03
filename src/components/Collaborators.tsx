@@ -3,8 +3,10 @@ import { useApp } from '../context/AppContext';
 import { Collaborator } from '../types';
 import { DEPARTMENTS } from '../data';
 import {
-  Plus, Search, Edit2, Trash2, X, Users, Mail, Phone, Building, Briefcase, Calendar, CheckCircle, XCircle, Monitor
+  Plus, Search, Edit2, Trash2, X, Users, Mail, Phone, Building, Briefcase, Calendar, CheckCircle, XCircle, Monitor, Upload
 } from 'lucide-react';
+import ImportModal from './ImportModal';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function Collaborators() {
   const { collaborators, addCollaborator, updateCollaborator, deleteCollaborator, equipments } = useApp();
@@ -13,6 +15,7 @@ export default function Collaborators() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   const emptyForm: Omit<Collaborator, 'id'> = {
     name: '', lastName: '', dni: '', email: '', phone: '',
@@ -30,6 +33,20 @@ export default function Collaborators() {
   });
 
   const getEquipmentCount = (collabId: string) => equipments.filter(e => e.collaboratorId === collabId).length;
+
+  const handleImport = (importedData: any[]) => {
+    importedData.forEach(item => {
+      addCollaborator({
+        ...item,
+        id: uuidv4(),
+        active: item.active !== false,
+        equipmentCount: 0,
+        joinDate: item.joinDate || new Date().toISOString().split('T')[0],
+        notes: item.notes || '',
+      } as Collaborator);
+    });
+    setShowImport(false);
+  };
 
   const handleSubmit = () => {
     if (!form.name || !form.lastName) return;
@@ -66,10 +83,16 @@ export default function Collaborators() {
             {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
-          <Plus size={16} /> Nuevo Colaborador
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium">
+            <Upload size={16} /> Importar
+          </button>
+          <button onClick={() => { resetForm(); setShowForm(true); }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
+            <Plus size={16} /> Nuevo Colaborador
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -241,6 +264,28 @@ export default function Collaborators() {
           <p className="text-gray-500">No se encontraron colaboradores</p>
         </div>
       )}
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onImport={handleImport}
+        title="Colaboradores"
+        templateHeaders={['nombre', 'apellido', 'dni', 'email', 'telefono', 'departamento', 'cargo']}
+        mapping={{
+          'nombre': 'name', 'name': 'name',
+          'apellido': 'lastName', 'lastName': 'lastName',
+          'dni': 'dni',
+          'email': 'email',
+          'telefono': 'phone', 'phone': 'phone',
+          'departamento': 'department', 'department': 'department',
+          'cargo': 'position', 'position': 'position',
+        }}
+        validator={(row) => {
+          if (!row.name) return 'Nombre es obligatorio';
+          if (!row.lastName) return 'Apellido es obligatorio';
+          return null;
+        }}
+      />
     </div>
   );
 }

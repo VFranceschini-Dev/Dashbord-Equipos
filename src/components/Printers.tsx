@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Printer as PrinterType } from '../types';
 import {
-  Plus, Search, Edit2, Trash2, X, CheckCircle, AlertCircle, Wrench, MapPin, Building, FileText, Printer as PrinterIcon
+  Plus, Search, Edit2, Trash2, X, CheckCircle, AlertCircle, Wrench, MapPin, Building, FileText, Printer as PrinterIcon, Upload
 } from 'lucide-react';
+import ImportModal from './ImportModal';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function Printers() {
   const { printers, addPrinter, updatePrinter, deletePrinter } = useApp();
@@ -12,6 +14,7 @@ export default function Printers() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive' | 'maintenance'>('all');
+  const [showImport, setShowImport] = useState(false);
 
   const [form, setForm] = useState<Omit<PrinterType, 'id'>>({
     name: '', location: '', department: '', model: '', status: 'active',
@@ -25,6 +28,19 @@ export default function Printers() {
     const matchesFilter = filter === 'all' || p.status === filter;
     return matchesSearch && matchesFilter;
   });
+
+  const handleImport = (importedData: any[]) => {
+    importedData.forEach(item => {
+      addPrinter({
+        ...item,
+        id: uuidv4(),
+        status: item.status || 'active',
+        lastMaintenance: item.lastMaintenance || new Date().toISOString().split('T')[0],
+        totalPages: parseInt(item.totalPages) || 0,
+      } as PrinterType);
+    });
+    setShowImport(false);
+  };
 
   const handleSubmit = () => {
     if (!form.name || !form.model) return;
@@ -70,13 +86,22 @@ export default function Printers() {
             </button>
           ))}
         </div>
-        <button
-          onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
-        >
-          <Plus size={16} />
-          Nueva Impresora
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium shadow-sm"
+          >
+            <Upload size={16} />
+            Importar
+          </button>
+          <button
+            onClick={() => { resetForm(); setShowForm(true); }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
+          >
+            <Plus size={16} />
+            Nueva Impresora
+          </button>
+        </div>
       </div>
 
       <div className="relative">
@@ -259,6 +284,27 @@ export default function Printers() {
           <p className="text-gray-500">No se encontraron impresoras</p>
         </div>
       )}
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onImport={handleImport}
+        title="Impresoras"
+        templateHeaders={['nombre', 'modelo', 'ubicacion', 'departamento', 'toner', 'estado']}
+        mapping={{
+          'nombre': 'name', 'name': 'name',
+          'modelo': 'model', 'model': 'model',
+          'ubicacion': 'location', 'location': 'location',
+          'departamento': 'department', 'department': 'department',
+          'toner': 'tonerModel', 'tonerModel': 'tonerModel',
+          'estado': 'status', 'status': 'status',
+        }}
+        validator={(row) => {
+          if (!row.name) return 'Nombre es obligatorio';
+          if (!row.model) return 'Modelo es obligatorio';
+          return null;
+        }}
+      />
     </div>
   );
 }

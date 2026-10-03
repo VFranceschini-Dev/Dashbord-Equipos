@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { TonerItem } from '../types';
 import {
-  Plus, Search, Edit2, Trash2, X, AlertTriangle, Package, ArrowDownCircle
+  Plus, Search, Edit2, Trash2, X, AlertTriangle, Package, ArrowDownCircle, Upload
 } from 'lucide-react';
+import ImportModal from './ImportModal';
+import { v4 as uuidv4 } from 'uuid';
 
 const colorMap = {
   black: { bg: 'bg-gray-800', label: 'Negro', dot: 'bg-gray-800' },
@@ -20,6 +22,7 @@ export default function Inventory() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showRestock, setShowRestock] = useState<string | null>(null);
   const [restockQty, setRestockQty] = useState(1);
+  const [showImport, setShowImport] = useState(false);
 
   const [form, setForm] = useState<Omit<TonerItem, 'id'>>({
     model: '', brand: '', color: 'black', stock: 0, minStock: 2, maxStock: 10,
@@ -74,6 +77,22 @@ export default function Inventory() {
     setRestockQty(1);
   };
 
+  const handleImport = (importedData: any[]) => {
+    importedData.forEach(item => {
+      addToner({
+        ...item,
+        id: uuidv4(),
+        color: item.color || 'black',
+        stock: parseInt(item.stock) || 0,
+        minStock: parseInt(item.minStock) || 2,
+        maxStock: parseInt(item.maxStock) || 10,
+        unitPrice: parseFloat(item.unitPrice) || 0,
+        lastRestock: item.lastRestock || new Date().toISOString().split('T')[0],
+      } as TonerItem);
+    });
+    setShowImport(false);
+  };
+
   const getStockStatus = (t: TonerItem) => {
     if (t.stock <= 0) return { label: 'Sin stock', color: 'bg-red-100 text-red-700' };
     if (t.stock <= t.minStock) return { label: 'Stock bajo', color: 'bg-amber-100 text-amber-700' };
@@ -98,13 +117,22 @@ export default function Inventory() {
             className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
           />
         </div>
-        <button
-          onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
-        >
-          <Plus size={16} />
-          Nuevo Tóner
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium shadow-sm"
+          >
+            <Upload size={16} />
+            Importar
+          </button>
+          <button
+            onClick={() => { resetForm(); setShowForm(true); }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
+          >
+            <Plus size={16} />
+            Nuevo Tóner
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -371,6 +399,30 @@ export default function Inventory() {
           </div>
         )}
       </div>
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onImport={handleImport}
+        title="Tóner"
+        templateHeaders={['modelo', 'marca', 'color', 'stock', 'minStock', 'maxStock', 'precio', 'proveedor']}
+        mapping={{
+          'modelo': 'model', 'model': 'model',
+          'marca': 'brand', 'brand': 'brand',
+          'color': 'color',
+          'stock': 'stock',
+          'minStock': 'minStock',
+          'maxStock': 'maxStock',
+          'precio': 'unitPrice', 'unitPrice': 'unitPrice',
+          'proveedor': 'supplier', 'supplier': 'supplier',
+        }}
+        validator={(row) => {
+          if (!row.model) return 'Modelo es obligatorio';
+          if (!row.brand) return 'Marca es obligatoria';
+          if (!row.color) return 'Color es obligatorio';
+          return null;
+        }}
+      />
     </div>
   );
 }
