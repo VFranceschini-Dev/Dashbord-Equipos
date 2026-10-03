@@ -4,53 +4,30 @@ import { ImportResult } from './csvImporter';
 export async function importExcel<T>(
   file: File,
   mapping: Record<string, string>,
-  validator?: (row: any) => string | null,
-  sheetIndex: number = 0
+  validator?: (row: any) => string | null
 ): Promise<ImportResult<T>> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    const errors: string[] = [];
-    const rows: T[] = [];
-
+    
     reader.onload = (e) => {
       try {
-        const arrayBuffer = e.target?.result as ArrayBuffer;
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        if (workbook.SheetNames.length === 0) {
-          resolve({
-            data: [],
-            errors: ['El archivo Excel no tiene hojas'],
-            success: false,
-            totalRows: 0,
-            importedRows: 0,
-          });
-          return;
-        }
-
-        const sheetName = workbook.SheetNames[sheetIndex];
-        const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-
-        if (jsonData.length === 0) {
-          resolve({
-            data: [],
-            errors: ['La hoja de Excel está vacía'],
-            success: false,
-            totalRows: 0,
-            importedRows: 0,
-          });
-          return;
-        }
-
+        const rows: T[] = [];
+        const errors: string[] = [];
+        
         jsonData.forEach((row: any, index: number) => {
           const mappedRow: any = {};
           
-          Object.keys(row).forEach(key => {
+          for (const [key, value] of Object.entries(row)) {
             const mappedKey = mapping[key] || key;
-            mappedRow[mappedKey] = row[key];
-          });
-
+            mappedRow[mappedKey] = value;
+          }
+          
           if (validator) {
             const error = validator(mappedRow);
             if (error) {
@@ -58,10 +35,10 @@ export async function importExcel<T>(
               return;
             }
           }
-
+          
           rows.push(mappedRow as T);
         });
-
+        
         resolve({
           data: rows,
           errors,
@@ -79,7 +56,7 @@ export async function importExcel<T>(
         });
       }
     };
-
+    
     reader.onerror = () => {
       resolve({
         data: [],
@@ -89,33 +66,14 @@ export async function importExcel<T>(
         importedRows: 0,
       });
     };
-
-    reader.readAsArrayBuffer(file);
+    
+    reader.readAsBinaryString(file);
   });
 }
 
 export function downloadExcelTemplate(filename: string, headers: string[]) {
   const ws = XLSX.utils.aoa_to_sheet([headers]);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Datos');
+  XLSX.utils.book_append_sheet(wb, ws, 'Plantilla');
   XLSX.writeFile(wb, filename);
-}
-
-export function getExcelSheets(file: File): Promise<string[]> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    
-    reader.onload = (e) => {
-      try {
-        const arrayBuffer = e.target?.result as ArrayBuffer;
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        resolve(workbook.SheetNames);
-      } catch (error) {
-        resolve([]);
-      }
-    };
-
-    reader.onerror = () => resolve([]);
-    reader.readAsArrayBuffer(file);
-  });
 }
