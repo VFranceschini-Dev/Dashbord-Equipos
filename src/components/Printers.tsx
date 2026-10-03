@@ -2,18 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Printer as PrinterType } from '../types';
 import {
-  Plus,
-  Search,
-  Edit2,
-  Trash2,
-  X,
-  CheckCircle,
-  AlertCircle,
-  Wrench,
-  MapPin,
-  Building,
-  FileText,
-  Printer as PrinterIcon,
+  Plus, Search, Edit2, Trash2, X, CheckCircle, AlertCircle, Wrench, MapPin, Building, FileText, Printer as PrinterIcon
 } from 'lucide-react';
 
 export default function Printers() {
@@ -25,14 +14,8 @@ export default function Printers() {
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive' | 'maintenance'>('all');
 
   const [form, setForm] = useState<Omit<PrinterType, 'id'>>({
-    name: '',
-    location: '',
-    department: '',
-    model: '',
-    status: 'active',
-    tonerModel: '',
-    lastMaintenance: '',
-    totalPages: 0,
+    name: '', location: '', department: '', model: '', status: 'active',
+    tonerModel: '', lastMaintenance: '', totalPages: 0,
   });
 
   const filtered = printers.filter(p => {
@@ -73,7 +56,6 @@ export default function Printers() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex items-center gap-2 flex-wrap">
           {(['all', 'active', 'inactive', 'maintenance'] as const).map(f => (
@@ -97,7 +79,6 @@ export default function Printers() {
         </button>
       </div>
 
-      {/* Search */}
       <div className="relative">
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
@@ -109,7 +90,6 @@ export default function Printers() {
         />
       </div>
 
-      {/* Modal Form */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -138,7 +118,6 @@ export default function Printers() {
                     value={form.model}
                     onChange={e => setForm({ ...form, model: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
-                    placeholder="Modelo del equipo"
                   />
                 </div>
                 <div>
@@ -160,7 +139,6 @@ export default function Printers() {
                     value={form.location}
                     onChange={e => setForm({ ...form, location: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
-                    placeholder="Ubicación física"
                   />
                 </div>
                 <div>
@@ -170,7 +148,6 @@ export default function Printers() {
                     value={form.department}
                     onChange={e => setForm({ ...form, department: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
-                    placeholder="Departamento"
                   />
                 </div>
               </div>
@@ -208,9 +185,7 @@ export default function Printers() {
               </div>
             </div>
             <div className="p-5 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={resetForm} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">
-                Cancelar
-              </button>
+              <button onClick={resetForm} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">Cancelar</button>
               <button onClick={handleSubmit} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 font-medium">
                 {editingId ? 'Guardar Cambios' : 'Agregar'}
               </button>
@@ -219,25 +194,19 @@ export default function Printers() {
         </div>
       )}
 
-      {/* Delete Confirmation */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
             <h3 className="font-semibold text-lg mb-2">¿Eliminar impresora?</h3>
             <p className="text-sm text-gray-500 mb-4">Esta acción no se puede deshacer.</p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button onClick={() => { deletePrinter(deleteConfirm); setDeleteConfirm(null); }} className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700 font-medium">
-                Eliminar
-              </button>
+              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">Cancelar</button>
+              <button onClick={() => { deletePrinter(deleteConfirm); setDeleteConfirm(null); }} className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700 font-medium">Eliminar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Printer Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map(printer => (
           <div key={printer.id} className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5">

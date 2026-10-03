@@ -29,9 +29,7 @@ export default function Collaborators() {
     return matchSearch && matchDept;
   });
 
-  const getEquipmentCount = (collabId: string) => {
-    return equipments.filter(e => e.collaboratorId === collabId).length;
-  };
+  const getEquipmentCount = (collabId: string) => equipments.filter(e => e.collaboratorId === collabId).length;
 
   const handleSubmit = () => {
     if (!form.name || !form.lastName) return;
@@ -55,7 +53,6 @@ export default function Collaborators() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
         <div className="flex gap-2 flex-wrap">
           <div className="relative">
@@ -75,7 +72,6 @@ export default function Collaborators() {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <p className="text-xs text-gray-500">Total Colaboradores</p>
@@ -95,7 +91,6 @@ export default function Collaborators() {
         </div>
       </div>
 
-      {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -175,7 +170,6 @@ export default function Collaborators() {
         </div>
       )}
 
-      {/* Delete Confirm */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
@@ -189,7 +183,6 @@ export default function Collaborators() {
         </div>
       )}
 
-      {/* Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map(collab => {
           const eqCount = getEquipmentCount(collab.id);

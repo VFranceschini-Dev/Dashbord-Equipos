@@ -26,7 +26,6 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 p-4 relative overflow-hidden">
-      {/* Background pattern */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute inset-0" style={{
           backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)`,
@@ -34,12 +33,10 @@ export default function Login() {
         }} />
       </div>
       
-      {/* Decorative blobs */}
       <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
 
       <div className="relative w-full max-w-md">
-        {/* Logo and title */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-4">
             <div className="relative">
@@ -59,7 +56,6 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Login card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8 backdrop-blur-sm">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-1">Iniciar Sesión</h2>
@@ -131,7 +127,6 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Security message */}
           <div className="mt-6 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
             <div className="flex items-start gap-2">
               <Shield size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
@@ -143,7 +138,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-blue-200 text-xs mt-6">
-          © 2024 Sistema de Control de Tóner - Desarrollado por <span className="font-semibold">Sistemas PEDSA</span>
+          © 2024 Sistema de Control de Tóner - Desarrollado por <span className="font-semibold">Area Sistemas PEDSA</span>
         </p>
       </div>
     </div>

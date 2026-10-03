@@ -1,14 +1,15 @@
 import { ReactNode } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
-  Monitor, Users, Building2, FileText, ChevronRight
+  Monitor, Users, Building2, FileText, ChevronRight, Settings, Sun, Moon, Upload
 } from 'lucide-react';
 import { useState } from 'react';
 
-const navItems: { page: Page; label: string; icon: ReactNode; badge?: string }[] = [
+const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
   { page: 'equipments', label: 'Equipamientos', icon: <Monitor size={20} /> },
   { page: 'collaborators', label: 'Colaboradores', icon: <Users size={20} /> },
@@ -18,11 +19,13 @@ const navItems: { page: Page; label: string; icon: ReactNode; badge?: string }[]
   { page: 'inventory', label: 'Inventario', icon: <Package size={20} /> },
   { page: 'movements', label: 'Movimientos', icon: <ArrowLeftRight size={20} /> },
   { page: 'reports', label: 'Reportes', icon: <BarChart3 size={20} /> },
+  { page: 'import', label: 'Importar Datos', icon: <Upload size={20} /> },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { currentPage, setCurrentPage, unreadAlerts, alerts, markAlertRead } = useApp();
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
 
@@ -34,13 +37,11 @@ export default function Layout({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar mejorado */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} flex flex-col shadow-sm
       `}>
-        {/* Logo */}
         <div className="p-5 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -56,7 +57,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map(item => {
             const isActive = currentPage === item.page;
@@ -82,7 +82,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        {/* User section */}
         <div className="p-3 border-t border-gray-100">
           <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3">
             <div className="flex items-center gap-3">
@@ -105,9 +104,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header mejorado */}
         <header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
             <button 
@@ -127,7 +124,18 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Alerts */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+            >
+              {theme === 'light' ? (
+                <Moon size={20} className="text-gray-600" />
+              ) : (
+                <Sun size={20} className="text-yellow-500" />
+              )}
+            </button>
+
             <div className="relative">
               <button 
                 onClick={() => setShowAlerts(!showAlerts)} 
@@ -142,7 +150,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               </button>
 
               {showAlerts && (
-                <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 max-h-[500px] overflow-hidden">
+                <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
                   <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
                     <div className="flex items-center justify-between">
                       <div>
@@ -190,7 +198,6 @@ export default function Layout({ children }: { children: ReactNode }) {
               )}
             </div>
 
-            {/* Date badge */}
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
               <span className="text-xs font-medium text-gray-600">Sistema activo</span>
@@ -198,7 +205,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gray-50">
           {children}
         </main>

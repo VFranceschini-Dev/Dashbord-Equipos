@@ -2,14 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { TonerItem } from '../types';
 import {
-  Plus,
-  Search,
-  Edit2,
-  Trash2,
-  X,
-  AlertTriangle,
-  Package,
-  ArrowDownCircle,
+  Plus, Search, Edit2, Trash2, X, AlertTriangle, Package, ArrowDownCircle
 } from 'lucide-react';
 
 const colorMap = {
@@ -29,15 +22,8 @@ export default function Inventory() {
   const [restockQty, setRestockQty] = useState(1);
 
   const [form, setForm] = useState<Omit<TonerItem, 'id'>>({
-    model: '',
-    brand: '',
-    color: 'black',
-    stock: 0,
-    minStock: 2,
-    maxStock: 10,
-    unitPrice: 0,
-    supplier: '',
-    lastRestock: '',
+    model: '', brand: '', color: 'black', stock: 0, minStock: 2, maxStock: 10,
+    unitPrice: 0, supplier: '', lastRestock: '',
   });
 
   const filtered = toners.filter(t =>
@@ -101,7 +87,6 @@ export default function Inventory() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="relative flex-1 max-w-md">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -122,7 +107,6 @@ export default function Inventory() {
         </button>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <p className="text-xs text-gray-500 font-medium">Total Modelos</p>
@@ -144,7 +128,6 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -254,9 +237,7 @@ export default function Inventory() {
               </div>
             </div>
             <div className="p-5 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={resetForm} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">
-                Cancelar
-              </button>
+              <button onClick={resetForm} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">Cancelar</button>
               <button onClick={handleSubmit} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 font-medium">
                 {editingId ? 'Guardar Cambios' : 'Agregar'}
               </button>
@@ -265,7 +246,6 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* Restock Modal */}
       {showRestock && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
@@ -284,36 +264,26 @@ export default function Inventory() {
               />
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowRestock(null)} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button onClick={() => handleRestock(showRestock)} className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 font-medium">
-                Reponer
-              </button>
+              <button onClick={() => setShowRestock(null)} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">Cancelar</button>
+              <button onClick={() => handleRestock(showRestock)} className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 font-medium">Reponer</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
             <h3 className="font-semibold text-lg mb-2">¿Eliminar tóner?</h3>
             <p className="text-sm text-gray-500 mb-4">Esta acción no se puede deshacer.</p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button onClick={() => { deleteToner(deleteConfirm); setDeleteConfirm(null); }} className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700 font-medium">
-                Eliminar
-              </button>
+              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">Cancelar</button>
+              <button onClick={() => { deleteToner(deleteConfirm); setDeleteConfirm(null); }} className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700 font-medium">Eliminar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Inventory Table */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -397,7 +367,7 @@ export default function Inventory() {
         {filtered.length === 0 && (
           <div className="text-center py-12">
             <Package size={48} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500">No se encontraron tóners</p>
+            <p className="text-gray-500">No se encontraron tóner</p>
           </div>
         )}
       </div>

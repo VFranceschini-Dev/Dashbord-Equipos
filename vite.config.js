@@ -3,29 +3,13 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [
-    react({
-      babel: {
-        parserOpts: {
-          plugins: ['decorators-legacy', 'classProperties']
-        }
-      }
-    }),
-    tailwindcss()
-  ],
+  plugins: [react(), tailwindcss()],
   server: {
-    host: "localhost",
-    port: 5173,
-    strictPort: false,
+    host: "0.0.0.0",
+    port: 3000,
+    strictPort: true,
     hmr: {
-      port: 5173,
-      protocol: 'ws',
-      clientPort: 5173,
+      port: 3000,
     },
-  },
-  preview: {
-    host: "localhost",
-    port: 5173,
-    strictPort: false,
   },
 });

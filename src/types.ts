@@ -45,7 +45,6 @@ export interface Alert {
   read: boolean;
 }
 
-// Nuevas interfaces para ABM
 export interface Equipment {
   id: string;
   name: string;
@@ -60,7 +59,6 @@ export interface Equipment {
   purchaseDate: string;
   warrantyEnd: string;
   notes: string;
-  meshNodeId?: string;
 }
 
 export interface Supplier {
@@ -106,4 +104,4 @@ export interface Voucher {
   notes: string;
 }
 
-export type Page = 'dashboard' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers';
+export type Page = 'dashboard' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'import';

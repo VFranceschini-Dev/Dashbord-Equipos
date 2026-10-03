@@ -50,7 +50,6 @@ export default function Suppliers() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
         <div className="flex gap-2 flex-wrap">
           <div className="relative">
@@ -70,7 +69,6 @@ export default function Suppliers() {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <p className="text-xs text-gray-500">Total Proveedores</p>
@@ -90,7 +88,6 @@ export default function Suppliers() {
         </div>
       </div>
 
-      {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -163,7 +160,6 @@ export default function Suppliers() {
         </div>
       )}
 
-      {/* Delete Confirm */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
@@ -177,7 +173,6 @@ export default function Suppliers() {
         </div>
       )}
 
-      {/* Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map(supplier => (
           <div key={supplier.id} className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5">

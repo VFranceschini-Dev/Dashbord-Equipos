@@ -6,54 +6,38 @@ import { v4 as uuidv4 } from 'uuid';
 interface AppContextType {
   currentPage: Page;
   setCurrentPage: (page: Page) => void;
-  
-  // Printers
   printers: Printer[];
   setPrinters: React.Dispatch<React.SetStateAction<Printer[]>>;
   addPrinter: (printer: Omit<Printer, 'id'>) => void;
   updatePrinter: (id: string, data: Partial<Printer>) => void;
   deletePrinter: (id: string) => void;
-  
-  // Toners
   toners: TonerItem[];
   setToners: React.Dispatch<React.SetStateAction<TonerItem[]>>;
   addToner: (toner: Omit<TonerItem, 'id'>) => void;
   updateToner: (id: string, data: Partial<TonerItem>) => void;
   deleteToner: (id: string) => void;
-  
-  // Movements
   movements: Movement[];
   setMovements: React.Dispatch<React.SetStateAction<Movement[]>>;
   addMovement: (movement: Omit<Movement, 'id'>) => void;
-  
-  // Alerts
   alerts: Alert[];
   setAlerts: React.Dispatch<React.SetStateAction<Alert[]>>;
   markAlertRead: (id: string) => void;
   unreadAlerts: number;
-  
-  // Equipments (NUEVO)
   equipments: Equipment[];
   setEquipments: React.Dispatch<React.SetStateAction<Equipment[]>>;
   addEquipment: (equipment: Omit<Equipment, 'id'>) => void;
   updateEquipment: (id: string, data: Partial<Equipment>) => void;
   deleteEquipment: (id: string) => void;
-  
-  // Suppliers (NUEVO)
   suppliers: Supplier[];
   setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>>;
   addSupplier: (supplier: Omit<Supplier, 'id'>) => void;
   updateSupplier: (id: string, data: Partial<Supplier>) => void;
   deleteSupplier: (id: string) => void;
-  
-  // Collaborators (NUEVO)
   collaborators: Collaborator[];
   setCollaborators: React.Dispatch<React.SetStateAction<Collaborator[]>>;
   addCollaborator: (collaborator: Omit<Collaborator, 'id'>) => void;
   updateCollaborator: (id: string, data: Partial<Collaborator>) => void;
   deleteCollaborator: (id: string) => void;
-  
-  // Vouchers (NUEVO)
   vouchers: Voucher[];
   setVouchers: React.Dispatch<React.SetStateAction<Voucher[]>>;
   addVoucher: (voucher: Omit<Voucher, 'id'>) => void;
@@ -74,7 +58,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [collaborators, setCollaborators] = useState<Collaborator[]>(initialCollaborators);
   const [vouchers, setVouchers] = useState<Voucher[]>(initialVouchers);
 
-  // Printers
   const addPrinter = (printer: Omit<Printer, 'id'>) => {
     setPrinters(prev => [...prev, { ...printer, id: uuidv4() }]);
   };
@@ -85,7 +68,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPrinters(prev => prev.filter(p => p.id !== id));
   };
 
-  // Toners
   const addToner = (toner: Omit<TonerItem, 'id'>) => {
     setToners(prev => [...prev, { ...toner, id: uuidv4() }]);
   };
@@ -96,18 +78,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setToners(prev => prev.filter(t => t.id !== id));
   };
 
-  // Movements
   const addMovement = (movement: Omit<Movement, 'id'>) => {
     setMovements(prev => [{ ...movement, id: uuidv4() }, ...prev]);
   };
 
-  // Alerts
   const markAlertRead = (id: string) => {
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
   };
   const unreadAlerts = alerts.filter(a => !a.read).length;
 
-  // Equipments
   const addEquipment = (equipment: Omit<Equipment, 'id'>) => {
     setEquipments(prev => [...prev, { ...equipment, id: uuidv4() }]);
   };
@@ -118,7 +97,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEquipments(prev => prev.filter(e => e.id !== id));
   };
 
-  // Suppliers
   const addSupplier = (supplier: Omit<Supplier, 'id'>) => {
     setSuppliers(prev => [...prev, { ...supplier, id: uuidv4() }]);
   };
@@ -129,7 +107,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSuppliers(prev => prev.filter(s => s.id !== id));
   };
 
-  // Collaborators
   const addCollaborator = (collaborator: Omit<Collaborator, 'id'>) => {
     setCollaborators(prev => [...prev, { ...collaborator, id: uuidv4() }]);
   };
@@ -140,7 +117,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCollaborators(prev => prev.filter(c => c.id !== id));
   };
 
-  // Vouchers
   const addVoucher = (voucher: Omit<Voucher, 'id'>) => {
     setVouchers(prev => [...prev, { ...voucher, id: uuidv4() }]);
   };

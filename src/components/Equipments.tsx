@@ -4,7 +4,7 @@ import { Equipment } from '../types';
 import { EQUIPMENT_CATEGORIES } from '../data';
 import {
   Plus, Search, Edit2, Trash2, X, Monitor, Laptop, Server,
-  HardDrive, Mouse, Package, Filter, Tag, User, Calendar
+  HardDrive, Mouse, Package, Tag, User
 } from 'lucide-react';
 
 const typeIcons = {
@@ -45,7 +45,7 @@ export default function Equipments() {
   const emptyForm: Omit<Equipment, 'id'> = {
     name: '', type: 'desktop', brand: '', model: '', serialNumber: '',
     assetTag: '', category: 'Informática', status: 'available',
-    collaboratorId: '', purchaseDate: '', warrantyEnd: '', notes: '', meshNodeId: '',
+    collaboratorId: '', purchaseDate: '', warrantyEnd: '', notes: '',
   };
   const [form, setForm] = useState<Omit<Equipment, 'id'>>(emptyForm);
 
@@ -90,7 +90,6 @@ export default function Equipments() {
     return c ? `${c.name} ${c.lastName}` : 'Sin asignar';
   };
 
-  // Stats
   const stats = {
     total: equipments.length,
     assigned: equipments.filter(e => e.status === 'assigned').length,
@@ -100,7 +99,6 @@ export default function Equipments() {
 
   return (
     <div className="space-y-5">
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <p className="text-xs text-gray-500 font-medium">Total Equipos</p>
@@ -120,7 +118,6 @@ export default function Equipments() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col lg:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -155,7 +152,6 @@ export default function Equipments() {
         </button>
       </div>
 
-      {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -168,7 +164,7 @@ export default function Equipments() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
                   <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-400 outline-none text-sm" placeholder="Ej: PC Contabilidad 01" />
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" placeholder="Ej: PC Contabilidad 01" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo *</label>
@@ -225,11 +221,6 @@ export default function Equipments() {
                     {collaborators.map(c => <option key={c.id} value={c.id}>{c.name} {c.lastName}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ID MeshCentral</label>
-                  <input type="text" value={form.meshNodeId || ''} onChange={e => setForm({ ...form, meshNodeId: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" placeholder="Vincular con MeshCentral" />
-                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -259,7 +250,6 @@ export default function Equipments() {
         </div>
       )}
 
-      {/* Delete Confirm */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
@@ -273,7 +263,6 @@ export default function Equipments() {
         </div>
       )}
 
-      {/* Table */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">

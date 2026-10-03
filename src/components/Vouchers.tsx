@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Voucher } from '../types';
 import {
-  Plus, Search, Edit2, Trash2, X, FileText, DollarSign, Calendar, Building, CheckCircle, Clock, XCircle, Filter
+  Plus, Search, Edit2, Trash2, X, FileText, DollarSign, Calendar, Building, CheckCircle, Clock, XCircle
 } from 'lucide-react';
 
 const typeConfig = {
@@ -75,7 +75,6 @@ export default function Vouchers() {
 
   return (
     <div className="space-y-5">
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <p className="text-xs text-gray-500">Total Comprobantes</p>
@@ -95,7 +94,6 @@ export default function Vouchers() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
         <div className="flex gap-2 flex-wrap">
           <div className="relative">
@@ -120,7 +118,6 @@ export default function Vouchers() {
         </button>
       </div>
 
-      {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -201,7 +198,6 @@ export default function Vouchers() {
         </div>
       )}
 
-      {/* Delete Confirm */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
@@ -215,7 +211,6 @@ export default function Vouchers() {
         </div>
       )}
 
-      {/* Table */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">

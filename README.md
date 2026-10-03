@@ -1,6 +1,6 @@
-# Sistema de Control de Tóner - Rama Principal
+# Sistema de Control de Tóner
 
-Sistema integral de gestión de impresión, equipamientos, colaboradores, proveedores y comprobantes desarrollado por **Sistemas PEDSA**.
+Sistema integral de gestión de impresión, equipamientos y monitoreo remoto desarrollado por **Area Sistemas PEDSA**.
 
 ## 🚀 Características
 
@@ -20,6 +20,7 @@ Sistema integral de gestión de impresión, equipamientos, colaboradores, provee
 
 ✅ **Autenticación Segura** - Login con email y contraseña  
 ✅ **Diseño Responsive** - Interfaz adaptable a todos los dispositivos  
+✅ **Tema Oscuro/Claro** - Toggle para cambiar entre modos  
 ✅ **Estilo Figma** - UI moderna con gradientes, glassmorphism y animaciones  
 ✅ **Alertas Automáticas** - Notificaciones de stock bajo y mantenimiento  
 ✅ **Exportación de Datos** - Reportes en formato JSON  
@@ -51,11 +52,12 @@ npm run build
 - **React 18** - Framework de UI
 - **TypeScript** - Tipado estático
 - **Vite** - Build tool y dev server
-- **Tailwind CSS 4** - Framework CSS
+- **Tailwind CSS** - Framework CSS
 - **Lucide React** - Iconos
 - **Recharts** - Gráficos y visualizaciones
 - **date-fns** - Manipulación de fechas
 - **uuid** - Generación de IDs únicos
+- **xlsx** - Importación/exportación de archivos Excel
 
 ## 📁 Estructura del Proyecto
 
@@ -75,7 +77,11 @@ src/
 │   └── Reports.tsx     # Reportes y análisis
 ├── context/            # Contextos React
 │   ├── AppContext.tsx  # Estado global de la aplicación
-│   └── AuthContext.tsx # Estado de autenticación
+│   ├── AuthContext.tsx # Estado de autenticación
+│   └── ThemeContext.tsx # Estado del tema (oscuro/claro)
+├── utils/              # Utilidades
+│   ├── csvImporter.ts  # Importación CSV
+│   └── excelImporter.ts # Importación Excel
 ├── types.ts           # Tipos TypeScript
 ├── data.ts           # Datos iniciales y constantes
 ├── App.tsx           # Componente principal
@@ -85,7 +91,7 @@ src/
 
 ## 🎨 Diseño UI/UX
 
-El sistema utiliza un diseño moderno inspirado en Figma con:
+El sistema utiliza un diseño moderno estilo Figma con:
 
 - **Gradientes sutiles** en headers y cards
 - **Glassmorphism** en elementos flotantes
@@ -143,14 +149,14 @@ El sistema utiliza un diseño moderno inspirado en Figma con:
 
 ## 📝 Créditos
 
-**Desarrollado por:** Sistemas PEDSA  
+**Desarrollado por:** Area Sistemas PEDSA  
 **Versión:** 2.0.0  
 **Año:** 2024
 
 ## 📄 Licencia
 
-Todos los derechos reservados - VFranceschini-Dev
+Todos los derechos reservados - Area Sistemas PEDSA
 
 ---
 
-Para más información o soporte
+Para más información o soporte, contacta a Area Sistemas PEDSA.

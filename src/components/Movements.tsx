@@ -2,22 +2,14 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Movement } from '../types';
 import {
-  Plus,
-  Search,
-  X,
-  CheckCircle,
-  Package,
-  ArrowLeftRight,
-  Trash2,
-  Filter,
-  Calendar,
+  Plus, Search, X, CheckCircle, Package, ArrowLeftRight, Trash2, Filter, Calendar
 } from 'lucide-react';
 
 const typeConfig = {
-  delivery: { icon: <CheckCircle size={16} />, label: 'Entrega', color: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
-  restock: { icon: <Package size={16} />, label: 'Reposición', color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
-  return: { icon: <ArrowLeftRight size={16} />, label: 'Devolución', color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
-  disposal: { icon: <Trash2 size={16} />, label: 'Desecho', color: 'bg-red-100 text-red-700', dot: 'bg-red-500' },
+  delivery: { icon: <CheckCircle size={16} />, label: 'Entrega', color: 'bg-blue-100 text-blue-700' },
+  restock: { icon: <Package size={16} />, label: 'Reposición', color: 'bg-emerald-100 text-emerald-700' },
+  return: { icon: <ArrowLeftRight size={16} />, label: 'Devolución', color: 'bg-amber-100 text-amber-700' },
+  disposal: { icon: <Trash2 size={16} />, label: 'Desecho', color: 'bg-red-100 text-red-700' },
 };
 
 export default function Movements() {
@@ -53,7 +45,6 @@ export default function Movements() {
     if (!form.tonerModel || form.quantity <= 0) return;
     addMovement(form);
 
-    // Update toner stock
     if (form.tonerId) {
       const toner = toners.find(t => t.id === form.tonerId);
       if (toner) {
@@ -91,7 +82,6 @@ export default function Movements() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex items-center gap-2 flex-wrap">
           <Filter size={16} className="text-gray-400" />
@@ -116,7 +106,6 @@ export default function Movements() {
         </button>
       </div>
 
-      {/* Search and Date Filter */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -139,7 +128,6 @@ export default function Movements() {
         </div>
       </div>
 
-      {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -236,18 +224,13 @@ export default function Movements() {
               </div>
             </div>
             <div className="p-5 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={resetForm} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button onClick={handleSubmit} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 font-medium">
-                Registrar Movimiento
-              </button>
+              <button onClick={resetForm} className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">Cancelar</button>
+              <button onClick={handleSubmit} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 font-medium">Registrar Movimiento</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Movements List */}
       <div className="space-y-3">
         {filtered.map(movement => (
           <div key={movement.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow">

@@ -15,7 +15,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Credenciales por defecto
 const DEFAULT_USERS = [
   { email: 'soporte@donnet.com.ar', password: '6mn78az39*', name: 'Administrador', role: 'admin' as const },
   { email: 'usuario@donnet.com.ar', password: 'user123', name: 'Ana García', role: 'user' as const },
@@ -23,7 +22,6 @@ const DEFAULT_USERS = [
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
-    // Verificar si hay sesión guardada
     const savedUser = localStorage.getItem('toner_user');
     return savedUser ? JSON.parse(savedUser) : null;
   });

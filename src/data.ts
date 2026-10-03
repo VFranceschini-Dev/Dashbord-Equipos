@@ -1,8 +1,5 @@
 import { Printer, TonerItem, Movement, Alert, Equipment, Supplier, Collaborator, Voucher } from './types';
 
-// Datos vacíos - el sistema comienza sin datos predefinidos
-// Los datos se agregarán a través de la interfaz de usuario
-
 export const initialPrinters: Printer[] = [];
 export const initialToners: TonerItem[] = [];
 export const initialMovements: Movement[] = [];
@@ -12,7 +9,6 @@ export const initialSuppliers: Supplier[] = [];
 export const initialCollaborators: Collaborator[] = [];
 export const initialVouchers: Voucher[] = [];
 
-// Categorías predefinidas
 export const EQUIPMENT_CATEGORIES = [
   'Informática',
   'Impresión',

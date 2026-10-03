@@ -1,11 +1,13 @@
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
 import {
   Printer, Package, AlertTriangle, Monitor, Server, Users, Building2, FileText,
-  TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight
+  TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight, Sun, Moon
 } from 'lucide-react';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts, equipments, suppliers, collaborators, setCurrentPage } = useApp();
+  const { theme, toggleTheme } = useTheme();
 
   const activePrinters = printers.filter(p => p.status === 'active').length;
   const lowStockItems = toners.filter(t => t.stock <= t.minStock).length;
@@ -105,7 +107,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
-      {/* Hero Header */}
       <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-2xl p-6 lg:p-8 shadow-xl">
         <div className="absolute inset-0 opacity-20">
           <div className="absolute inset-0" style={{
@@ -127,6 +128,13 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={toggleTheme}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-3 text-white hover:bg-white/20 transition-colors"
+              title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+            >
+              {theme === 'light' ? <Moon size={24} /> : <Sun size={24} />}
+            </button>
             <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-2.5 text-white">
               <p className="text-xs text-blue-200">Fecha</p>
               <p className="text-sm font-semibold">
@@ -143,7 +151,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Main Stats - Cards grandes */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {mainStats.map((stat, i) => {
           const Icon = stat.icon;
@@ -153,7 +160,6 @@ export default function Dashboard() {
               onClick={() => setCurrentPage(stat.page)}
               className="group relative bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-lg hover:border-gray-200 transition-all duration-300 text-left overflow-hidden"
             >
-              {/* Decorative gradient blob */}
               <div className={`absolute -top-8 -right-8 w-24 h-24 bg-gradient-to-br ${stat.gradient} opacity-10 rounded-full blur-2xl group-hover:opacity-20 transition-opacity`} />
               
               <div className="relative">
@@ -182,7 +188,6 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Secondary Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {secondaryStats.map((stat, i) => {
           const Icon = stat.icon;
@@ -207,7 +212,6 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Alerts Section */}
       {unreadAlerts > 0 && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-5">
@@ -250,7 +254,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Welcome State */}
       {equipments.length === 0 && collaborators.length === 0 && (
         <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-8 border border-blue-100">
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200 to-purple-200 opacity-20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
@@ -284,7 +287,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Footer Credits - Estilo Figma */}
       <div className="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 opacity-[0.03]" />
         <div className="relative p-6">
@@ -298,17 +300,19 @@ export default function Dashboard() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-800">
-                  Dashboard desarrollado por Sistemas PEDSA
+                  Desarrollado por Area Sistemas PEDSA
                 </h3>
-                <p className="text-xs text-gray-500">
-                  Sistema integral de gestión de impresión y equipamientos
-                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-xs text-gray-400">Versión</p>
                 <p className="text-xs font-semibold text-gray-700">2.0.0</p>
+              </div>
+              <div className="h-10 w-px bg-gray-200" />
+              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-full border border-emerald-200">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-xs font-semibold text-emerald-700">Sistema Activo</span>
               </div>
             </div>
           </div>

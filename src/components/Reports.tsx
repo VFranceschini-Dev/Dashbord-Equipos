@@ -25,13 +25,11 @@ import {
 export default function Reports() {
   const { printers, toners, movements } = useApp();
 
-  // Cost analysis
   const totalInventoryValue = toners.reduce((sum, t) => sum + t.stock * t.unitPrice, 0);
   const totalDelivered = movements.filter(m => m.type === 'delivery').reduce((sum, m) => sum + m.quantity, 0);
   const totalRestocked = movements.filter(m => m.type === 'restock').reduce((sum, m) => sum + m.quantity, 0);
   const totalDisposed = movements.filter(m => m.type === 'disposal').reduce((sum, m) => sum + m.quantity, 0);
 
-  // Department usage
   const deptUsage = printers.reduce((acc, p) => {
     const dept = p.department;
     if (!acc[dept]) acc[dept] = { name: dept, pages: 0, printers: 0 };
@@ -41,7 +39,6 @@ export default function Reports() {
   }, {} as Record<string, { name: string; pages: number; printers: number }>);
   const deptData = Object.values(deptUsage).sort((a, b) => b.pages - a.pages);
 
-  // Monthly spending (simulated)
   const monthlySpending = [
     { month: 'Ago', gasto: 420, entregas: 3 },
     { month: 'Sep', gasto: 580, entregas: 5 },
@@ -51,7 +48,6 @@ export default function Reports() {
     { month: 'Ene', gasto: 520, entregas: 4 },
   ];
 
-  // Toner brand distribution
   const brandData = toners.reduce((acc, t) => {
     const existing = acc.find(a => a.name === t.brand);
     if (existing) {
@@ -64,7 +60,6 @@ export default function Reports() {
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
-  // Printer efficiency
   const printerEfficiency = printers
     .filter(p => p.status === 'active')
     .map(p => ({
@@ -105,7 +100,6 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      {/* Export Button */}
       <div className="flex justify-end">
         <button
           onClick={handleExport}
@@ -116,7 +110,6 @@ export default function Reports() {
         </button>
       </div>
 
-      {/* Summary Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg">
           <div className="flex items-center justify-between">
@@ -156,9 +149,7 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly Spending */}
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
             <DollarSign size={18} className="text-emerald-500" />
@@ -175,7 +166,6 @@ export default function Reports() {
           </ResponsiveContainer>
         </div>
 
-        {/* Brand Distribution */}
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
             <Package size={18} className="text-blue-500" />
@@ -202,9 +192,7 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Department Usage */}
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
             <Printer size={18} className="text-purple-500" />
@@ -221,7 +209,6 @@ export default function Reports() {
           </ResponsiveContainer>
         </div>
 
-        {/* Printer Efficiency */}
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
             <TrendingUp size={18} className="text-amber-500" />
@@ -239,58 +226,63 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Detailed Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Consumed Toners */}
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-gray-800 mb-4">Tóners Más Utilizados</h3>
           <div className="space-y-3">
-            {toners
-              .map(t => ({
-                ...t,
-                deliveries: movements.filter(m => m.tonerModel === t.model && m.type === 'delivery').reduce((s, m) => s + m.quantity, 0),
-              }))
-              .sort((a, b) => b.deliveries - a.deliveries)
-              .slice(0, 5)
-              .map((toner, i) => (
-                <div key={toner.id} className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-gray-400 w-6">#{i + 1}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">{toner.model}</span>
-                      <span className="text-sm text-gray-500">{toner.deliveries} entregas</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1">
-                      <div
-                        className="h-full bg-blue-500 rounded-full"
-                        style={{ width: `${Math.min((toner.deliveries / Math.max(...toners.map(t => movements.filter(m => m.tonerModel === t.model && m.type === 'delivery').reduce((s, m) => s + m.quantity, 0)))) * 100, 100)}%` }}
-                      />
+            {toners.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">Sin datos disponibles</p>
+            ) : (
+              toners
+                .map(t => ({
+                  ...t,
+                  deliveries: movements.filter(m => m.tonerModel === t.model && m.type === 'delivery').reduce((s, m) => s + m.quantity, 0),
+                }))
+                .sort((a, b) => b.deliveries - a.deliveries)
+                .slice(0, 5)
+                .map((toner, i) => (
+                  <div key={toner.id} className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-gray-400 w-6">#{i + 1}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">{toner.model}</span>
+                        <span className="text-sm text-gray-500">{toner.deliveries} entregas</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1">
+                        <div
+                          className="h-full bg-blue-500 rounded-full"
+                          style={{ width: `${Math.min((toner.deliveries / Math.max(...toners.map(t => movements.filter(m => m.tonerModel === t.model && m.type === 'delivery').reduce((s, m) => s + m.quantity, 0)))) * 100, 100)}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+            )}
           </div>
         </div>
 
-        {/* Department Summary */}
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-gray-800 mb-4">Resumen por Departamento</h3>
           <div className="space-y-3">
-            {deptData.map((dept, i) => (
-              <div key={dept.name} className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold`} style={{ backgroundColor: COLORS[i % COLORS.length] }}>
-                  {dept.name.charAt(0)}
+            {deptData.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">Sin datos disponibles</p>
+            ) : (
+              deptData.map((dept, i) => (
+                <div key={dept.name} className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold`} style={{ backgroundColor: COLORS[i % COLORS.length] }}>
+                    {dept.name.charAt(0)}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-700">{dept.name}</p>
+                    <p className="text-xs text-gray-400">{dept.printers} impresora{dept.printers !== 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-gray-700">{dept.pages.toLocaleString()}</p>
+                    <p className="text-xs text-gray-400">páginas</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-700">{dept.name}</p>
-                  <p className="text-xs text-gray-400">{dept.printers} impresora{dept.printers !== 1 ? 's' : ''}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-gray-700">{dept.pages.toLocaleString()}</p>
-                  <p className="text-xs text-gray-400">páginas</p>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
