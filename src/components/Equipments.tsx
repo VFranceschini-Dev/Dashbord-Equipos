@@ -4,8 +4,10 @@ import { Equipment } from '../types';
 import { EQUIPMENT_CATEGORIES } from '../data';
 import {
   Plus, Search, Edit2, Trash2, X, Monitor, Laptop, Server,
-  HardDrive, Mouse, Package, Tag, User
+  HardDrive, Mouse, Package, Tag, User, Upload
 } from 'lucide-react';
+import ImportModal from './ImportModal';
+import { v4 as uuidv4 } from 'uuid';
 
 const typeIcons = {
   desktop: <Monitor size={16} />,
@@ -41,6 +43,7 @@ export default function Equipments() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   const emptyForm: Omit<Equipment, 'id'> = {
     name: '', type: 'desktop', brand: '', model: '', serialNumber: '',
@@ -88,6 +91,22 @@ export default function Equipments() {
     if (!id) return '-';
     const c = collaborators.find(c => c.id === id);
     return c ? `${c.name} ${c.lastName}` : 'Sin asignar';
+  };
+
+  const handleImport = (importedData: any[]) => {
+    importedData.forEach(item => {
+      addEquipment({
+        ...item,
+        id: uuidv4(),
+        type: item.type || 'desktop',
+        status: item.status || 'available',
+        category: item.category || 'Informática',
+        purchaseDate: item.purchaseDate || new Date().toISOString().split('T')[0],
+        warrantyEnd: item.warrantyEnd || '',
+        notes: item.notes || '',
+      } as Equipment);
+    });
+    setShowImport(false);
   };
 
   const stats = {
@@ -146,10 +165,16 @@ export default function Equipments() {
             {Object.entries(statusConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
-          <Plus size={16} /> Nuevo Equipo
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium">
+            <Upload size={16} /> Importar
+          </button>
+          <button onClick={() => { resetForm(); setShowForm(true); }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
+            <Plus size={16} /> Nuevo Equipo
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -324,6 +349,28 @@ export default function Equipments() {
           </div>
         )}
       </div>
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onImport={handleImport}
+        title="Equipos"
+        templateHeaders={['nombre', 'tipo', 'marca', 'modelo', 'serial', 'codigo', 'categoria']}
+        mapping={{
+          'nombre': 'name', 'name': 'name',
+          'tipo': 'type', 'type': 'type',
+          'marca': 'brand', 'brand': 'brand',
+          'modelo': 'model', 'model': 'model',
+          'serial': 'serialNumber', 'serialNumber': 'serialNumber',
+          'codigo': 'assetTag', 'assetTag': 'assetTag',
+          'categoria': 'category', 'category': 'category',
+        }}
+        validator={(row) => {
+          if (!row.name) return 'Nombre es obligatorio';
+          if (!row.brand) return 'Marca es obligatoria';
+          return null;
+        }}
+      />
     </div>
   );
 }
