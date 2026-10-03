@@ -1,7 +1,6 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { ImportResult } from './csvImporter';
 
-// Configurar worker de PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export async function importPdf<T>(
@@ -18,11 +17,9 @@ export async function importPdf<T>(
       try {
         const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
         
-        // Cargar el PDF
         const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
         let fullText = '';
         
-        // Extraer texto de todas las páginas
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
@@ -32,7 +29,6 @@ export async function importPdf<T>(
           fullText += pageText + '\n';
         }
         
-        // Parsear el texto buscando líneas con delimitadores
         const lines = fullText.split('\n').filter(line => line.trim());
         
         if (lines.length < 2) {
@@ -46,12 +42,11 @@ export async function importPdf<T>(
           return;
         }
 
-        // Detectar delimitador (coma, tabulación, punto y coma, o múltiples espacios)
         const firstLine = lines[0];
         let delimiter = ',';
         if (firstLine.includes('\t')) delimiter = '\t';
         else if (firstLine.includes(';')) delimiter = ';';
-        else if (firstLine.includes('  ')) delimiter = '  '; // Doble espacio
+        else if (firstLine.includes('  ')) delimiter = '  ';
 
         const headers = firstLine.split(delimiter).map(h => h.trim().replace(/"/g, ''));
         

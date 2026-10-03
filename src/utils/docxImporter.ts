@@ -15,11 +15,9 @@ export async function importDocx<T>(
       try {
         const arrayBuffer = e.target?.result as ArrayBuffer;
         
-        // Extraer texto del DOCX
         const result = await mammoth.extractRawText({ arrayBuffer });
         const text = result.value;
         
-        // Parsear el texto buscando tablas o líneas con delimitadores
         const lines = text.split('\n').filter(line => line.trim());
         
         if (lines.length < 2) {
@@ -33,7 +31,6 @@ export async function importDocx<T>(
           return;
         }
 
-        // Detectar delimitador (coma, tabulación, punto y coma)
         const firstLine = lines[0];
         let delimiter = ',';
         if (firstLine.includes('\t')) delimiter = '\t';

@@ -14,7 +14,7 @@ export async function importCSV<T>(
   return new Promise((resolve) => {
     const reader = new FileReader();
     const errors: string[] = [];
-    const data: T[] = [];
+    const rows: T[] = [];
 
     reader.onload = (e) => {
       try {
@@ -51,15 +51,15 @@ export async function importCSV<T>(
             }
           }
 
-          data.push(row as T);
+          rows.push(row as T);
         }
 
         resolve({
-          data,
+          data: rows,
           errors,
           success: errors.length === 0,
           totalRows: lines.length - 1,
-          importedRows: data.length,
+          importedRows: rows.length,
         });
       } catch (error) {
         resolve({

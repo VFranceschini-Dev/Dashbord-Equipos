@@ -10,7 +10,7 @@ export async function importExcel<T>(
   return new Promise((resolve) => {
     const reader = new FileReader();
     const errors: string[] = [];
-    const data: T[] = [];
+    const rows: T[] = [];
 
     reader.onload = (e) => {
       try {
@@ -59,15 +59,15 @@ export async function importExcel<T>(
             }
           }
 
-          data.push(mappedRow as T);
+          rows.push(mappedRow as T);
         });
 
         resolve({
-          data,
+          data: rows,
           errors,
           success: errors.length === 0,
           totalRows: jsonData.length,
-          importedRows: data.length,
+          importedRows: rows.length,
         });
       } catch (error) {
         resolve({
