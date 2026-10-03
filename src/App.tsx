@@ -12,6 +12,7 @@ import Equipments from './components/Equipments';
 import Suppliers from './components/Suppliers';
 import Collaborators from './components/Collaborators';
 import Vouchers from './components/Vouchers';
+import ImportData from './components/ImportData';
 
 function PageRouter() {
   const { currentPage } = useApp();
@@ -35,6 +36,8 @@ function PageRouter() {
       return <Collaborators />;
     case 'vouchers':
       return <Vouchers />;
+    case 'import':
+      return <ImportData />;
     default:
       return <Dashboard />;
   }

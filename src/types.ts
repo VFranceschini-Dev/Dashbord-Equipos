@@ -104,4 +104,4 @@ export interface Voucher {
   notes: string;
 }
 
-export type Page = 'dashboard' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers';
+export type Page = 'dashboard' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'import';
