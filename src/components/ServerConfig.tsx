@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { ExternalServer } from '../types';
 import * as db from '../services/localDatabase';
+import { testServerConnection } from '../services/serverServiceRegistry';
+import { notifyConnectionSuccess, notifyConnectionError } from '../services/notifications';
+import ConnectionTester from './ConnectionTester';
 import { v4 as uuidv4 } from 'uuid';
 import {
   Server, Plus, Edit2, Trash2, X, Save, Wifi, WifiOff,
@@ -13,6 +16,8 @@ export default function ServerConfig() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ serverId: string; success: boolean; message: string } | null>(null);
+  const [testingServerId, setTestingServerId] = useState<string | null>(null);
+  const [showConnectionTester, setShowConnectionTester] = useState<ExternalServer | null>(null);
 
   const emptyForm: Omit<ExternalServer, 'id' | 'createdAt' | 'updatedAt'> = {
     name: '',
@@ -80,27 +85,41 @@ export default function ServerConfig() {
   };
 
   const handleTestConnection = async (server: ExternalServer) => {
+    setTestingServerId(server.id);
     setTestResult({ serverId: server.id, success: false, message: 'Probando conexión...' });
     
-    // Simular prueba de conexión
-    setTimeout(() => {
-      const success = Math.random() > 0.3; // Simulación
+    try {
+      const result = await testServerConnection(server);
+      
       setTestResult({
         serverId: server.id,
-        success,
-        message: success 
-          ? 'Conexión exitosa' 
-          : 'No se pudo conectar. Verifique las credenciales.',
+        success: result.success,
+        message: result.message,
       });
+      
+      if (result.success) {
+        notifyConnectionSuccess(server.name);
+      } else {
+        notifyConnectionError(server.name, result.message);
+      }
       
       // Actualizar estado del servidor
       db.saveServer({
         ...server,
-        status: success ? 'active' : 'error',
+        status: result.success ? 'active' : 'error',
         updatedAt: new Date().toISOString(),
       });
       loadServers();
-    }, 1500);
+    } catch (error) {
+      setTestResult({
+        serverId: server.id,
+        success: false,
+        message: `Error: ${error}`,
+      });
+      notifyConnectionError(server.name, String(error));
+    } finally {
+      setTestingServerId(null);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -277,11 +296,18 @@ export default function ServerConfig() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleTestConnection(server)}
-                    disabled={testResult?.serverId === server.id}
+                    disabled={testingServerId === server.id}
                     className="p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors"
-                    title="Probar conexión"
+                    title="Probar conexión rápida"
                   >
-                    <RefreshCw size={18} className={testResult?.serverId === server.id ? 'animate-spin' : ''} />
+                    <RefreshCw size={18} className={testingServerId === server.id ? 'animate-spin' : ''} />
+                  </button>
+                  <button
+                    onClick={() => setShowConnectionTester(server)}
+                    className="p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors"
+                    title="Probar conexión avanzada"
+                  >
+                    <Wifi size={18} />
                   </button>
                   <button
                     onClick={() => startEdit(server)}
@@ -495,6 +521,41 @@ export default function ServerConfig() {
               >
                 Eliminar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Connection Tester Modal */}
+      {showConnectionTester && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-800 z-10">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                Prueba de Conexión Avanzada
+              </h3>
+              <button
+                onClick={() => setShowConnectionTester(null)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
+              >
+                <X size={20} className="text-gray-500 dark:text-slate-400" />
+              </button>
+            </div>
+            <div className="p-5">
+              <ConnectionTester
+                server={showConnectionTester}
+                onTestComplete={(success) => {
+                  if (success) {
+                    // Actualizar estado del servidor
+                    db.saveServer({
+                      ...showConnectionTester,
+                      status: 'active',
+                      updatedAt: new Date().toISOString(),
+                    });
+                    loadServers();
+                  }
+                }}
+              />
             </div>
           </div>
         </div>

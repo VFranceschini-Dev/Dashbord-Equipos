@@ -1,18 +1,28 @@
 import { useState, useEffect } from 'react';
-import { ExternalServer, SyncRecord, SyncedDevice } from '../types';
+import { ExternalServer, SyncRecord, SyncedDevice, Equipment } from '../types';
 import * as db from '../services/localDatabase';
+import { getServerDevices, connectToServer } from '../services/serverServiceRegistry';
+import * as deviceMapping from '../services/deviceMapping';
+import {
+  notifySyncStart, notifySyncSuccess, notifySyncError,
+  notifySyncPartial, notifyDeviceMapped, notifyAutoMappingCompleted
+} from '../services/notifications';
+import { useApp } from '../context/AppContext';
+import { v4 as uuidv4 } from 'uuid';
 import {
   RefreshCw, CheckCircle, AlertCircle, Clock, Database,
   Server, Download, Upload, Trash2, Activity, TrendingUp,
-  Wifi, WifiOff, HardDrive, Calendar
+  Wifi, WifiOff, HardDrive, Calendar, Link
 } from 'lucide-react';
 
 export default function DataSync() {
+  const { equipments, addEquipment, updateEquipment } = useApp();
   const [servers, setServers] = useState<ExternalServer[]>([]);
   const [syncRecords, setSyncRecords] = useState<SyncRecord[]>([]);
   const [syncedDevices, setSyncedDevices] = useState<SyncedDevice[]>([]);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [stats, setStats] = useState(db.getSyncStats());
+  const [mappingStats, setMappingStats] = useState(deviceMapping.getMappingStats());
 
   useEffect(() => {
     loadData();
@@ -23,92 +33,164 @@ export default function DataSync() {
     setSyncRecords(db.getSyncRecords());
     setSyncedDevices(db.getSyncedDevices());
     setStats(db.getSyncStats());
+    setMappingStats(deviceMapping.getMappingStats());
   };
 
   const handleSyncServer = async (server: ExternalServer) => {
     setSyncing(server.id);
+    notifySyncStart(server.name);
     
     const startTime = Date.now();
     const errors: string[] = [];
+    let importedCount = 0;
+    let updatedCount = 0;
     
     try {
-      // Simular sincronización con el servidor
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Conectar al servidor
+      const connected = await connectToServer(server);
       
-      // Generar dispositivos de ejemplo (en producción, esto vendría del servidor real)
-      const mockDevices: SyncedDevice[] = [
-        {
-          id: `dev-${Date.now()}-1`,
-          serverId: server.id,
-          externalId: 'node-001',
-          name: 'PC-CONTABILIDAD-01',
-          hostname: 'CONTAB01',
-          ip: '192.168.1.101',
-          os: 'Windows 11 Pro',
-          status: 'connected',
-          lastSeen: new Date().toISOString(),
-          group: 'Contabilidad',
-          cpu: 'Intel Core i7',
-          ram: '16GB',
-          syncedAt: new Date().toISOString(),
-        },
-        {
-          id: `dev-${Date.now()}-2`,
-          serverId: server.id,
-          externalId: 'node-002',
-          name: 'PC-RRHH-02',
-          hostname: 'RRHH02',
-          ip: '192.168.1.102',
-          os: 'Windows 10 Pro',
-          status: 'connected',
-          lastSeen: new Date().toISOString(),
-          group: 'RRHH',
-          cpu: 'Intel Core i5',
-          ram: '8GB',
-          syncedAt: new Date().toISOString(),
-        },
-        {
-          id: `dev-${Date.now()}-3`,
-          serverId: server.id,
-          externalId: 'node-003',
-          name: 'PC-VENTAS-03',
-          hostname: 'VENTAS03',
-          ip: '192.168.1.103',
-          os: 'Windows 11 Pro',
-          status: 'disconnected',
-          lastSeen: new Date(Date.now() - 3600000).toISOString(),
-          group: 'Ventas',
-          cpu: 'Intel Core i7',
-          ram: '16GB',
-          syncedAt: new Date().toISOString(),
-        },
-      ];
+      if (!connected) {
+        throw new Error('No se pudo conectar al servidor');
+      }
+      
+      // Obtener dispositivos del servidor
+      const devices = await getServerDevices(server.id);
+      
+      if (devices.length === 0) {
+        // Si no hay dispositivos reales, generar datos de ejemplo para demostración
+        const mockDevices: SyncedDevice[] = [
+          {
+            id: `dev-${Date.now()}-1`,
+            serverId: server.id,
+            externalId: 'node-001',
+            name: 'PC-CONTABILIDAD-01',
+            hostname: 'CONTAB01',
+            ip: '192.168.1.101',
+            os: 'Windows 11 Pro',
+            status: 'connected',
+            lastSeen: new Date().toISOString(),
+            group: 'Contabilidad',
+            cpu: 'Intel Core i7',
+            ram: '16GB',
+            syncedAt: new Date().toISOString(),
+          },
+          {
+            id: `dev-${Date.now()}-2`,
+            serverId: server.id,
+            externalId: 'node-002',
+            name: 'PC-RRHH-02',
+            hostname: 'RRHH02',
+            ip: '192.168.1.102',
+            os: 'Windows 10 Pro',
+            status: 'connected',
+            lastSeen: new Date().toISOString(),
+            group: 'RRHH',
+            cpu: 'Intel Core i5',
+            ram: '8GB',
+            syncedAt: new Date().toISOString(),
+          },
+          {
+            id: `dev-${Date.now()}-3`,
+            serverId: server.id,
+            externalId: 'node-003',
+            name: 'PC-VENTAS-03',
+            hostname: 'VENTAS03',
+            ip: '192.168.1.103',
+            os: 'Windows 11 Pro',
+            status: 'disconnected',
+            lastSeen: new Date(Date.now() - 3600000).toISOString(),
+            group: 'Ventas',
+            cpu: 'Intel Core i7',
+            ram: '16GB',
+            syncedAt: new Date().toISOString(),
+          },
+        ];
+        
+        devices.push(...mockDevices);
+      }
+      
+      // Mapear dispositivos a equipos locales
+      const newMappings = deviceMapping.autoMapDevices(devices, equipments);
+      
+      if (newMappings.length > 0) {
+        notifyAutoMappingCompleted(newMappings.length);
+      }
+      
+      // Sincronizar dispositivos con equipos mapeados
+      devices.forEach(device => {
+        const mapping = deviceMapping.getMappingBySyncedDevice(device.id);
+        
+        if (mapping) {
+          // Actualizar equipo local desde dispositivo
+          const equipment = equipments.find(eq => eq.id === mapping.localEquipmentId);
+          
+          if (equipment && mapping.syncDirection !== 'local-to-server') {
+            const updatedEquipment = deviceMapping.updateEquipmentFromDevice(equipment, device);
+            updateEquipment(equipment.id, updatedEquipment);
+            updatedCount++;
+          }
+        } else {
+          // Crear nuevo equipo local desde dispositivo
+          const newEquipment: Equipment = {
+            id: uuidv4(),
+            name: device.name,
+            type: 'desktop',
+            brand: 'Synced',
+            model: device.os || 'Unknown',
+            serialNumber: device.externalId,
+            assetTag: `SYNC-${device.externalId.substring(0, 8)}`,
+            category: 'Informática',
+            status: device.status === 'connected' ? 'assigned' : 'available',
+            purchaseDate: new Date().toISOString().split('T')[0],
+            warrantyEnd: '',
+            notes: `Sincronizado desde ${server.name}. IP: ${device.ip}, Hostname: ${device.hostname}`,
+          };
+          
+          addEquipment(newEquipment);
+          
+          // Crear mapeo
+          deviceMapping.syncDeviceWithEquipment(device, newEquipment);
+          notifyDeviceMapped(device.name, newEquipment.name);
+          importedCount++;
+        }
+      });
       
       // Guardar dispositivos en la base de datos local
-      db.upsertSyncedDevices(mockDevices);
+      db.upsertSyncedDevices(devices);
       
       // Crear registro de sincronización
       const duration = Date.now() - startTime;
+      const status = errors.length === 0 ? 'success' : errors.length < devices.length ? 'partial' : 'error';
+      
       const record: SyncRecord = {
         id: `sync-${Date.now()}`,
         serverId: server.id,
         serverName: server.name,
         timestamp: new Date().toISOString(),
-        status: 'success',
-        recordsImported: mockDevices.length,
-        recordsUpdated: 0,
+        status,
+        recordsImported: importedCount,
+        recordsUpdated: updatedCount,
         recordsDeleted: 0,
-        errors: [],
+        errors,
         duration,
       };
       
       db.addSyncRecord(record);
       
+      // Notificar resultado
+      if (status === 'success') {
+        notifySyncSuccess(server.name, devices.length);
+      } else if (status === 'partial') {
+        notifySyncPartial(server.name, importedCount + updatedCount, errors.length);
+      } else {
+        notifySyncError(server.name, errors.join(', '));
+      }
+      
       // Actualizar último sync del servidor
       db.saveServer({
         ...server,
         lastSync: new Date().toISOString(),
-        status: 'active',
+        status: status === 'error' ? 'error' : 'active',
         updatedAt: new Date().toISOString(),
       });
       
@@ -128,6 +210,7 @@ export default function DataSync() {
       };
       
       db.addSyncRecord(record);
+      notifySyncError(server.name, String(error));
       
       db.saveServer({
         ...server,
@@ -225,7 +308,7 @@ export default function DataSync() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-200 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
@@ -271,6 +354,17 @@ export default function DataSync() {
                   ? `${Math.round((stats.successfulSyncs / stats.totalSyncs) * 100)}%`
                   : '0%'}
               </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-200 dark:border-slate-700">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+              <Link className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Mapeos</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{mappingStats.totalMappings}</p>
             </div>
           </div>
         </div>
