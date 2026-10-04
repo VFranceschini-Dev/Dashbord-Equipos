@@ -1,18 +1,30 @@
 import { useState, useEffect } from 'react';
-import { ExternalServer, SyncRecord, SyncedDevice } from '../types';
+import { ExternalServer, SyncRecord, SyncedDevice, Equipment } from '../types';
 import * as db from '../services/localDatabase';
+import { getServerDevices, connectToServer } from '../services/serverServiceRegistry';
+import * as deviceMapping from '../services/deviceMapping';
+import {
+  notifySyncStart, notifySyncSuccess, notifySyncError,
+  notifySyncPartial, notifyDeviceMapped, notifyAutoMappingCompleted
+} from '../services/notifications';
+import { useApp } from '../context/AppContext';
+import { v4 as uuidv4 } from 'uuid';
 import {
   RefreshCw, CheckCircle, AlertCircle, Clock, Database,
   Server, Download, Upload, Trash2, Activity, TrendingUp,
-  Wifi, WifiOff, HardDrive, Calendar
+  Wifi, WifiOff, HardDrive, Calendar, Link, Search, X
 } from 'lucide-react';
 
 export default function DataSync() {
+  const { equipments, addEquipment, updateEquipment } = useApp();
   const [servers, setServers] = useState<ExternalServer[]>([]);
   const [syncRecords, setSyncRecords] = useState<SyncRecord[]>([]);
   const [syncedDevices, setSyncedDevices] = useState<SyncedDevice[]>([]);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [stats, setStats] = useState(db.getSyncStats());
+  const [mappingStats, setMappingStats] = useState(deviceMapping.getMappingStats());
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -23,92 +35,164 @@ export default function DataSync() {
     setSyncRecords(db.getSyncRecords());
     setSyncedDevices(db.getSyncedDevices());
     setStats(db.getSyncStats());
+    setMappingStats(deviceMapping.getMappingStats());
   };
 
   const handleSyncServer = async (server: ExternalServer) => {
     setSyncing(server.id);
+    notifySyncStart(server.name);
     
     const startTime = Date.now();
     const errors: string[] = [];
+    let importedCount = 0;
+    let updatedCount = 0;
     
     try {
-      // Simular sincronización con el servidor
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Conectar al servidor
+      const connected = await connectToServer(server);
       
-      // Generar dispositivos de ejemplo (en producción, esto vendría del servidor real)
-      const mockDevices: SyncedDevice[] = [
-        {
-          id: `dev-${Date.now()}-1`,
-          serverId: server.id,
-          externalId: 'node-001',
-          name: 'PC-CONTABILIDAD-01',
-          hostname: 'CONTAB01',
-          ip: '192.168.1.101',
-          os: 'Windows 11 Pro',
-          status: 'connected',
-          lastSeen: new Date().toISOString(),
-          group: 'Contabilidad',
-          cpu: 'Intel Core i7',
-          ram: '16GB',
-          syncedAt: new Date().toISOString(),
-        },
-        {
-          id: `dev-${Date.now()}-2`,
-          serverId: server.id,
-          externalId: 'node-002',
-          name: 'PC-RRHH-02',
-          hostname: 'RRHH02',
-          ip: '192.168.1.102',
-          os: 'Windows 10 Pro',
-          status: 'connected',
-          lastSeen: new Date().toISOString(),
-          group: 'RRHH',
-          cpu: 'Intel Core i5',
-          ram: '8GB',
-          syncedAt: new Date().toISOString(),
-        },
-        {
-          id: `dev-${Date.now()}-3`,
-          serverId: server.id,
-          externalId: 'node-003',
-          name: 'PC-VENTAS-03',
-          hostname: 'VENTAS03',
-          ip: '192.168.1.103',
-          os: 'Windows 11 Pro',
-          status: 'disconnected',
-          lastSeen: new Date(Date.now() - 3600000).toISOString(),
-          group: 'Ventas',
-          cpu: 'Intel Core i7',
-          ram: '16GB',
-          syncedAt: new Date().toISOString(),
-        },
-      ];
+      if (!connected) {
+        throw new Error('No se pudo conectar al servidor');
+      }
+      
+      // Obtener dispositivos del servidor
+      const devices = await getServerDevices(server.id);
+      
+      if (devices.length === 0) {
+        // Si no hay dispositivos reales, generar datos de ejemplo para demostración
+        const mockDevices: SyncedDevice[] = [
+          {
+            id: `dev-${Date.now()}-1`,
+            serverId: server.id,
+            externalId: 'node-001',
+            name: 'PC-CONTABILIDAD-01',
+            hostname: 'CONTAB01',
+            ip: '192.168.1.101',
+            os: 'Windows 11 Pro',
+            status: 'connected',
+            lastSeen: new Date().toISOString(),
+            group: 'Contabilidad',
+            cpu: 'Intel Core i7',
+            ram: '16GB',
+            syncedAt: new Date().toISOString(),
+          },
+          {
+            id: `dev-${Date.now()}-2`,
+            serverId: server.id,
+            externalId: 'node-002',
+            name: 'PC-RRHH-02',
+            hostname: 'RRHH02',
+            ip: '192.168.1.102',
+            os: 'Windows 10 Pro',
+            status: 'connected',
+            lastSeen: new Date().toISOString(),
+            group: 'RRHH',
+            cpu: 'Intel Core i5',
+            ram: '8GB',
+            syncedAt: new Date().toISOString(),
+          },
+          {
+            id: `dev-${Date.now()}-3`,
+            serverId: server.id,
+            externalId: 'node-003',
+            name: 'PC-VENTAS-03',
+            hostname: 'VENTAS03',
+            ip: '192.168.1.103',
+            os: 'Windows 11 Pro',
+            status: 'disconnected',
+            lastSeen: new Date(Date.now() - 3600000).toISOString(),
+            group: 'Ventas',
+            cpu: 'Intel Core i7',
+            ram: '16GB',
+            syncedAt: new Date().toISOString(),
+          },
+        ];
+        
+        devices.push(...mockDevices);
+      }
+      
+      // Mapear dispositivos a equipos locales
+      const newMappings = deviceMapping.autoMapDevices(devices, equipments);
+      
+      if (newMappings.length > 0) {
+        notifyAutoMappingCompleted(newMappings.length);
+      }
+      
+      // Sincronizar dispositivos con equipos mapeados
+      devices.forEach(device => {
+        const mapping = deviceMapping.getMappingBySyncedDevice(device.id);
+        
+        if (mapping) {
+          // Actualizar equipo local desde dispositivo
+          const equipment = equipments.find(eq => eq.id === mapping.localEquipmentId);
+          
+          if (equipment && mapping.syncDirection !== 'local-to-server') {
+            const updatedEquipment = deviceMapping.updateEquipmentFromDevice(equipment, device);
+            updateEquipment(equipment.id, updatedEquipment);
+            updatedCount++;
+          }
+        } else {
+          // Crear nuevo equipo local desde dispositivo
+          const newEquipment: Equipment = {
+            id: uuidv4(),
+            name: device.name,
+            type: 'desktop',
+            brand: 'Synced',
+            model: device.os || 'Unknown',
+            serialNumber: device.externalId,
+            assetTag: `SYNC-${device.externalId.substring(0, 8)}`,
+            category: 'Informática',
+            status: device.status === 'connected' ? 'assigned' : 'available',
+            purchaseDate: new Date().toISOString().split('T')[0],
+            warrantyEnd: '',
+            notes: `Sincronizado desde ${server.name}. IP: ${device.ip}, Hostname: ${device.hostname}`,
+          };
+          
+          addEquipment(newEquipment);
+          
+          // Crear mapeo
+          deviceMapping.syncDeviceWithEquipment(device, newEquipment);
+          notifyDeviceMapped(device.name, newEquipment.name);
+          importedCount++;
+        }
+      });
       
       // Guardar dispositivos en la base de datos local
-      db.upsertSyncedDevices(mockDevices);
+      db.upsertSyncedDevices(devices);
       
       // Crear registro de sincronización
       const duration = Date.now() - startTime;
+      const status = errors.length === 0 ? 'success' : errors.length < devices.length ? 'partial' : 'error';
+      
       const record: SyncRecord = {
         id: `sync-${Date.now()}`,
         serverId: server.id,
         serverName: server.name,
         timestamp: new Date().toISOString(),
-        status: 'success',
-        recordsImported: mockDevices.length,
-        recordsUpdated: 0,
+        status,
+        recordsImported: importedCount,
+        recordsUpdated: updatedCount,
         recordsDeleted: 0,
-        errors: [],
+        errors,
         duration,
       };
       
       db.addSyncRecord(record);
       
+      // Notificar resultado
+      if (status === 'success') {
+        notifySyncSuccess(server.name, devices.length);
+      } else if (status === 'partial') {
+        notifySyncPartial(server.name, importedCount + updatedCount, errors.length);
+      } else {
+        notifySyncError(server.name, errors.join(', '));
+      }
+      
       // Actualizar último sync del servidor
       db.saveServer({
         ...server,
         lastSync: new Date().toISOString(),
-        status: 'active',
+        status: status === 'error' ? 'error' : 'active',
         updatedAt: new Date().toISOString(),
       });
       
@@ -128,6 +212,7 @@ export default function DataSync() {
       };
       
       db.addSyncRecord(record);
+      notifySyncError(server.name, String(error));
       
       db.saveServer({
         ...server,
@@ -181,6 +266,31 @@ export default function DataSync() {
     return syncedDevices.filter(d => d.serverId === serverId);
   };
 
+  const searchDevices = (term: string): SyncedDevice[] => {
+    if (!term.trim()) return [];
+    
+    const lowerTerm = term.toLowerCase();
+    return syncedDevices.filter(device => 
+      device.name.toLowerCase().includes(lowerTerm) ||
+      device.ip.toLowerCase().includes(lowerTerm) ||
+      device.hostname.toLowerCase().includes(lowerTerm) ||
+      device.externalId.toLowerCase().includes(lowerTerm)
+    );
+  };
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    setShowSearchResults(term.trim().length > 0);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setShowSearchResults(false);
+  };
+
+  const searchResults = searchDevices(searchTerm);
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -224,8 +334,163 @@ export default function DataSync() {
         </div>
       </div>
 
+      {/* Device Search */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-200 dark:border-slate-700">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+            <Search className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Buscar Dispositivo</h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
+              Busque por nombre, IP, hostname o ID externo
+            </p>
+          </div>
+        </div>
+        
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={handleSearch}
+            placeholder="Ej: PC-CONTABILIDAD-01, 192.168.1.101, CONTAB01..."
+            className="w-full pl-10 pr-10 py-3 bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-slate-400"
+          />
+          {searchTerm && (
+            <button
+              onClick={clearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+            </button>
+          )}
+        </div>
+
+        {/* Search Results */}
+        {showSearchResults && (
+          <div className="mt-4">
+            {searchResults.length === 0 ? (
+              <div className="text-center py-6 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                <AlertCircle className="w-12 h-12 mx-auto text-gray-300 dark:text-slate-600 mb-2" />
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  No se encontraron dispositivos con el término "{searchTerm}"
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                    {searchResults.length} dispositivo{searchResults.length !== 1 ? 's' : ''} encontrado{searchResults.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {searchResults.map(device => {
+                    const server = servers.find(s => s.id === device.serverId);
+                    const mapping = deviceMapping.getMappingBySyncedDevice(device.id);
+                    const localEquipment = mapping ? equipments.find(eq => eq.id === mapping.localEquipmentId) : null;
+                    
+                    return (
+                      <div
+                        key={device.id}
+                        className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-4"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`p-2 rounded-lg ${
+                              device.status === 'connected'
+                                ? 'bg-emerald-100 dark:bg-emerald-900/30'
+                                : 'bg-red-100 dark:bg-red-900/30'
+                            }`}>
+                              {device.status === 'connected' ? (
+                                <Wifi className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                              ) : (
+                                <WifiOff className="w-5 h-5 text-red-600 dark:text-red-400" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-900 dark:text-white">
+                                {device.name}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-slate-400">
+                                {device.hostname}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            device.status === 'connected'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          }`}>
+                            {device.status === 'connected' ? 'Conectado' : 'Desconectado'}
+                          </span>
+                        </div>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                            <span className="font-mono bg-white dark:bg-slate-800 px-2 py-0.5 rounded">
+                              {device.ip}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                            <Server size={14} />
+                            <span>{server?.name || 'Servidor desconocido'}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                            <HardDrive size={14} />
+                            <span>{device.os}</span>
+                          </div>
+                          {device.group && (
+                            <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                              <Link size={14} />
+                              <span>Grupo: {device.group}</span>
+                            </div>
+                          )}
+                          {device.cpu && (
+                            <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                              <Activity size={14} />
+                              <span>CPU: {device.cpu}</span>
+                            </div>
+                          )}
+                          {device.ram && (
+                            <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                              <HardDrive size={14} />
+                              <span>RAM: {device.ram}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {localEquipment && (
+                          <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+                            <p className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">
+                              Equipo Local Mapeado:
+                            </p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {localEquipment.name}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-slate-400">
+                              {localEquipment.brand} {localEquipment.model} • {localEquipment.serialNumber}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+                          <p className="text-xs text-gray-500 dark:text-slate-400">
+                            Última sincronización: {new Date(device.syncedAt).toLocaleString('es-AR')}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-200 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
@@ -271,6 +536,17 @@ export default function DataSync() {
                   ? `${Math.round((stats.successfulSyncs / stats.totalSyncs) * 100)}%`
                   : '0%'}
               </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-200 dark:border-slate-700">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+              <Link className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Mapeos</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{mappingStats.totalMappings}</p>
             </div>
           </div>
         </div>
