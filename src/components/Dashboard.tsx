@@ -1,13 +1,16 @@
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
+import * as db from '../services/localDatabase';
 import {
   Printer, Package, AlertTriangle, Monitor, Server, Users, Building2, FileText,
-  TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight, Sun, Moon
+  TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight, Sun, Moon,
+  Database, Wifi, HardDrive
 } from 'lucide-react';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts, equipments, suppliers, collaborators, setCurrentPage } = useApp();
   const { theme, toggleTheme } = useTheme();
+  const syncStats = db.getSyncStats();
 
   const activePrinters = printers.filter(p => p.status === 'active').length;
   const lowStockItems = toners.filter(t => t.stock <= t.minStock).length;
@@ -211,6 +214,61 @@ export default function Dashboard() {
           );
         })}
       </div>
+
+      {/* Sync Stats */}
+      {syncStats.totalServers > 0 && (
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+                <Database size={20} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-800 dark:text-white">Estado de Sincronización</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-400">
+                  {syncStats.activeServers} servidor{syncStats.activeServers !== 1 ? 'es' : ''} activo{syncStats.activeServers !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setCurrentPage('data-sync')}
+              className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+            >
+              Ver detalles <ChevronRight size={14} />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Server size={14} className="text-blue-600 dark:text-blue-400" />
+                <p className="text-xs text-gray-500 dark:text-slate-400">Servidores</p>
+              </div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalServers}</p>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <HardDrive size={14} className="text-emerald-600 dark:text-emerald-400" />
+                <p className="text-xs text-gray-500 dark:text-slate-400">Dispositivos</p>
+              </div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalDevices}</p>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Wifi size={14} className="text-emerald-600 dark:text-emerald-400" />
+                <p className="text-xs text-gray-500 dark:text-slate-400">Conectados</p>
+              </div>
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{syncStats.connectedDevices}</p>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Activity size={14} className="text-purple-600 dark:text-purple-400" />
+                <p className="text-xs text-gray-500 dark:text-slate-400">Sincronizaciones</p>
+              </div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalSyncs}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {unreadAlerts > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700">
