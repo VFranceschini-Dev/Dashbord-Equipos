@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   RefreshCw, CheckCircle, AlertCircle, Clock, Database,
   Server, Download, Upload, Trash2, Activity, TrendingUp,
-  Wifi, WifiOff, HardDrive, Calendar, Link
+  Wifi, WifiOff, HardDrive, Calendar, Link, Search, X
 } from 'lucide-react';
 
 export default function DataSync() {
@@ -23,6 +23,8 @@ export default function DataSync() {
   const [syncing, setSyncing] = useState<string | null>(null);
   const [stats, setStats] = useState(db.getSyncStats());
   const [mappingStats, setMappingStats] = useState(deviceMapping.getMappingStats());
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -264,6 +266,31 @@ export default function DataSync() {
     return syncedDevices.filter(d => d.serverId === serverId);
   };
 
+  const searchDevices = (term: string): SyncedDevice[] => {
+    if (!term.trim()) return [];
+    
+    const lowerTerm = term.toLowerCase();
+    return syncedDevices.filter(device => 
+      device.name.toLowerCase().includes(lowerTerm) ||
+      device.ip.toLowerCase().includes(lowerTerm) ||
+      device.hostname.toLowerCase().includes(lowerTerm) ||
+      device.externalId.toLowerCase().includes(lowerTerm)
+    );
+  };
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    setShowSearchResults(term.trim().length > 0);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setShowSearchResults(false);
+  };
+
+  const searchResults = searchDevices(searchTerm);
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -305,6 +332,161 @@ export default function DataSync() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Device Search */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-200 dark:border-slate-700">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+            <Search className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Buscar Dispositivo</h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
+              Busque por nombre, IP, hostname o ID externo
+            </p>
+          </div>
+        </div>
+        
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={handleSearch}
+            placeholder="Ej: PC-CONTABILIDAD-01, 192.168.1.101, CONTAB01..."
+            className="w-full pl-10 pr-10 py-3 bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-slate-400"
+          />
+          {searchTerm && (
+            <button
+              onClick={clearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+            </button>
+          )}
+        </div>
+
+        {/* Search Results */}
+        {showSearchResults && (
+          <div className="mt-4">
+            {searchResults.length === 0 ? (
+              <div className="text-center py-6 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                <AlertCircle className="w-12 h-12 mx-auto text-gray-300 dark:text-slate-600 mb-2" />
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  No se encontraron dispositivos con el término "{searchTerm}"
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                    {searchResults.length} dispositivo{searchResults.length !== 1 ? 's' : ''} encontrado{searchResults.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {searchResults.map(device => {
+                    const server = servers.find(s => s.id === device.serverId);
+                    const mapping = deviceMapping.getMappingBySyncedDevice(device.id);
+                    const localEquipment = mapping ? equipments.find(eq => eq.id === mapping.localEquipmentId) : null;
+                    
+                    return (
+                      <div
+                        key={device.id}
+                        className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-4"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`p-2 rounded-lg ${
+                              device.status === 'connected'
+                                ? 'bg-emerald-100 dark:bg-emerald-900/30'
+                                : 'bg-red-100 dark:bg-red-900/30'
+                            }`}>
+                              {device.status === 'connected' ? (
+                                <Wifi className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                              ) : (
+                                <WifiOff className="w-5 h-5 text-red-600 dark:text-red-400" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-900 dark:text-white">
+                                {device.name}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-slate-400">
+                                {device.hostname}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            device.status === 'connected'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          }`}>
+                            {device.status === 'connected' ? 'Conectado' : 'Desconectado'}
+                          </span>
+                        </div>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                            <span className="font-mono bg-white dark:bg-slate-800 px-2 py-0.5 rounded">
+                              {device.ip}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                            <Server size={14} />
+                            <span>{server?.name || 'Servidor desconocido'}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                            <HardDrive size={14} />
+                            <span>{device.os}</span>
+                          </div>
+                          {device.group && (
+                            <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                              <Link size={14} />
+                              <span>Grupo: {device.group}</span>
+                            </div>
+                          )}
+                          {device.cpu && (
+                            <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                              <Activity size={14} />
+                              <span>CPU: {device.cpu}</span>
+                            </div>
+                          )}
+                          {device.ram && (
+                            <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
+                              <HardDrive size={14} />
+                              <span>RAM: {device.ram}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {localEquipment && (
+                          <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+                            <p className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">
+                              Equipo Local Mapeado:
+                            </p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {localEquipment.name}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-slate-400">
+                              {localEquipment.brand} {localEquipment.model} • {localEquipment.serialNumber}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+                          <p className="text-xs text-gray-500 dark:text-slate-400">
+                            Última sincronización: {new Date(device.syncedAt).toLocaleString('es-AR')}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Stats */}
