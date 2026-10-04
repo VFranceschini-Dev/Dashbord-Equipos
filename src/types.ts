@@ -104,4 +104,50 @@ export interface Voucher {
   notes: string;
 }
 
-export type Page = 'dashboard' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'import';
+export type Page = 'dashboard' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'server-config' | 'data-sync';
+
+export interface ExternalServer {
+  id: string;
+  name: string;
+  type: 'meshcentral' | 'custom';
+  url: string;
+  username: string;
+  password: string;
+  autoSync: boolean;
+  syncInterval: number;
+  lastSync?: string;
+  status: 'active' | 'inactive' | 'error';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SyncRecord {
+  id: string;
+  serverId: string;
+  serverName: string;
+  timestamp: string;
+  status: 'success' | 'error' | 'partial';
+  recordsImported: number;
+  recordsUpdated: number;
+  recordsDeleted: number;
+  errors: string[];
+  duration: number;
+}
+
+export interface SyncedDevice {
+  id: string;
+  serverId: string;
+  externalId: string;
+  name: string;
+  hostname: string;
+  ip: string;
+  os: string;
+  status: 'connected' | 'disconnected';
+  lastSeen: string;
+  group?: string;
+  cpu?: string;
+  ram?: string;
+  syncedAt: string;
+  localEquipmentId?: string;
+}

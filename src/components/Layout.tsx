@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
-  Monitor, Users, Building2, FileText, ChevronRight, Settings, Sun, Moon, Upload
+  Monitor, Users, Building2, FileText, ChevronRight, Settings, Sun, Moon, Server, RefreshCw
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -19,7 +19,8 @@ const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'inventory', label: 'Inventario', icon: <Package size={20} /> },
   { page: 'movements', label: 'Movimientos', icon: <ArrowLeftRight size={20} /> },
   { page: 'reports', label: 'Reportes', icon: <BarChart3 size={20} /> },
-  { page: 'import', label: 'Importar Datos', icon: <Upload size={20} /> },
+  { page: 'server-config', label: 'Servidores', icon: <Server size={20} /> },
+  { page: 'data-sync', label: 'Sincronización', icon: <RefreshCw size={20} /> },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {

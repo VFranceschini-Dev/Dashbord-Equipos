@@ -12,7 +12,8 @@ import Equipments from './components/Equipments';
 import Suppliers from './components/Suppliers';
 import Collaborators from './components/Collaborators';
 import Vouchers from './components/Vouchers';
-import ImportData from './components/ImportData';
+import ServerConfig from './components/ServerConfig';
+import DataSync from './components/DataSync';
 
 function PageRouter() {
   const { currentPage } = useApp();
@@ -36,8 +37,10 @@ function PageRouter() {
       return <Collaborators />;
     case 'vouchers':
       return <Vouchers />;
-    case 'import':
-      return <ImportData />;
+    case 'server-config':
+      return <ServerConfig />;
+    case 'data-sync':
+      return <DataSync />;
     default:
       return <Dashboard />;
   }
