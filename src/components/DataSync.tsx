@@ -25,6 +25,7 @@ export default function DataSync() {
   const [mappingStats, setMappingStats] = useState(deviceMapping.getMappingStats());
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<SyncedDevice | null>(null);
 
   useEffect(() => {
     loadData();
@@ -393,7 +394,8 @@ export default function DataSync() {
                     return (
                       <div
                         key={device.id}
-                        className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-4"
+                        onClick={() => setSelectedDevice(device)}
+                        className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-4 cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-lg transition-all"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-2">
@@ -711,6 +713,288 @@ export default function DataSync() {
           </div>
         )}
       </div>
+
+      {/* Device Details Modal */}
+      {selectedDevice && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedDevice(null)}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 p-5 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-xl ${
+                  selectedDevice.status === 'connected'
+                    ? 'bg-emerald-100 dark:bg-emerald-900/30'
+                    : 'bg-red-100 dark:bg-red-900/30'
+                }`}>
+                  {selectedDevice.status === 'connected' ? (
+                    <Wifi className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <WifiOff className="w-6 h-6 text-red-600 dark:text-red-400" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                    {selectedDevice.name}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">
+                    {selectedDevice.hostname}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedDevice(null)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <X size={24} className="text-gray-500 dark:text-slate-400" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Status Badge */}
+              <div className="flex items-center gap-3">
+                <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
+                  selectedDevice.status === 'connected'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                }`}>
+                  {selectedDevice.status === 'connected' ? '🟢 Conectado' : '🔴 Desconectado'}
+                </span>
+                <span className="text-sm text-gray-500 dark:text-slate-400">
+                  Última vez visto: {new Date(selectedDevice.lastSeen).toLocaleString('es-AR')}
+                </span>
+              </div>
+
+              {/* Technical Details Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Network Information */}
+                <div className="bg-gray-50 dark:bg-slate-700 rounded-xl p-4">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                    <Server size={16} />
+                    Información de Red
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600 dark:text-slate-400">Dirección IP:</span>
+                      <span className="text-sm font-mono font-semibold text-gray-900 dark:text-white">
+                        {selectedDevice.ip}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600 dark:text-slate-400">Hostname:</span>
+                      <span className="text-sm font-mono text-gray-900 dark:text-white">
+                        {selectedDevice.hostname}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600 dark:text-slate-400">ID Externo:</span>
+                      <span className="text-sm font-mono text-gray-900 dark:text-white">
+                        {selectedDevice.externalId}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* System Information */}
+                <div className="bg-gray-50 dark:bg-slate-700 rounded-xl p-4">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                    <HardDrive size={16} />
+                    Información del Sistema
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600 dark:text-slate-400">Sistema Operativo:</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {selectedDevice.os}
+                      </span>
+                    </div>
+                    {selectedDevice.cpu && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-slate-400">Procesador:</span>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {selectedDevice.cpu}
+                        </span>
+                      </div>
+                    )}
+                    {selectedDevice.ram && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-slate-400">Memoria RAM:</span>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {selectedDevice.ram}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Server Information */}
+                <div className="bg-gray-50 dark:bg-slate-700 rounded-xl p-4">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                    <Database size={16} />
+                    Servidor de Origen
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600 dark:text-slate-400">Servidor:</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {servers.find(s => s.id === selectedDevice.serverId)?.name || 'Desconocido'}
+                      </span>
+                    </div>
+                    {selectedDevice.group && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-slate-400">Grupo:</span>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {selectedDevice.group}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600 dark:text-slate-400">Última Sync:</span>
+                      <span className="text-sm text-gray-900 dark:text-white">
+                        {new Date(selectedDevice.syncedAt).toLocaleString('es-AR')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Local Equipment Mapping */}
+                {(() => {
+                  const mapping = deviceMapping.getMappingBySyncedDevice(selectedDevice.id);
+                  const localEquipment = mapping ? equipments.find(eq => eq.id === mapping.localEquipmentId) : null;
+                  
+                  if (localEquipment) {
+                    return (
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                        <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-400 mb-3 flex items-center gap-2">
+                          <Link size={16} />
+                          Equipo Local Mapeado
+                        </h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600 dark:text-slate-400">Nombre:</span>
+                            <span className="text-sm font-bold text-gray-900 dark:text-white">
+                              {localEquipment.name}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600 dark:text-slate-400">Marca/Modelo:</span>
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {localEquipment.brand} {localEquipment.model}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600 dark:text-slate-400">Número de Serie:</span>
+                            <span className="text-sm font-mono text-gray-900 dark:text-white">
+                              {localEquipment.serialNumber}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600 dark:text-slate-400">Código de Activo:</span>
+                            <span className="text-sm font-mono text-gray-900 dark:text-white">
+                              {localEquipment.assetTag}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600 dark:text-slate-400">Categoría:</span>
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {localEquipment.category}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600 dark:text-slate-400">Estado:</span>
+                            <span className={`text-sm font-semibold ${
+                              localEquipment.status === 'assigned' ? 'text-blue-600 dark:text-blue-400' :
+                              localEquipment.status === 'available' ? 'text-emerald-600 dark:text-emerald-400' :
+                              'text-gray-600 dark:text-gray-400'
+                            }`}>
+                              {localEquipment.status === 'assigned' ? 'Asignado' :
+                               localEquipment.status === 'available' ? 'Disponible' :
+                               localEquipment.status}
+                            </span>
+                          </div>
+                          {localEquipment.notes && (
+                            <div className="pt-2 mt-2 border-t border-blue-200 dark:border-blue-800">
+                              <p className="text-xs text-gray-600 dark:text-slate-400 italic">
+                                {localEquipment.notes}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+
+              {/* Additional Information */}
+              {selectedDevice.cpu || selectedDevice.ram || selectedDevice.group ? (
+                <div className="bg-gray-50 dark:bg-slate-700 rounded-xl p-4">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                    <Activity size={16} />
+                    Información Adicional
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {selectedDevice.cpu && (
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Procesador</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {selectedDevice.cpu}
+                        </p>
+                      </div>
+                    )}
+                    {selectedDevice.ram && (
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Memoria RAM</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {selectedDevice.ram}
+                        </p>
+                      </div>
+                    )}
+                    {selectedDevice.group && (
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Grupo</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {selectedDevice.group}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-slate-700">
+                <button
+                  onClick={() => setSelectedDevice(null)}
+                  className="flex-1 px-4 py-2 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors font-medium"
+                >
+                  Cerrar
+                </button>
+                {(() => {
+                  const mapping = deviceMapping.getMappingBySyncedDevice(selectedDevice.id);
+                  const localEquipment = mapping ? equipments.find(eq => eq.id === mapping.localEquipmentId) : null;
+                  
+                  if (localEquipment) {
+                    return (
+                      <button
+                        onClick={() => {
+                          setSelectedDevice(null);
+                          // Aquí podrías navegar al módulo de Equipamientos
+                          // o abrir el formulario de edición del equipo
+                        }}
+                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+                      >
+                        <Link size={16} />
+                        Ver Equipo Local
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
