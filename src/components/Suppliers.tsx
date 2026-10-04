@@ -3,8 +3,10 @@ import { useApp } from '../context/AppContext';
 import { Supplier } from '../types';
 import { SUPPLIER_CATEGORIES } from '../data';
 import {
-  Plus, Search, Edit2, Trash2, X, Building2, Phone, Mail, MapPin, Tag, CheckCircle, XCircle, User
+  Plus, Search, Edit2, Trash2, X, Building2, Phone, Mail, MapPin, Tag, CheckCircle, XCircle, User, Upload
 } from 'lucide-react';
+import ImportModal from './ImportModal';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function Suppliers() {
   const { suppliers, addSupplier, updateSupplier, deleteSupplier } = useApp();
@@ -13,6 +15,7 @@ export default function Suppliers() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   const emptyForm: Omit<Supplier, 'id'> = {
     name: '', cuit: '', contact: '', email: '', phone: '', address: '',
@@ -27,6 +30,19 @@ export default function Suppliers() {
     const matchCategory = filterCategory === 'all' || s.category === filterCategory;
     return matchSearch && matchCategory;
   });
+
+  const handleImport = (importedData: any[]) => {
+    importedData.forEach(item => {
+      addSupplier({
+        ...item,
+        id: uuidv4(),
+        active: item.active !== false,
+        category: item.category || 'Hardware',
+        notes: item.notes || '',
+      } as Supplier);
+    });
+    setShowImport(false);
+  };
 
   const handleSubmit = () => {
     if (!form.name) return;
@@ -63,10 +79,16 @@ export default function Suppliers() {
             {SUPPLIER_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
-          <Plus size={16} /> Nuevo Proveedor
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium">
+            <Upload size={16} /> Importar
+          </button>
+          <button onClick={() => { resetForm(); setShowForm(true); }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
+            <Plus size={16} /> Nuevo Proveedor
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -229,6 +251,27 @@ export default function Suppliers() {
           <p className="text-gray-500">No se encontraron proveedores</p>
         </div>
       )}
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onImport={handleImport}
+        title="Proveedores"
+        templateHeaders={['nombre', 'cuit', 'contacto', 'email', 'telefono', 'direccion', 'categoria']}
+        mapping={{
+          'nombre': 'name', 'name': 'name',
+          'cuit': 'cuit',
+          'contacto': 'contact', 'contact': 'contact',
+          'email': 'email',
+          'telefono': 'phone', 'phone': 'phone',
+          'direccion': 'address', 'address': 'address',
+          'categoria': 'category', 'category': 'category',
+        }}
+        validator={(row) => {
+          if (!row.name) return 'Nombre es obligatorio';
+          return null;
+        }}
+      />
     </div>
   );
 }
