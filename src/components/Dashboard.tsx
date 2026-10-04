@@ -158,28 +158,28 @@ export default function Dashboard() {
             <button
               key={i}
               onClick={() => setCurrentPage(stat.page)}
-              className="group relative bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-lg hover:border-gray-200 transition-all duration-300 text-left overflow-hidden"
+              className="group relative bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-slate-700 hover:shadow-lg hover:border-gray-200 dark:hover:border-slate-600 transition-all duration-300 text-left overflow-hidden"
             >
               <div className={`absolute -top-8 -right-8 w-24 h-24 bg-gradient-to-br ${stat.gradient} opacity-10 rounded-full blur-2xl group-hover:opacity-20 transition-opacity`} />
               
               <div className="relative">
                 <div className="flex items-start justify-between mb-4">
-                  <div className={`p-2.5 rounded-xl ${stat.lightBg} group-hover:scale-110 transition-transform duration-300`}>
+                  <div className={`p-2.5 rounded-xl ${stat.lightBg} dark:bg-slate-700 group-hover:scale-110 transition-transform duration-300`}>
                     <Icon size={22} className={stat.iconColor} />
                   </div>
                   <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                    stat.trendUp ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                    stat.trendUp ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                   }`}>
                     {stat.trendUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                     {stat.trend}
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500 mb-0.5">{stat.title}</p>
-                  <p className="text-3xl font-bold text-gray-900 tracking-tight">{stat.value}</p>
-                  <p className="text-xs text-gray-400 mt-1">{stat.subtitle}</p>
+                  <p className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-0.5">{stat.title}</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stat.value}</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">{stat.subtitle}</p>
                 </div>
-                <div className="mt-4 flex items-center gap-1 text-xs font-medium text-gray-400 group-hover:text-blue-600 transition-colors">
+                <div className="mt-4 flex items-center gap-1 text-xs font-medium text-gray-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                   Ver detalles <ChevronRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
@@ -195,16 +195,16 @@ export default function Dashboard() {
             <button
               key={i}
               onClick={() => setCurrentPage(stat.page)}
-              className="group bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all duration-200 text-left"
+              className="group bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-slate-700 hover:shadow-md hover:border-gray-200 dark:hover:border-slate-600 transition-all duration-200 text-left"
             >
               <div className="flex items-center gap-3">
-                <div className={`${stat.bg} ${stat.color} p-2 rounded-lg group-hover:scale-110 transition-transform`}>
+                <div className={`${stat.bg} dark:bg-slate-700 ${stat.color} p-2 rounded-lg group-hover:scale-110 transition-transform`}>
                   <Icon size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-500 truncate">{stat.title}</p>
-                  <p className="text-xl font-bold text-gray-800">{stat.value}</p>
-                  <p className="text-xs text-gray-400 truncate">{stat.subtitle}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{stat.title}</p>
+                  <p className="text-xl font-bold text-gray-800 dark:text-white">{stat.value}</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{stat.subtitle}</p>
                 </div>
               </div>
             </button>
@@ -213,18 +213,18 @@ export default function Dashboard() {
       </div>
 
       {unreadAlerts > 0 && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-50 rounded-xl">
-                <AlertTriangle size={20} className="text-amber-600" />
+              <div className="p-2 bg-amber-50 dark:bg-amber-900/30 rounded-xl">
+                <AlertTriangle size={20} className="text-amber-600 dark:text-amber-400" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-800">Alertas Pendientes</h3>
-                <p className="text-xs text-gray-400">{unreadAlerts} notificación{unreadAlerts !== 1 ? 'es' : ''} sin leer</p>
+                <h3 className="font-semibold text-gray-800 dark:text-white">Alertas Pendientes</h3>
+                <p className="text-xs text-gray-400 dark:text-slate-400">{unreadAlerts} notificación{unreadAlerts !== 1 ? 'es' : ''} sin leer</p>
               </div>
             </div>
-            <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold">
+            <span className="px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-xs font-semibold">
               {unreadAlerts}
             </span>
           </div>
@@ -233,9 +233,9 @@ export default function Dashboard() {
               <div
                 key={alert.id}
                 className={`p-4 rounded-xl border transition-all hover:shadow-sm ${
-                  alert.severity === 'high' ? 'bg-gradient-to-br from-red-50 to-rose-50 border-red-100' :
-                  alert.severity === 'medium' ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-100' :
-                  'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100'
+                  alert.severity === 'high' ? 'bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-red-100 dark:border-red-800' :
+                  alert.severity === 'medium' ? 'bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border-amber-100 dark:border-amber-800' :
+                  'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-100 dark:border-blue-800'
                 }`}
               >
                 <div className="flex items-start gap-2">
@@ -244,8 +244,8 @@ export default function Dashboard() {
                     alert.severity === 'medium' ? 'bg-amber-500' : 'bg-blue-500'
                   }`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-700 leading-snug">{alert.message}</p>
-                    <p className="text-xs text-gray-400 mt-1.5">{alert.date}</p>
+                    <p className="text-sm font-medium text-gray-700 dark:text-slate-300 leading-snug">{alert.message}</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5">{alert.date}</p>
                   </div>
                 </div>
               </div>
@@ -255,25 +255,25 @@ export default function Dashboard() {
       )}
 
       {equipments.length === 0 && collaborators.length === 0 && (
-        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-8 border border-blue-100">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200 to-purple-200 opacity-20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/20 dark:via-indigo-900/20 dark:to-purple-900/20 rounded-2xl p-8 border border-blue-100 dark:border-blue-800">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200 to-purple-200 dark:from-blue-800 dark:to-purple-800 opacity-20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           <div className="relative text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/80 backdrop-blur-sm rounded-full text-xs font-medium text-blue-700 mb-4 border border-blue-100">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-full text-xs font-medium text-blue-700 dark:text-blue-400 mb-4 border border-blue-100 dark:border-blue-800">
               <Activity size={12} /> Sistema inicializado
             </div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
               ¡Bienvenido al Sistema de Control de Tóner!
             </h3>
-            <p className="text-sm text-gray-600 mb-6 max-w-lg mx-auto">
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-6 max-w-lg mx-auto">
               Comienza registrando tus recursos para gestionar tu infraestructura de forma eficiente
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
               {[
-                { label: 'Equipamientos', icon: Monitor, color: 'bg-blue-100 text-blue-700' },
-                { label: 'Colaboradores', icon: Users, color: 'bg-violet-100 text-violet-700' },
-                { label: 'Proveedores', icon: Building2, color: 'bg-emerald-100 text-emerald-700' },
-                { label: 'Comprobantes', icon: FileText, color: 'bg-amber-100 text-amber-700' },
-                { label: 'Impresoras', icon: Printer, color: 'bg-rose-100 text-rose-700' },
+                { label: 'Equipamientos', icon: Monitor, color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' },
+                { label: 'Colaboradores', icon: Users, color: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400' },
+                { label: 'Proveedores', icon: Building2, color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' },
+                { label: 'Comprobantes', icon: FileText, color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
+                { label: 'Impresoras', icon: Printer, color: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' },
               ].map((item, i) => {
                 const Icon = item.icon;
                 return (
@@ -287,7 +287,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100">
+      <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 opacity-[0.03]" />
         <div className="relative p-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -296,23 +296,23 @@ export default function Dashboard() {
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
                   <Server className="w-6 h-6 text-white" />
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white" />
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-800" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-gray-800">
+                <h3 className="text-sm font-bold text-gray-800 dark:text-white">
                   Desarrollado por Area Sistemas PEDSA
                 </h3>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
-                <p className="text-xs text-gray-400">Versión</p>
-                <p className="text-xs font-semibold text-gray-700">2.0.0</p>
+                <p className="text-xs text-gray-400 dark:text-slate-500">Versión</p>
+                <p className="text-xs font-semibold text-gray-700 dark:text-slate-300">2.0.0</p>
               </div>
-              <div className="h-10 w-px bg-gray-200" />
-              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-full border border-emerald-200">
+              <div className="h-10 w-px bg-gray-200 dark:bg-slate-700" />
+              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-full border border-emerald-200 dark:border-emerald-800">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-xs font-semibold text-emerald-700">Sistema Activo</span>
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Sistema Activo</span>
               </div>
             </div>
           </div>

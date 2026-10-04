@@ -32,27 +32,27 @@ export default function Layout({ children }: { children: ReactNode }) {
   const unreadAlertList = alerts.filter(a => !a.read);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-slate-900 overflow-hidden">
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
       )}
 
       <aside className={`
-        fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200
+        fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} flex flex-col shadow-sm
       `}>
-        <div className="p-5 border-b border-gray-100">
+        <div className="p-5 border-b border-gray-100 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
                 <Printer size={20} className="text-white" />
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-800" />
             </div>
             <div>
-              <h1 className="font-bold text-base text-gray-900">Control Tóner</h1>
-              <p className="text-xs text-gray-500">Sistema de Gestión</p>
+              <h1 className="font-bold text-base text-gray-900 dark:text-white">Control Tóner</h1>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Sistema de Gestión</p>
             </div>
           </div>
         </div>
@@ -68,11 +68,11 @@ export default function Layout({ children }: { children: ReactNode }) {
                   w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group
                   ${isActive
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/20'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    : 'text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-900 dark:hover:text-white'
                   }
                 `}
               >
-                <span className={`${isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                <span className={`${isActive ? 'text-white' : 'text-gray-400 dark:text-slate-400 group-hover:text-gray-600 dark:group-hover:text-slate-300'}`}>
                   {item.icon}
                 </span>
                 <span className="flex-1 text-left">{item.label}</span>
@@ -82,19 +82,19 @@ export default function Layout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="p-3 border-t border-gray-100">
-          <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3">
+        <div className="p-3 border-t border-gray-100 dark:border-slate-700">
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-700 dark:to-slate-600 rounded-xl p-3">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-md">
                 {user?.email?.charAt(0).toUpperCase() || 'U'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{user?.email || 'Usuario'}</p>
-                <p className="text-xs text-gray-500">{user?.role === 'admin' ? 'Administrador' : 'Usuario'}</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{user?.email || 'Usuario'}</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">{user?.role === 'admin' ? 'Administrador' : 'Usuario'}</p>
               </div>
               <button 
                 onClick={logout} 
-                className="p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-red-500 transition-colors" 
+                className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-500 text-gray-400 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors" 
                 title="Cerrar sesión"
               >
                 <LogOut size={16} />
@@ -105,19 +105,19 @@ export default function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm">
+        <header className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
             <button 
               onClick={() => setSidebarOpen(true)} 
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
             >
-              <Menu size={20} className="text-gray-600" />
+              <Menu size={20} className="text-gray-600 dark:text-slate-300" />
             </button>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                 {navItems.find(n => n.page === currentPage)?.label || 'Dashboard'}
               </h2>
-              <p className="text-xs text-gray-500 hidden sm:block">
+              <p className="text-xs text-gray-500 dark:text-slate-400 hidden sm:block">
                 {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
             </div>
@@ -126,11 +126,11 @@ export default function Layout({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3">
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
               title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
             >
               {theme === 'light' ? (
-                <Moon size={20} className="text-gray-600" />
+                <Moon size={20} className="text-gray-600 dark:text-slate-300" />
               ) : (
                 <Sun size={20} className="text-yellow-500" />
               )}
@@ -139,9 +139,9 @@ export default function Layout({ children }: { children: ReactNode }) {
             <div className="relative">
               <button 
                 onClick={() => setShowAlerts(!showAlerts)} 
-                className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
               >
-                <Bell size={20} className="text-gray-600" />
+                <Bell size={20} className="text-gray-600 dark:text-slate-300" />
                 {unreadAlerts > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold px-1 shadow-lg shadow-red-500/30">
                     {unreadAlerts}
@@ -150,33 +150,33 @@ export default function Layout({ children }: { children: ReactNode }) {
               </button>
 
               {showAlerts && (
-                <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
-                  <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                <div className="absolute right-0 top-full mt-2 w-96 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 max-h-96 overflow-y-auto">
+                  <div className="p-4 border-b border-gray-100 dark:border-slate-700 bg-gradient-to-r from-gray-50 to-white dark:from-slate-700 dark:to-slate-800">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="font-bold text-gray-900">Notificaciones</h3>
-                        <p className="text-xs text-gray-500">{unreadAlerts} sin leer</p>
+                        <h3 className="font-bold text-gray-900 dark:text-white">Notificaciones</h3>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">{unreadAlerts} sin leer</p>
                       </div>
                       <button 
                         onClick={() => setShowAlerts(false)} 
-                        className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                       >
-                        <X size={16} className="text-gray-500" />
+                        <X size={16} className="text-gray-500 dark:text-slate-400" />
                       </button>
                     </div>
                   </div>
                   <div className="overflow-y-auto max-h-96">
                     {unreadAlertList.length === 0 ? (
                       <div className="p-8 text-center">
-                        <Bell size={32} className="mx-auto text-gray-300 mb-2" />
-                        <p className="text-sm text-gray-500">Sin notificaciones</p>
+                        <Bell size={32} className="mx-auto text-gray-300 dark:text-slate-600 mb-2" />
+                        <p className="text-sm text-gray-500 dark:text-slate-400">Sin notificaciones</p>
                       </div>
                     ) : (
-                      <div className="divide-y divide-gray-50">
+                      <div className="divide-y divide-gray-50 dark:divide-slate-700">
                         {unreadAlertList.map(alert => (
                           <div 
                             key={alert.id} 
-                            className="p-4 hover:bg-gray-50 cursor-pointer transition-colors" 
+                            className="p-4 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer transition-colors" 
                             onClick={() => markAlertRead(alert.id)}
                           >
                             <div className="flex items-start gap-3">
@@ -185,8 +185,8 @@ export default function Layout({ children }: { children: ReactNode }) {
                                 alert.type === 'low_stock' ? 'bg-red-500' : 'bg-blue-500'
                               }`} />
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm text-gray-700 leading-snug">{alert.message}</p>
-                                <p className="text-xs text-gray-400 mt-1">{alert.date}</p>
+                                <p className="text-sm text-gray-700 dark:text-slate-300 leading-snug">{alert.message}</p>
+                                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">{alert.date}</p>
                               </div>
                             </div>
                           </div>
@@ -198,14 +198,14 @@ export default function Layout({ children }: { children: ReactNode }) {
               )}
             </div>
 
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-slate-700 rounded-lg border border-gray-200 dark:border-slate-600">
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-xs font-medium text-gray-600">Sistema activo</span>
+              <span className="text-xs font-medium text-gray-600 dark:text-slate-300">Sistema activo</span>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gray-50">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gray-50 dark:bg-slate-900">
           {children}
         </main>
       </div>
