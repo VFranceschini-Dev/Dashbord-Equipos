@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { TonerItem } from '../types';
+import { groupTonersByCompatibility, getCompatibilityKey, getLowStockGroups } from '../utils/tonerCompatibility';
 import {
   Plus, Search, Edit2, Trash2, X, AlertTriangle, Package, ArrowDownCircle, Upload
 } from 'lucide-react';
@@ -27,6 +28,17 @@ export default function Inventory() {
   const [form, setForm] = useState<Omit<TonerItem, 'id'>>({
     model: '', brand: '', color: 'black', stock: 0, minStock: 2, maxStock: 10,
     unitPrice: 0, supplier: '', lastRestock: '',
+  });
+
+  // Agrupar tóneres por compatibilidad
+  const compatibilityGroups = groupTonersByCompatibility(toners);
+  const lowStockGroups = getLowStockGroups(toners);
+  
+  // Crear un mapa de stock total por grupo de compatibilidad
+  const stockByGroup = new Map<string, number>();
+  compatibilityGroups.forEach(group => {
+    const key = getCompatibilityKey(group.toners[0]);
+    stockByGroup.set(key, group.totalStock);
   });
 
   const filtered = toners.filter(t =>
@@ -94,14 +106,21 @@ export default function Inventory() {
   };
 
   const getStockStatus = (t: TonerItem) => {
-    if (t.stock <= 0) return { label: 'Sin stock', color: 'bg-red-100 text-red-700' };
-    if (t.stock <= t.minStock) return { label: 'Stock bajo', color: 'bg-amber-100 text-amber-700' };
-    if (t.stock >= t.maxStock) return { label: 'Stock completo', color: 'bg-emerald-100 text-emerald-700' };
+    // Obtener el stock total del grupo de compatibilidad
+    const key = getCompatibilityKey(t);
+    const totalStock = stockByGroup.get(key) || t.stock;
+    
+    if (totalStock <= 0) return { label: 'Sin stock', color: 'bg-red-100 text-red-700' };
+    if (totalStock <= t.minStock) return { label: 'Stock bajo', color: 'bg-amber-100 text-amber-700' };
+    if (totalStock >= t.maxStock) return { label: 'Stock completo', color: 'bg-emerald-100 text-emerald-700' };
     return { label: 'Normal', color: 'bg-blue-100 text-blue-700' };
   };
 
   const getStockPercentage = (t: TonerItem) => {
-    return Math.min((t.stock / t.maxStock) * 100, 100);
+    // Usar el stock total del grupo de compatibilidad
+    const key = getCompatibilityKey(t);
+    const totalStock = stockByGroup.get(key) || t.stock;
+    return Math.min((totalStock / t.maxStock) * 100, 100);
   };
 
   return (
@@ -137,8 +156,9 @@ export default function Inventory() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-          <p className="text-xs text-gray-500 font-medium">Total Modelos</p>
-          <p className="text-xl font-bold text-gray-800">{toners.length}</p>
+          <p className="text-xs text-gray-500 font-medium">Modelos Únicos</p>
+          <p className="text-xl font-bold text-gray-800">{compatibilityGroups.length}</p>
+          <p className="text-xs text-gray-400 mt-1">{toners.length} registros</p>
         </div>
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <p className="text-xs text-gray-500 font-medium">Unidades Totales</p>
@@ -152,7 +172,8 @@ export default function Inventory() {
           <p className="text-xs text-amber-600 font-medium flex items-center gap-1">
             <AlertTriangle size={12} /> Stock Bajo
           </p>
-          <p className="text-xl font-bold text-amber-700">{toners.filter(t => t.stock <= t.minStock).length}</p>
+          <p className="text-xl font-bold text-amber-700">{lowStockGroups.length}</p>
+          <p className="text-xs text-amber-600 mt-1">modelos compatibles</p>
         </div>
       </div>
 
@@ -345,17 +366,24 @@ export default function Inventory() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-800">{toner.stock}</span>
-                        <span className="text-xs text-gray-400">/ {toner.maxStock}</span>
-                      </div>
-                      <div className="w-20 h-1.5 bg-gray-100 rounded-full mt-1">
-                        <div
-                          className={`h-full rounded-full ${
-                            pct <= 25 ? 'bg-red-500' : pct <= 50 ? 'bg-amber-500' : 'bg-emerald-500'
-                          }`}
-                          style={{ width: `${pct}%` }}
-                        />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-gray-800">
+                            {stockByGroup.get(getCompatibilityKey(toner)) || toner.stock}
+                          </span>
+                          <span className="text-xs text-gray-400">/ {toner.maxStock}</span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          Total compatible ({toner.brand} {toner.model})
+                        </div>
+                        <div className="w-20 h-1.5 bg-gray-100 rounded-full mt-1">
+                          <div
+                            className={`h-full rounded-full ${
+                              pct <= 25 ? 'bg-red-500' : pct <= 50 ? 'bg-amber-500' : 'bg-emerald-500'
+                            }`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3">

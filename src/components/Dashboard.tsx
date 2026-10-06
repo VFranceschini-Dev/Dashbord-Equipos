@@ -1,18 +1,24 @@
 import { useApp } from '../context/AppContext';
 import * as db from '../services/localDatabase';
+import { getLowStockGroups } from '../utils/tonerCompatibility';
 import {
   Printer, Package, AlertTriangle, Monitor, Server, Users, Building2, FileText,
   TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight,
   Database, Wifi, HardDrive
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import LowStockAlerts from './LowStockAlerts';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts, equipments, suppliers, collaborators, setCurrentPage } = useApp();
   const syncStats = db.getSyncStats();
 
   const activePrinters = printers.filter(p => p.status === 'active').length;
-  const lowStockItems = toners.filter(t => t.stock <= t.minStock).length;
+  
+  // Calcular alertas de stock bajo agrupando por compatibilidad
+  const lowStockGroups = getLowStockGroups(toners);
+  const lowStockItems = lowStockGroups.length;
+  
   const totalTonerValue = toners.reduce((sum, t) => sum + t.stock * t.unitPrice, 0);
   const totalMovements = movements.length;
   const unreadAlerts = alerts.filter(a => !a.read).length;
@@ -143,10 +149,10 @@ export default function Dashboard() {
               <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Panel de Control</span>
             </div>
             <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1">
-              Bienvenido al Sistema de Control
+              Bienvenido al Dashboard Control
             </h1>
             <p className="text-gray-600 dark:text-slate-400 text-sm lg:text-base">
-              Gestión integral de equipamientos, impresoras e inventario
+              de Equipamientos - Gestión integral de recursos e inventario
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -233,6 +239,9 @@ export default function Dashboard() {
           );
         })}
       </div>
+
+      {/* Low Stock Alerts */}
+      <LowStockAlerts />
 
       {/* Sync Stats */}
       {syncStats.totalServers > 0 && (
@@ -343,7 +352,7 @@ export default function Dashboard() {
               <Activity size={12} /> Sistema inicializado
             </div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              ¡Bienvenido al Sistema de Control de Tóner!
+              ¡Bienvenido al Dashboard Control de Equipamientos!
             </h3>
             <p className="text-sm text-gray-600 dark:text-slate-400 mb-6 max-w-lg mx-auto">
               Comienza registrando tus recursos para gestionar tu infraestructura de forma eficiente
@@ -383,14 +392,14 @@ export default function Dashboard() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                  Desarrollado por Area Sistemas PEDSA
+                  Desarrollado por VFL para Area Sistemas PEDSA
                 </h3>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-xs text-gray-500 dark:text-slate-400">Versión</p>
-                <p className="text-xs font-bold text-gray-700 dark:text-slate-300">2.8.0</p>
+                <p className="text-xs font-bold text-gray-700 dark:text-slate-300">2.9.0</p>
               </div>
               <div className="h-10 w-px bg-gray-200 dark:bg-slate-700" />
               <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-full border border-emerald-200 dark:border-emerald-800">

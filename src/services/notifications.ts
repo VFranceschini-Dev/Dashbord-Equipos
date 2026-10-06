@@ -1,5 +1,5 @@
 export type NotificationType = 'info' | 'success' | 'warning' | 'error';
-export type NotificationCategory = 'sync' | 'connection' | 'mapping' | 'system';
+export type NotificationCategory = 'sync' | 'connection' | 'mapping' | 'system' | 'inventory';
 
 export interface Notification {
   id: string;
@@ -156,6 +156,28 @@ export function notifyAutoMappingCompleted(count: number): Notification {
   );
 }
 
+// Notificaciones de inventario
+export function notifyLowStockGroup(
+  brand: string,
+  model: string,
+  color: string,
+  totalStock: number,
+  minStock: number,
+  suppliers: string[]
+): Notification {
+  const colorLabel = color === 'black' ? 'Negro' :
+                     color === 'cyan' ? 'Cian' :
+                     color === 'magenta' ? 'Magenta' : 'Amarillo';
+  
+  return createNotification(
+    'warning',
+    'inventory',
+    'Stock Bajo',
+    `${brand} ${model} (${colorLabel}) - Stock total: ${totalStock} (mínimo: ${minStock}) - Proveedores: ${suppliers.join(', ')}`,
+    { brand, model, color, totalStock, minStock, suppliers }
+  );
+}
+
 // Notificaciones del sistema
 export function notifySystemInfo(title: string, message: string): Notification {
   return createNotification('info', 'system', title, message);
@@ -238,6 +260,7 @@ export function getNotificationStats() {
       connection: notifications.filter(n => n.category === 'connection').length,
       mapping: notifications.filter(n => n.category === 'mapping').length,
       system: notifications.filter(n => n.category === 'system').length,
+      inventory: notifications.filter(n => n.category === 'inventory').length,
     },
     recent: notifications.slice(0, 10),
   };

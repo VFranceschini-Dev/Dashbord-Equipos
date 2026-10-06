@@ -16,8 +16,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const DEFAULT_USERS = [
-  { email: 'soporte@donnet.com.ar', password: '6mn78az39*', name: 'Administrador', role: 'admin' as const },
-  { email: 'usuario@donnet.com.ar', password: 'user123', name: 'Ana García', role: 'user' as const },
+  { email: 'soporte@donnet.com.ar', password: 'Admin2024!Seguro', name: 'Administrador', role: 'admin' as const },
+  { email: 'usuario@donnet.com.ar', password: 'User2024!Test', name: 'Ana García', role: 'user' as const },
 ];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
