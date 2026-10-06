@@ -119,21 +119,21 @@ export default function Equipments() {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-          <p className="text-xs text-gray-500 font-medium">Total Equipos</p>
-          <p className="text-2xl font-bold text-gray-800">{stats.total}</p>
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+          <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">Total Equipos</p>
+          <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.total}</p>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-blue-100 shadow-sm">
-          <p className="text-xs text-blue-600 font-medium">Asignados</p>
-          <p className="text-2xl font-bold text-blue-700">{stats.assigned}</p>
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-blue-100 dark:border-blue-900/30 shadow-sm">
+          <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Asignados</p>
+          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.assigned}</p>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-emerald-100 shadow-sm">
-          <p className="text-xs text-emerald-600 font-medium">Disponibles</p>
-          <p className="text-2xl font-bold text-emerald-700">{stats.available}</p>
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-emerald-100 dark:border-emerald-900/30 shadow-sm">
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Disponibles</p>
+          <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{stats.available}</p>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
-          <p className="text-xs text-amber-600 font-medium">Mantenimiento</p>
-          <p className="text-2xl font-bold text-amber-700">{stats.maintenance}</p>
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-amber-100 dark:border-amber-900/30 shadow-sm">
+          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Mantenimiento</p>
+          <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{stats.maintenance}</p>
         </div>
       </div>
 
