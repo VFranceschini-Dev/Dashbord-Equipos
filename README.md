@@ -30,13 +30,6 @@ Sistema integral de gestión de equipamientos, impresión y monitoreo remoto des
 ✅ **Búsqueda y Filtros** - Búsqueda avanzada en todos los módulos  
 ✅ **CRUD Completo** - Alta, baja y modificación en todos los módulos  
 
-## 🔐 Credenciales de Acceso
-
-| Rol | Email | Contraseña |
-|-----|-------|------------|
-| **Administrador** | soporte@donnet.com.ar | 6mn78az39* |
-| **Usuario** | usuario@donnet.com.ar | user123 |
-
 ## 📦 Instalación
 
 ```bash
