@@ -1,18 +1,24 @@
 import { useApp } from '../context/AppContext';
 import * as db from '../services/localDatabase';
+import { getLowStockGroups } from '../utils/tonerCompatibility';
 import {
   Printer, Package, AlertTriangle, Monitor, Server, Users, Building2, FileText,
   TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight,
   Database, Wifi, HardDrive
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import LowStockAlerts from './LowStockAlerts';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts, equipments, suppliers, collaborators, setCurrentPage } = useApp();
   const syncStats = db.getSyncStats();
 
   const activePrinters = printers.filter(p => p.status === 'active').length;
-  const lowStockItems = toners.filter(t => t.stock <= t.minStock).length;
+  
+  // Calcular alertas de stock bajo agrupando por compatibilidad
+  const lowStockGroups = getLowStockGroups(toners);
+  const lowStockItems = lowStockGroups.length;
+  
   const totalTonerValue = toners.reduce((sum, t) => sum + t.stock * t.unitPrice, 0);
   const totalMovements = movements.length;
   const unreadAlerts = alerts.filter(a => !a.read).length;
@@ -233,6 +239,9 @@ export default function Dashboard() {
           );
         })}
       </div>
+
+      {/* Low Stock Alerts */}
+      <LowStockAlerts />
 
       {/* Sync Stats */}
       {syncStats.totalServers > 0 && (
