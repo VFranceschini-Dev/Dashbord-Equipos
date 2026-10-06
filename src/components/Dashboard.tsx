@@ -1,15 +1,14 @@
 import { useApp } from '../context/AppContext';
-import { useTheme } from '../context/ThemeContext';
 import * as db from '../services/localDatabase';
 import {
   Printer, Package, AlertTriangle, Monitor, Server, Users, Building2, FileText,
-  TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight, Sun, Moon,
+  TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight,
   Database, Wifi, HardDrive
 } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts, equipments, suppliers, collaborators, setCurrentPage } = useApp();
-  const { theme, toggleTheme } = useTheme();
   const syncStats = db.getSyncStats();
 
   const activePrinters = printers.filter(p => p.status === 'active').length;
@@ -131,13 +130,7 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={toggleTheme}
-              className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-3 text-white hover:bg-white/20 transition-colors"
-              title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
-            >
-              {theme === 'light' ? <Moon size={24} /> : <Sun size={24} />}
-            </button>
+            <ThemeToggle />
             <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-2.5 text-white">
               <p className="text-xs text-blue-200">Fecha</p>
               <p className="text-sm font-semibold">

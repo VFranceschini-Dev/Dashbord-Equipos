@@ -1,13 +1,13 @@
 import { ReactNode } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
-  Monitor, Users, Building2, FileText, ChevronRight, Settings, Sun, Moon, Server, RefreshCw
+  Monitor, Users, Building2, FileText, ChevronRight, Settings, Server, RefreshCw
 } from 'lucide-react';
 import { useState } from 'react';
+import ThemeToggle from './ThemeToggle';
 
 const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
@@ -26,7 +26,6 @@ const navItems: { page: Page; label: string; icon: ReactNode }[] = [
 export default function Layout({ children }: { children: ReactNode }) {
   const { currentPage, setCurrentPage, unreadAlerts, alerts, markAlertRead } = useApp();
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
 
@@ -125,17 +124,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-              title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
-            >
-              {theme === 'light' ? (
-                <Moon size={20} className="text-gray-600 dark:text-slate-300" />
-              ) : (
-                <Sun size={20} className="text-yellow-500" />
-              )}
-            </button>
+            <ThemeToggle />
 
             <div className="relative">
               <button 
