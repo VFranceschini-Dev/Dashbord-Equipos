@@ -95,46 +95,41 @@ export default function Dashboard() {
     },
   ];
 
-  const getColorClasses = (color: string, type: 'bg' | 'text' | 'border' | 'icon') => {
+  const getColorClasses = (color: string) => {
     const colors = {
       blue: {
         bg: 'bg-blue-50 dark:bg-blue-900/20',
         text: 'text-blue-600 dark:text-blue-400',
         border: 'border-blue-200 dark:border-blue-800',
-        icon: 'text-blue-600 dark:text-blue-400',
       },
       violet: {
         bg: 'bg-violet-50 dark:bg-violet-900/20',
         text: 'text-violet-600 dark:text-violet-400',
         border: 'border-violet-200 dark:border-violet-800',
-        icon: 'text-violet-600 dark:text-violet-400',
       },
       emerald: {
         bg: 'bg-emerald-50 dark:bg-emerald-900/20',
         text: 'text-emerald-600 dark:text-emerald-400',
         border: 'border-emerald-200 dark:border-emerald-800',
-        icon: 'text-emerald-600 dark:text-emerald-400',
       },
       amber: {
         bg: 'bg-amber-50 dark:bg-amber-900/20',
         text: 'text-amber-600 dark:text-amber-400',
         border: 'border-amber-200 dark:border-amber-800',
-        icon: 'text-amber-600 dark:text-amber-400',
       },
       purple: {
         bg: 'bg-purple-50 dark:bg-purple-900/20',
         text: 'text-purple-600 dark:text-purple-400',
         border: 'border-purple-200 dark:border-purple-800',
-        icon: 'text-purple-600 dark:text-purple-400',
       },
     };
-    return colors[color as keyof typeof colors]?.[type as keyof typeof colors.blue] || '';
+    return colors[color as keyof typeof colors] || colors.blue;
   };
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto">
-      {/* Hero Header - Claro por defecto */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 rounded-2xl p-6 lg:p-8 shadow-sm dark:shadow-2xl border border-blue-100 dark:border-slate-700">
+    <div className="space-y-6 max-w-[1600px] mx-auto p-6">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 rounded-2xl p-6 lg:p-8 shadow-lg dark:shadow-2xl border border-blue-200 dark:border-slate-700">
         <div className="absolute inset-0 opacity-5 dark:opacity-10">
           <div className="absolute inset-0" style={{
             backgroundImage: `radial-gradient(circle at 1px 1px, rgba(59, 130, 246, 0.3) 1px, transparent 0)`,
@@ -172,22 +167,23 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Main Stats - Cards claras */}
+      {/* Main Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {mainStats.map((stat, i) => {
           const Icon = stat.icon;
+          const colors = getColorClasses(stat.color);
           return (
             <button
               key={i}
               onClick={() => setCurrentPage(stat.page)}
-              className="group relative bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl border border-gray-200 dark:border-slate-700 hover:shadow-lg hover:border-gray-300 dark:hover:border-slate-600 transition-all duration-300 text-left overflow-hidden"
+              className="group relative bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-md dark:shadow-xl border border-gray-200 dark:border-slate-700 hover:shadow-xl hover:border-gray-300 dark:hover:border-slate-600 transition-all duration-300 text-left overflow-hidden"
             >
-              <div className={`absolute -top-8 -right-8 w-24 h-24 ${getColorClasses(stat.color, 'bg')} opacity-20 rounded-full blur-2xl group-hover:opacity-30 transition-opacity`} />
+              <div className={`absolute -top-8 -right-8 w-24 h-24 ${colors.bg} opacity-20 rounded-full blur-2xl group-hover:opacity-30 transition-opacity`} />
               
               <div className="relative">
                 <div className="flex items-start justify-between mb-4">
-                  <div className={`p-2.5 rounded-xl ${getColorClasses(stat.color, 'bg')} group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon size={22} className={getColorClasses(stat.color, 'icon')} />
+                  <div className={`p-2.5 rounded-xl ${colors.bg} group-hover:scale-110 transition-transform duration-300`}>
+                    <Icon size={22} className={colors.text} />
                   </div>
                   <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
                     stat.trendUp 
@@ -212,18 +208,19 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Secondary Stats - Cards compactas */}
+      {/* Secondary Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {secondaryStats.map((stat, i) => {
           const Icon = stat.icon;
+          const colors = getColorClasses(stat.color);
           return (
             <button
               key={i}
               onClick={() => setCurrentPage(stat.page)}
-              className="group bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm dark:shadow-xl border border-gray-200 dark:border-slate-700 hover:shadow-md hover:border-gray-300 dark:hover:border-slate-600 transition-all duration-200 text-left"
+              className="group bg-white dark:bg-slate-800 rounded-xl p-4 shadow-md dark:shadow-xl border border-gray-200 dark:border-slate-700 hover:shadow-lg hover:border-gray-300 dark:hover:border-slate-600 transition-all duration-200 text-left"
             >
               <div className="flex items-center gap-3">
-                <div className={`${getColorClasses(stat.color, 'bg')} ${getColorClasses(stat.color, 'icon')} p-2 rounded-lg group-hover:scale-110 transition-transform`}>
+                <div className={`${colors.bg} ${colors.text} p-2 rounded-lg group-hover:scale-110 transition-transform`}>
                   <Icon size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -237,13 +234,13 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Sync Stats - Si hay servidores configurados */}
+      {/* Sync Stats */}
       {syncStats.totalServers > 0 && (
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-700 rounded-2xl p-6 border border-blue-200 dark:border-slate-600">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className={`p-2 ${getColorClasses('blue', 'bg')} rounded-xl`}>
-                <Database size={20} className={getColorClasses('blue', 'icon')} />
+              <div className={`p-2 ${getColorClasses('blue').bg} rounded-xl`}>
+                <Database size={20} className={getColorClasses('blue').text} />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">Estado de Sincronización</h3>
@@ -262,28 +259,28 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Server size={14} className={getColorClasses('blue', 'icon')} />
+                <Server size={14} className={getColorClasses('blue').text} />
                 <p className="text-xs text-gray-600 dark:text-slate-400">Servidores</p>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalServers}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
-                <HardDrive size={14} className={getColorClasses('emerald', 'icon')} />
+                <HardDrive size={14} className={getColorClasses('emerald').text} />
                 <p className="text-xs text-gray-600 dark:text-slate-400">Dispositivos</p>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalDevices}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Wifi size={14} className={getColorClasses('emerald', 'icon')} />
+                <Wifi size={14} className={getColorClasses('emerald').text} />
                 <p className="text-xs text-gray-600 dark:text-slate-400">Conectados</p>
               </div>
-              <p className={`text-2xl font-bold ${getColorClasses('emerald', 'text')}`}>{syncStats.connectedDevices}</p>
+              <p className={`text-2xl font-bold ${getColorClasses('emerald').text}`}>{syncStats.connectedDevices}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Activity size={14} className={getColorClasses('purple', 'icon')} />
+                <Activity size={14} className={getColorClasses('purple').text} />
                 <p className="text-xs text-gray-600 dark:text-slate-400">Sincronizaciones</p>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalSyncs}</p>
@@ -292,20 +289,20 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Alerts Section */}
+      {/* Alerts */}
       {unreadAlerts > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm dark:shadow-xl border border-gray-200 dark:border-slate-700">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-md dark:shadow-xl border border-gray-200 dark:border-slate-700">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
-              <div className={`p-2 ${getColorClasses('amber', 'bg')} rounded-xl`}>
-                <AlertTriangle size={20} className={getColorClasses('amber', 'icon')} />
+              <div className={`p-2 ${getColorClasses('amber').bg} rounded-xl`}>
+                <AlertTriangle size={20} className={getColorClasses('amber').text} />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">Alertas Pendientes</h3>
                 <p className="text-xs text-gray-600 dark:text-slate-400">{unreadAlerts} notificación{unreadAlerts !== 1 ? 'es' : ''} sin leer</p>
               </div>
             </div>
-            <span className={`px-3 py-1 ${getColorClasses('amber', 'bg')} ${getColorClasses('amber', 'text')} rounded-full text-xs font-bold`}>
+            <span className={`px-3 py-1 ${getColorClasses('amber').bg} ${getColorClasses('amber').text} rounded-full text-xs font-bold`}>
               {unreadAlerts}
             </span>
           </div>
@@ -313,7 +310,7 @@ export default function Dashboard() {
             {alerts.filter(a => !a.read).slice(0, 6).map(alert => (
               <div
                 key={alert.id}
-                className={`p-4 rounded-xl border transition-all hover:shadow-md ${
+                className={`p-4 rounded-xl border transition-all hover:shadow-lg ${
                   alert.severity === 'high' 
                     ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' :
                   alert.severity === 'medium' 
@@ -360,8 +357,9 @@ export default function Dashboard() {
                 { label: 'Impresoras', icon: Printer, color: 'purple' },
               ].map((item, i) => {
                 const Icon = item.icon;
+                const colors = getColorClasses(item.color);
                 return (
-                  <span key={i} className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${getColorClasses(item.color, 'bg')} ${getColorClasses(item.color, 'text')} rounded-full text-xs font-semibold`}>
+                  <span key={i} className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${colors.bg} ${colors.text} rounded-full text-xs font-semibold`}>
                     <Icon size={12} /> {item.label}
                   </span>
                 );
@@ -371,8 +369,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Footer Credits */}
-      <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl shadow-sm dark:shadow-xl border border-gray-200 dark:border-slate-700">
+      {/* Footer */}
+      <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl shadow-md dark:shadow-xl border border-gray-200 dark:border-slate-700">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 opacity-[0.02] dark:opacity-[0.05]" />
         <div className="relative p-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -392,7 +390,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-xs text-gray-500 dark:text-slate-400">Versión</p>
-                <p className="text-xs font-bold text-gray-700 dark:text-slate-300">2.6.0</p>
+                <p className="text-xs font-bold text-gray-700 dark:text-slate-300">2.8.0</p>
               </div>
               <div className="h-10 w-px bg-gray-200 dark:bg-slate-700" />
               <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-full border border-emerald-200 dark:border-emerald-800">
