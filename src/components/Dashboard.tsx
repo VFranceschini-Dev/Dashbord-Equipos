@@ -23,9 +23,7 @@ export default function Dashboard() {
       value: equipments.length,
       subtitle: `${equipments.filter(e => e.status === 'assigned').length} asignados`,
       icon: Monitor,
-      gradient: 'from-blue-500 to-blue-600',
-      lightBg: 'bg-blue-50',
-      iconColor: 'text-blue-600',
+      color: 'blue',
       trend: '+12%',
       trendUp: true,
       page: 'equipments' as const,
@@ -35,9 +33,7 @@ export default function Dashboard() {
       value: collaborators.length,
       subtitle: `${collaborators.filter(c => c.active).length} activos`,
       icon: Users,
-      gradient: 'from-violet-500 to-purple-600',
-      lightBg: 'bg-violet-50',
-      iconColor: 'text-violet-600',
+      color: 'violet',
       trend: '+5%',
       trendUp: true,
       page: 'collaborators' as const,
@@ -47,9 +43,7 @@ export default function Dashboard() {
       value: suppliers.length,
       subtitle: `${suppliers.filter(s => s.active).length} activos`,
       icon: Building2,
-      gradient: 'from-emerald-500 to-teal-600',
-      lightBg: 'bg-emerald-50',
-      iconColor: 'text-emerald-600',
+      color: 'emerald',
       trend: '+3%',
       trendUp: true,
       page: 'suppliers' as const,
@@ -59,9 +53,7 @@ export default function Dashboard() {
       value: printers.length,
       subtitle: `${activePrinters} activas`,
       icon: Printer,
-      gradient: 'from-amber-500 to-orange-600',
-      lightBg: 'bg-amber-50',
-      iconColor: 'text-amber-600',
+      color: 'amber',
       trend: '0%',
       trendUp: true,
       page: 'printers' as const,
@@ -74,8 +66,7 @@ export default function Dashboard() {
       value: toners.reduce((s, t) => s + t.stock, 0),
       subtitle: `Valor: $${totalTonerValue.toLocaleString('es-AR')}`,
       icon: Package,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
+      color: 'blue',
       page: 'inventory' as const,
     },
     {
@@ -83,8 +74,7 @@ export default function Dashboard() {
       value: movements.length,
       subtitle: 'Este período',
       icon: FileText,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50',
+      color: 'emerald',
       page: 'vouchers' as const,
     },
     {
@@ -92,8 +82,7 @@ export default function Dashboard() {
       value: lowStockItems,
       subtitle: `${unreadAlerts} sin leer`,
       icon: AlertTriangle,
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
+      color: 'amber',
       page: 'inventory' as const,
     },
     {
@@ -101,45 +90,81 @@ export default function Dashboard() {
       value: totalMovements,
       subtitle: 'Total registrado',
       icon: Clock,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50',
+      color: 'purple',
       page: 'movements' as const,
     },
   ];
 
+  const getColorClasses = (color: string, type: 'bg' | 'text' | 'border' | 'icon') => {
+    const colors = {
+      blue: {
+        bg: 'bg-blue-50 dark:bg-blue-900/20',
+        text: 'text-blue-600 dark:text-blue-400',
+        border: 'border-blue-200 dark:border-blue-800',
+        icon: 'text-blue-600 dark:text-blue-400',
+      },
+      violet: {
+        bg: 'bg-violet-50 dark:bg-violet-900/20',
+        text: 'text-violet-600 dark:text-violet-400',
+        border: 'border-violet-200 dark:border-violet-800',
+        icon: 'text-violet-600 dark:text-violet-400',
+      },
+      emerald: {
+        bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+        text: 'text-emerald-600 dark:text-emerald-400',
+        border: 'border-emerald-200 dark:border-emerald-800',
+        icon: 'text-emerald-600 dark:text-emerald-400',
+      },
+      amber: {
+        bg: 'bg-amber-50 dark:bg-amber-900/20',
+        text: 'text-amber-600 dark:text-amber-400',
+        border: 'border-amber-200 dark:border-amber-800',
+        icon: 'text-amber-600 dark:text-amber-400',
+      },
+      purple: {
+        bg: 'bg-purple-50 dark:bg-purple-900/20',
+        text: 'text-purple-600 dark:text-purple-400',
+        border: 'border-purple-200 dark:border-purple-800',
+        icon: 'text-purple-600 dark:text-purple-400',
+      },
+    };
+    return colors[color as keyof typeof colors]?.[type as keyof typeof colors.blue] || '';
+  };
+
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-2xl p-6 lg:p-8 shadow-xl">
-        <div className="absolute inset-0 opacity-20">
+      {/* Hero Header - Claro por defecto */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 rounded-2xl p-6 lg:p-8 shadow-sm dark:shadow-2xl border border-blue-100 dark:border-slate-700">
+        <div className="absolute inset-0 opacity-5 dark:opacity-10">
           <div className="absolute inset-0" style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)`,
+            backgroundImage: `radial-gradient(circle at 1px 1px, rgba(59, 130, 246, 0.3) 1px, transparent 0)`,
             backgroundSize: '24px 24px'
           }} />
         </div>
         <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Shield size={14} className="text-blue-300" />
-              <span className="text-xs font-medium text-blue-300 uppercase tracking-wider">Panel de Control</span>
+              <Shield size={14} className="text-blue-600 dark:text-blue-400" />
+              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Panel de Control</span>
             </div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1">
+            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1">
               Bienvenido al Sistema de Control
             </h1>
-            <p className="text-blue-200 text-sm lg:text-base">
+            <p className="text-gray-600 dark:text-slate-400 text-sm lg:text-base">
               Gestión integral de equipamientos, impresoras e inventario
             </p>
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-2.5 text-white">
-              <p className="text-xs text-blue-200">Fecha</p>
-              <p className="text-sm font-semibold">
+            <div className="bg-white/80 dark:bg-slate-700/80 backdrop-blur-sm border border-blue-200 dark:border-slate-600 rounded-xl px-4 py-2.5">
+              <p className="text-xs text-gray-600 dark:text-slate-400">Fecha</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">
                 {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
               </p>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-2.5 text-white">
-              <p className="text-xs text-blue-200">Hora</p>
-              <p className="text-sm font-semibold">
+            <div className="bg-white/80 dark:bg-slate-700/80 backdrop-blur-sm border border-blue-200 dark:border-slate-600 rounded-xl px-4 py-2.5">
+              <p className="text-xs text-gray-600 dark:text-slate-400">Hora</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">
                 {new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>
@@ -147,6 +172,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Main Stats - Cards claras */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {mainStats.map((stat, i) => {
           const Icon = stat.icon;
@@ -154,28 +180,30 @@ export default function Dashboard() {
             <button
               key={i}
               onClick={() => setCurrentPage(stat.page)}
-              className="group relative bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-slate-700 hover:shadow-lg hover:border-gray-200 dark:hover:border-slate-600 transition-all duration-300 text-left overflow-hidden"
+              className="group relative bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl border border-gray-200 dark:border-slate-700 hover:shadow-lg hover:border-gray-300 dark:hover:border-slate-600 transition-all duration-300 text-left overflow-hidden"
             >
-              <div className={`absolute -top-8 -right-8 w-24 h-24 bg-gradient-to-br ${stat.gradient} opacity-10 rounded-full blur-2xl group-hover:opacity-20 transition-opacity`} />
+              <div className={`absolute -top-8 -right-8 w-24 h-24 ${getColorClasses(stat.color, 'bg')} opacity-20 rounded-full blur-2xl group-hover:opacity-30 transition-opacity`} />
               
               <div className="relative">
                 <div className="flex items-start justify-between mb-4">
-                  <div className={`p-2.5 rounded-xl ${stat.lightBg} dark:bg-slate-700 group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon size={22} className={stat.iconColor} />
+                  <div className={`p-2.5 rounded-xl ${getColorClasses(stat.color, 'bg')} group-hover:scale-110 transition-transform duration-300`}>
+                    <Icon size={22} className={getColorClasses(stat.color, 'icon')} />
                   </div>
-                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                    stat.trendUp ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                    stat.trendUp 
+                      ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' 
+                      : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                   }`}>
                     {stat.trendUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                     {stat.trend}
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-0.5">{stat.title}</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-slate-400 mb-0.5">{stat.title}</p>
                   <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stat.value}</p>
-                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">{stat.subtitle}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-500 mt-1">{stat.subtitle}</p>
                 </div>
-                <div className="mt-4 flex items-center gap-1 text-xs font-medium text-gray-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-gray-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                   Ver detalles <ChevronRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
@@ -184,6 +212,7 @@ export default function Dashboard() {
         })}
       </div>
 
+      {/* Secondary Stats - Cards compactas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {secondaryStats.map((stat, i) => {
           const Icon = stat.icon;
@@ -191,16 +220,16 @@ export default function Dashboard() {
             <button
               key={i}
               onClick={() => setCurrentPage(stat.page)}
-              className="group bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-slate-700 hover:shadow-md hover:border-gray-200 dark:hover:border-slate-600 transition-all duration-200 text-left"
+              className="group bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm dark:shadow-xl border border-gray-200 dark:border-slate-700 hover:shadow-md hover:border-gray-300 dark:hover:border-slate-600 transition-all duration-200 text-left"
             >
               <div className="flex items-center gap-3">
-                <div className={`${stat.bg} dark:bg-slate-700 ${stat.color} p-2 rounded-lg group-hover:scale-110 transition-transform`}>
+                <div className={`${getColorClasses(stat.color, 'bg')} ${getColorClasses(stat.color, 'icon')} p-2 rounded-lg group-hover:scale-110 transition-transform`}>
                   <Icon size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{stat.title}</p>
-                  <p className="text-xl font-bold text-gray-800 dark:text-white">{stat.value}</p>
-                  <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{stat.subtitle}</p>
+                  <p className="text-xs text-gray-600 dark:text-slate-400 truncate">{stat.title}</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-500 truncate">{stat.subtitle}</p>
                 </div>
               </div>
             </button>
@@ -208,24 +237,24 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Sync Stats */}
+      {/* Sync Stats - Si hay servidores configurados */}
       {syncStats.totalServers > 0 && (
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800">
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-700 rounded-2xl p-6 border border-blue-200 dark:border-slate-600">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-                <Database size={20} className="text-blue-600 dark:text-blue-400" />
+              <div className={`p-2 ${getColorClasses('blue', 'bg')} rounded-xl`}>
+                <Database size={20} className={getColorClasses('blue', 'icon')} />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-800 dark:text-white">Estado de Sincronización</h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400">
+                <h3 className="font-semibold text-gray-900 dark:text-white">Estado de Sincronización</h3>
+                <p className="text-xs text-gray-600 dark:text-slate-400">
                   {syncStats.activeServers} servidor{syncStats.activeServers !== 1 ? 'es' : ''} activo{syncStats.activeServers !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>
             <button
               onClick={() => setCurrentPage('data-sync')}
-              className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+              className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold"
             >
               Ver detalles <ChevronRight size={14} />
             </button>
@@ -233,29 +262,29 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Server size={14} className="text-blue-600 dark:text-blue-400" />
-                <p className="text-xs text-gray-500 dark:text-slate-400">Servidores</p>
+                <Server size={14} className={getColorClasses('blue', 'icon')} />
+                <p className="text-xs text-gray-600 dark:text-slate-400">Servidores</p>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalServers}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
-                <HardDrive size={14} className="text-emerald-600 dark:text-emerald-400" />
-                <p className="text-xs text-gray-500 dark:text-slate-400">Dispositivos</p>
+                <HardDrive size={14} className={getColorClasses('emerald', 'icon')} />
+                <p className="text-xs text-gray-600 dark:text-slate-400">Dispositivos</p>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalDevices}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Wifi size={14} className="text-emerald-600 dark:text-emerald-400" />
-                <p className="text-xs text-gray-500 dark:text-slate-400">Conectados</p>
+                <Wifi size={14} className={getColorClasses('emerald', 'icon')} />
+                <p className="text-xs text-gray-600 dark:text-slate-400">Conectados</p>
               </div>
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{syncStats.connectedDevices}</p>
+              <p className={`text-2xl font-bold ${getColorClasses('emerald', 'text')}`}>{syncStats.connectedDevices}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Activity size={14} className="text-purple-600 dark:text-purple-400" />
-                <p className="text-xs text-gray-500 dark:text-slate-400">Sincronizaciones</p>
+                <Activity size={14} className={getColorClasses('purple', 'icon')} />
+                <p className="text-xs text-gray-600 dark:text-slate-400">Sincronizaciones</p>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalSyncs}</p>
             </div>
@@ -263,19 +292,20 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Alerts Section */}
       {unreadAlerts > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm dark:shadow-xl border border-gray-200 dark:border-slate-700">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-50 dark:bg-amber-900/30 rounded-xl">
-                <AlertTriangle size={20} className="text-amber-600 dark:text-amber-400" />
+              <div className={`p-2 ${getColorClasses('amber', 'bg')} rounded-xl`}>
+                <AlertTriangle size={20} className={getColorClasses('amber', 'icon')} />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-800 dark:text-white">Alertas Pendientes</h3>
-                <p className="text-xs text-gray-400 dark:text-slate-400">{unreadAlerts} notificación{unreadAlerts !== 1 ? 'es' : ''} sin leer</p>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Alertas Pendientes</h3>
+                <p className="text-xs text-gray-600 dark:text-slate-400">{unreadAlerts} notificación{unreadAlerts !== 1 ? 'es' : ''} sin leer</p>
               </div>
             </div>
-            <span className="px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-xs font-semibold">
+            <span className={`px-3 py-1 ${getColorClasses('amber', 'bg')} ${getColorClasses('amber', 'text')} rounded-full text-xs font-bold`}>
               {unreadAlerts}
             </span>
           </div>
@@ -283,10 +313,12 @@ export default function Dashboard() {
             {alerts.filter(a => !a.read).slice(0, 6).map(alert => (
               <div
                 key={alert.id}
-                className={`p-4 rounded-xl border transition-all hover:shadow-sm ${
-                  alert.severity === 'high' ? 'bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-red-100 dark:border-red-800' :
-                  alert.severity === 'medium' ? 'bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border-amber-100 dark:border-amber-800' :
-                  'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-100 dark:border-blue-800'
+                className={`p-4 rounded-xl border transition-all hover:shadow-md ${
+                  alert.severity === 'high' 
+                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' :
+                  alert.severity === 'medium' 
+                    ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' :
+                  'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
                 }`}
               >
                 <div className="flex items-start gap-2">
@@ -296,7 +328,7 @@ export default function Dashboard() {
                   }`} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-700 dark:text-slate-300 leading-snug">{alert.message}</p>
-                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5">{alert.date}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-500 mt-1.5">{alert.date}</p>
                   </div>
                 </div>
               </div>
@@ -305,14 +337,15 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Welcome State */}
       {equipments.length === 0 && collaborators.length === 0 && (
-        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/20 dark:via-indigo-900/20 dark:to-purple-900/20 rounded-2xl p-8 border border-blue-100 dark:border-blue-800">
+        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-800 dark:via-slate-700 dark:to-slate-800 rounded-2xl p-8 border border-blue-200 dark:border-slate-600">
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200 to-purple-200 dark:from-blue-800 dark:to-purple-800 opacity-20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           <div className="relative text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-full text-xs font-medium text-blue-700 dark:text-blue-400 mb-4 border border-blue-100 dark:border-blue-800">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/80 dark:bg-slate-700/80 backdrop-blur-sm rounded-full text-xs font-semibold text-blue-700 dark:text-blue-400 mb-4 border border-blue-200 dark:border-slate-600">
               <Activity size={12} /> Sistema inicializado
             </div>
-            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
               ¡Bienvenido al Sistema de Control de Tóner!
             </h3>
             <p className="text-sm text-gray-600 dark:text-slate-400 mb-6 max-w-lg mx-auto">
@@ -320,15 +353,15 @@ export default function Dashboard() {
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
               {[
-                { label: 'Equipamientos', icon: Monitor, color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' },
-                { label: 'Colaboradores', icon: Users, color: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400' },
-                { label: 'Proveedores', icon: Building2, color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' },
-                { label: 'Comprobantes', icon: FileText, color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
-                { label: 'Impresoras', icon: Printer, color: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' },
+                { label: 'Equipamientos', icon: Monitor, color: 'blue' },
+                { label: 'Colaboradores', icon: Users, color: 'violet' },
+                { label: 'Proveedores', icon: Building2, color: 'emerald' },
+                { label: 'Comprobantes', icon: FileText, color: 'amber' },
+                { label: 'Impresoras', icon: Printer, color: 'purple' },
               ].map((item, i) => {
                 const Icon = item.icon;
                 return (
-                  <span key={i} className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${item.color} rounded-full text-xs font-medium`}>
+                  <span key={i} className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${getColorClasses(item.color, 'bg')} ${getColorClasses(item.color, 'text')} rounded-full text-xs font-semibold`}>
                     <Icon size={12} /> {item.label}
                   </span>
                 );
@@ -338,8 +371,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 opacity-[0.03]" />
+      {/* Footer Credits */}
+      <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl shadow-sm dark:shadow-xl border border-gray-200 dark:border-slate-700">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 opacity-[0.02] dark:opacity-[0.05]" />
         <div className="relative p-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -350,20 +384,20 @@ export default function Dashboard() {
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-800" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-gray-800 dark:text-white">
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white">
                   Desarrollado por Area Sistemas PEDSA
                 </h3>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
-                <p className="text-xs text-gray-400 dark:text-slate-500">Versión</p>
-                <p className="text-xs font-semibold text-gray-700 dark:text-slate-300">2.0.0</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Versión</p>
+                <p className="text-xs font-bold text-gray-700 dark:text-slate-300">2.6.0</p>
               </div>
               <div className="h-10 w-px bg-gray-200 dark:bg-slate-700" />
               <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-full border border-emerald-200 dark:border-emerald-800">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Sistema Activo</span>
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Sistema Activo</span>
               </div>
             </div>
           </div>
