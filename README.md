@@ -1,6 +1,6 @@
-# Sistema de Control de Tóner
+# Dashboard Control de Equipamientos
 
-Sistema integral de gestión de impresión, equipamientos y monitoreo remoto desarrollado por **Area Sistemas PEDSA**.
+Sistema integral de gestión de equipamientos, impresión y monitoreo remoto desarrollado por **VFL** para **Area Sistemas PEDSA**.
 
 ## 🚀 Características
 
@@ -215,14 +215,15 @@ El proyecto incluye documentación completa:
 
 ## 📝 Créditos
 
-**Desarrollado por:** Area Sistemas PEDSA  
-**Versión:** 2.0.0  
+**Desarrollado por:** VFL  
+**Para:** Area Sistemas PEDSA  
+**Versión:** 2.9.0  
 **Año:** 2024
 
 ## 📄 Licencia
 
-Todos los derechos reservados - Area Sistemas PEDSA
+Todos los derechos reservados - VFL / Area Sistemas PEDSA
 
 ---
 
-Para más información o soporte, contacta a Area Sistemas PEDSA.
+Para más información o soporte, contacta a VFL o al Area Sistemas PEDSA.

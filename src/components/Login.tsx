@@ -48,8 +48,8 @@ export default function Login() {
               </div>
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Control de Tóner</h1>
-          <p className="text-blue-200 text-sm">Sistema de Gestión de Impresoras</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Dashboard Control</h1>
+          <p className="text-blue-200 text-sm">de Equipamientos</p>
           <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
             <Shield size={12} className="text-emerald-300" />
             <span className="text-xs text-blue-100">Conexión segura</span>
@@ -138,7 +138,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-blue-200 text-xs mt-6">
-          © 2024 Sistema de Control de Tóner - Desarrollado por <span className="font-semibold">Area Sistemas PEDSA</span>
+          © 2024 Dashboard Control de Equipamientos - Desarrollado por <span className="font-semibold">VFL</span> para <span className="font-semibold">Area Sistemas PEDSA</span>
         </p>
       </div>
     </div>

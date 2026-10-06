@@ -51,8 +51,8 @@ export default function Layout({ children }: { children: ReactNode }) {
               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-800" />
             </div>
             <div>
-              <h1 className="font-bold text-base text-gray-900 dark:text-white">Control Tóner</h1>
-              <p className="text-xs text-gray-500 dark:text-slate-400">Sistema de Gestión</p>
+              <h1 className="font-bold text-base text-gray-900 dark:text-white">Dashboard Control</h1>
+              <p className="text-xs text-gray-500 dark:text-slate-400">de Equipamientos</p>
             </div>
           </div>
         </div>
