@@ -138,7 +138,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-blue-200 text-xs mt-6">
-          © 2024 Dashboard Control de Equipamientos - Desarrollado por <span className="font-semibold">VFL</span> para <span className="font-semibold">Area Sistemas PEDSA</span>
+          © 2024 Dashboard Control de Equipamientos - Desarrollado por <span className="font-semibold">VFL</span> para <span className="font-semibold">VLF dev para Sistemas PEDSA</span>
         </p>
       </div>
     </div>

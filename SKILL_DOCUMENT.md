@@ -3,7 +3,7 @@
 ## 📋 Resumen Ejecutivo
 
 **Proyecto:** Sistema Integral de Gestión de Impresión y Equipamientos  
-**Desarrollado por:** Area Sistemas PEDSA  
+**Desarrollado por:** VLF dev para Sistemas PEDSA  
 **Versión:** 2.0.0  
 **Año:** 2024  
 **Estado:** ✅ Completado y Funcional
@@ -126,7 +126,7 @@ Sistema web completo para la gestión de impresoras, tóner, equipamientos, cola
   - Movimientos totales
 - Sección de alertas pendientes con colores según severidad
 - Estado de bienvenida para nuevos usuarios
-- Footer con créditos de "Desarrollado por Area Sistemas PEDSA"
+- Footer con créditos de "Desarrollado por VLF dev para Sistemas PEDSA"
 
 **Características Visuales:**
 - Hero header con gradiente oscuro y patrón de puntos
@@ -795,7 +795,7 @@ Los archivos compilados se generan en la carpeta `dist/`
 
 ## 🎓 Créditos
 
-**Desarrollado por:** Area Sistemas PEDSA  
+**Desarrollado por:** VLF dev para Sistemas PEDSA  
 **Versión:** 2.0.0  
 **Año:** 2024  
 **Tecnologías:** React, TypeScript, Tailwind CSS, Vite, Recharts
@@ -807,7 +807,7 @@ Los archivos compilados se generan en la carpeta `dist/`
 Para soporte técnico o consultas:
 - Revisar la documentación en `README.md`
 - Revisar logs del navegador (F12) para errores
-- Contactar al equipo de Area Sistemas PEDSA
+- Contactar al equipo de VLF dev para Sistemas PEDSA
 
 ---
 
@@ -891,7 +891,7 @@ Para soporte técnico o consultas:
 
 Este sistema representa una solución completa y profesional para la gestión de impresión, equipamientos y recursos empresariales. Con un diseño moderno estilo Figma, todas las funcionalidades de ABM, importación/exportación, y análisis de datos, el sistema está listo para ser utilizado en entornos empresariales.
 
-**Desarrollado con excelencia por Area Sistemas PEDSA**
+**Desarrollado con excelencia por VLF dev para Sistemas PEDSA**
 
 ---
 

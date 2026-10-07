@@ -1,6 +1,6 @@
 # Dashboard Control de Equipamientos
 
-Sistema integral de gestión de equipamientos, impresión y monitoreo remoto desarrollado por **VFL** para **Area Sistemas PEDSA**.
+Sistema integral de gestión de equipamientos, impresión y monitoreo remoto desarrollado por **VFL** para **VLF dev para Sistemas PEDSA**.
 
 ## 🚀 Características
 

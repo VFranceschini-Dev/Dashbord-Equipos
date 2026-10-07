@@ -346,7 +346,7 @@ El problema del toggle de tema se resolvió eliminando las reglas CSS globales q
 
 ---
 
-**Revisado por:** Area Sistemas PEDSA  
+**Revisado por:** VLF dev para Sistemas PEDSA  
 **Versión:** 2.9.0  
 **Fecha:** 2024  
 **Estado:** ✅ Corregido y verificado

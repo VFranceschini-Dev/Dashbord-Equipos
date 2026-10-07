@@ -392,7 +392,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                  Desarrollado por VFL para Area Sistemas PEDSA
+                  Desarrollado por VFL para VLF dev para Sistemas PEDSA
                 </h3>
               </div>
             </div>

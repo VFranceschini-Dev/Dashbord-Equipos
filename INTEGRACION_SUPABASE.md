@@ -485,7 +485,7 @@ await syncAllToSupabase();
 
 ## 📞 Soporte
 
-**Desarrollado por:** Area Sistemas PEDSA  
+**Desarrollado por:** VLF dev para Sistemas PEDSA  
 **Versión:** 2.5.0  
 **Fecha:** 2024
 
@@ -495,4 +495,4 @@ Para soporte técnico o consultas sobre la integración con Supabase, contacta a
 
 ## 📄 Licencia
 
-Todos los derechos reservados - Area Sistemas PEDSA
+Todos los derechos reservados - VLF dev para Sistemas PEDSA

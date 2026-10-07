@@ -229,7 +229,7 @@ Seguir la guía en `MIGRACION_BACKEND_AUTH.md`:
 
 ---
 
-**Responsable:** VFL - Area Sistemas PEDSA  
+**Responsable:** VFL - VLF dev para Sistemas PEDSA  
 **Fecha:** 2024  
 **Versión:** 1.0.0  
 **Estado:** ✅ Cambios realizados, pendiente commit

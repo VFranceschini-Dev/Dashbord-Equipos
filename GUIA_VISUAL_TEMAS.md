@@ -334,7 +334,7 @@ Cuando presionas el botón de cambio de tema:
 
 ---
 
-**Desarrollado por:** Area Sistemas PEDSA  
+**Desarrollado por:** VLF dev para Sistemas PEDSA  
 **Versión:** 2.6.0  
 **Estado:** ✅ COMPLETAMENTE FUNCIONAL  
 **Cobertura:** ✅ 100% DE LA APLICACIÓN

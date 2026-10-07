@@ -380,7 +380,7 @@ npm run preview    # Vista previa de producción
 
 ## 📞 Soporte y Contacto
 
-**Desarrollado por:** Area Sistemas PEDSA  
+**Desarrollado por:** VLF dev para Sistemas PEDSA  
 **Versión:** 2.0.0  
 **Última actualización:** 2024
 

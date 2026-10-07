@@ -291,6 +291,6 @@ Si necesitas ayuda con la integración o tienes preguntas, consulta la documenta
 
 ---
 
-**Desarrollado por:** Area Sistemas PEDSA  
+**Desarrollado por:** VLF dev para Sistemas PEDSA  
 **Versión:** 2.0.0  
 **Última actualización:** 2024

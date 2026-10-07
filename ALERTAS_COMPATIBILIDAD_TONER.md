@@ -353,6 +353,6 @@ El sistema de alertas por compatibilidad de tóner:
 ---
 
 **Desarrollado por:** VFL  
-**Para:** Area Sistemas PEDSA  
+**Para:** VLF dev para Sistemas PEDSA  
 **Versión:** 2.9.0  
 **Fecha:** 2024

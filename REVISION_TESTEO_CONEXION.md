@@ -610,6 +610,6 @@ El módulo de testeo de conexión está **funcional y bien estructurado**, pero 
 
 ---
 
-**Revisado por:** Area Sistemas PEDSA  
+**Revisado por:** VLF dev para Sistemas PEDSA  
 **Fecha:** 2024  
 **Versión del Sistema:** 2.2.0
