@@ -72,12 +72,22 @@ export default function ImportModal({
         onImport(importResult.data);
       }
 
-      setResult({
-        success: importResult.success,
-        imported: importResult.data.length,
-        total: importResult.totalRows,
-        errors: importResult.errors,
-      });
+      // Si hay errores pero también datos importados, mostrar resultado parcial
+      if (importResult.errors.length > 0 && importResult.data.length > 0) {
+        setResult({
+          success: false,
+          imported: importResult.data.length,
+          total: importResult.totalRows,
+          errors: importResult.errors,
+        });
+      } else {
+        setResult({
+          success: importResult.success,
+          imported: importResult.data.length,
+          total: importResult.totalRows,
+          errors: importResult.errors,
+        });
+      }
     } catch (error) {
       setResult({
         success: false,
@@ -100,9 +110,39 @@ export default function ImportModal({
       link.href = URL.createObjectURL(blob);
       link.download = filename;
       link.click();
+      URL.revokeObjectURL(link.href);
     } else {
       import('xlsx').then((XLSX) => {
-        const ws = XLSX.utils.aoa_to_sheet([templateHeaders]);
+        // Crear datos de ejemplo basados en los headers
+        const exampleRow: any = {};
+        templateHeaders.forEach(header => {
+          const lowerHeader = header.toLowerCase();
+          if (lowerHeader.includes('nombre') || lowerHeader.includes('name')) {
+            exampleRow[header] = 'Ejemplo';
+          } else if (lowerHeader.includes('modelo') || lowerHeader.includes('model')) {
+            exampleRow[header] = 'Modelo Ejemplo';
+          } else if (lowerHeader.includes('ubicacion') || lowerHeader.includes('location')) {
+            exampleRow[header] = 'Ubicación Ejemplo';
+          } else if (lowerHeader.includes('departamento') || lowerHeader.includes('department')) {
+            exampleRow[header] = 'Departamento';
+          } else if (lowerHeader.includes('estado') || lowerHeader.includes('status')) {
+            exampleRow[header] = 'active';
+          } else if (lowerHeader.includes('toner')) {
+            exampleRow[header] = 'CF258A';
+          } else if (lowerHeader.includes('pagina')) {
+            exampleRow[header] = '1000';
+          } else {
+            exampleRow[header] = '';
+          }
+        });
+        
+        const data = [templateHeaders, Object.values(exampleRow)];
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        
+        // Ajustar el ancho de las columnas
+        const colWidths = templateHeaders.map(header => ({ wch: Math.max(header.length + 2, 15) }));
+        ws['!cols'] = colWidths;
+        
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Plantilla');
         XLSX.writeFile(wb, filename);

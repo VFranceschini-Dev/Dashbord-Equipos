@@ -31,10 +31,27 @@ export default function Printers() {
 
   const handleImport = (importedData: any[]) => {
     importedData.forEach(item => {
+      // Normalizar el estado
+      let status: 'active' | 'inactive' | 'maintenance' = 'active';
+      const statusValue = (item.status || '').toString().toLowerCase().trim();
+      
+      if (statusValue === 'inactive' || statusValue === 'inactiva' || statusValue === 'inactivo') {
+        status = 'inactive';
+      } else if (statusValue === 'maintenance' || statusValue === 'mantenimiento') {
+        status = 'maintenance';
+      } else {
+        status = 'active';
+      }
+      
       addPrinter({
         ...item,
         id: uuidv4(),
-        status: item.status || 'active',
+        name: item.name || '',
+        model: item.model || '',
+        location: item.location || '',
+        department: item.department || '',
+        tonerModel: item.tonerModel || '',
+        status: status,
         lastMaintenance: item.lastMaintenance || new Date().toISOString().split('T')[0],
         totalPages: parseInt(item.totalPages) || 0,
       } as PrinterType);
@@ -290,18 +307,65 @@ export default function Printers() {
         onClose={() => setShowImport(false)}
         onImport={handleImport}
         title="Impresoras"
-        templateHeaders={['nombre', 'modelo', 'ubicacion', 'departamento', 'toner', 'estado']}
+        templateHeaders={['nombre', 'modelo', 'ubicacion', 'departamento', 'toner', 'estado', 'paginas']}
         mapping={{
-          'nombre': 'name', 'name': 'name',
-          'modelo': 'model', 'model': 'model',
-          'ubicacion': 'location', 'location': 'location',
-          'departamento': 'department', 'department': 'department',
-          'toner': 'tonerModel', 'tonerModel': 'tonerModel',
-          'estado': 'status', 'status': 'status',
+          // Nombre
+          'nombre': 'name',
+          'name': 'name',
+          'nombre impresora': 'name',
+          'printer name': 'name',
+          'impresora': 'name',
+          
+          // Modelo
+          'modelo': 'model',
+          'model': 'model',
+          'modelo impresora': 'model',
+          'printer model': 'model',
+          'marca modelo': 'model',
+          
+          // Ubicación
+          'ubicacion': 'location',
+          'ubicación': 'location',
+          'location': 'location',
+          'ubicación impresora': 'location',
+          'lugar': 'location',
+          'posicion': 'location',
+          'posición': 'location',
+          
+          // Departamento
+          'departamento': 'department',
+          'department': 'department',
+          'area': 'department',
+          'área': 'department',
+          'sector': 'department',
+          
+          // Modelo de Tóner
+          'toner': 'tonerModel',
+          'toner model': 'tonerModel',
+          'modelo toner': 'tonerModel',
+          'modelo de toner': 'tonerModel',
+          'tonerModel': 'tonerModel',
+          'cartucho': 'tonerModel',
+          'tipo toner': 'tonerModel',
+          
+          // Estado
+          'estado': 'status',
+          'status': 'status',
+          'state': 'status',
+          'activo': 'status',
+          'active': 'status',
+          
+          // Páginas
+          'paginas': 'totalPages',
+          'páginas': 'totalPages',
+          'total pages': 'totalPages',
+          'total paginas': 'totalPages',
+          'total páginas': 'totalPages',
+          'pages': 'totalPages',
         }}
         validator={(row) => {
-          if (!row.name) return 'Nombre es obligatorio';
-          if (!row.model) return 'Modelo es obligatorio';
+          if (!row.name || row.name.trim() === '') return 'Nombre es obligatorio';
+          if (!row.model || row.model.trim() === '') return 'Modelo es obligatorio';
           return null;
         }}
       />
