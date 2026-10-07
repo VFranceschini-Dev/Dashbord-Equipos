@@ -365,6 +365,6 @@ Para problemas o sugerencias relacionadas con el sistema de temas, contacta al e
 
 ---
 
-**Desarrollado por:** VLF dev para Sistemas PEDSA  
+**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA  
 **Versión:** 2.0.0  
 **Última actualización:** 2024

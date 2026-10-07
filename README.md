@@ -208,7 +208,7 @@ El proyecto incluye documentación completa:
 
 ## 📝 Créditos
 
-**Desarrollado por:** VFL  
+**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA  
 **Para:** Area Sistemas PEDSA  
 **Versión:** 2.9.0  
 **Año:** 2024

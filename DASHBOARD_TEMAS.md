@@ -453,6 +453,6 @@ El componente `src/components/ThemeToggle.tsx` proporciona:
 
 ---
 
-**Desarrollado por:** VLF dev para Sistemas PEDSA  
+**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA  
 **Versión:** 2.7.0  
 **Estado:** ✅ Completamente funcional con paleta clara por defecto

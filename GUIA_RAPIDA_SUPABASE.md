@@ -212,5 +212,5 @@ Si tienes problemas:
 
 Tu sistema ahora está conectado a Supabase y todos los datos se sincronizan automáticamente con la base de datos en la nube.
 
-**Desarrollado por:** VLF dev para Sistemas PEDSA  
+**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA  
 **Versión:** 2.5.0

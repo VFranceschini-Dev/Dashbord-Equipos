@@ -485,7 +485,7 @@ await syncAllToSupabase();
 
 ## 📞 Soporte
 
-**Desarrollado por:** VLF dev para Sistemas PEDSA  
+**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA  
 **Versión:** 2.5.0  
 **Fecha:** 2024
 
