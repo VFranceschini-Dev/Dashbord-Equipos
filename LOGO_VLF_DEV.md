@@ -1,29 +1,29 @@
-# 🎨 Logo e Identidad - VLF dev
+# 🎨 Logo e Identidad - >vlf_
 
 ## 📋 Información del Desarrollador
 
 **Desarrollador:** Pablo Eloy Donnet  
-**Marca:** VLF dev  
+**Marca:** >vlf_  
 **Cliente:** Sistemas PEDSA  
 **Año:** 2024
 
 ---
 
-## 🎯 Logo VLF dev
+## 🎯 Logo >vlf_
 
 ### Descripción
 
-El logo de VLF dev es una marca profesional que representa:
-- **VLF**: Iniciales del desarrollador
-- **</>**: Símbolo de código/programación
-- **dev**: Abreviatura de developer (desarrollador)
+El logo >vlf_ es una marca profesional con estilo terminal/consola que representa:
+- **>**: Símbolo de prompt/terminal
+- **vlf**: Iniciales del desarrollador
+- **_**: Cursor de terminal (estilo código)
 
 ### Diseño
 
 **Características:**
 - ✅ Gradiente de colores (azul → índigo → púrpura)
-- ✅ Tipografía moderna y profesional
-- ✅ Símbolo de código integrado
+- ✅ Tipografía monoespaciada (estilo terminal)
+- ✅ Diseño minimalista y moderno
 - ✅ Línea decorativa inferior
 - ✅ Versión con nombre del desarrollador
 
@@ -31,12 +31,12 @@ El logo de VLF dev es una marca profesional que representa:
 
 #### 1. Logo Simple
 ```
-VLF </> dev
+>vlf_
 ```
 
 #### 2. Logo con Nombre
 ```
-VLF </> dev
+>vlf_
 Pablo Eloy Donnet
 Desarrollador
 ```
@@ -82,14 +82,14 @@ linear-gradient(90deg, #1e40af 0%, #6d28d9 100%)
 **Sistema:** Dashboard Control de Equipamientos  
 **Versión:** 2.9.0  
 **Desarrollador:** Pablo Eloy Donnet  
-**Marca:** VLF dev  
+**Marca:** >vlf_  
 **Cliente:** Sistemas PEDSA  
 
 ---
 
 ## 🔒 Derechos de Autor
 
-© 2024 VLF dev - Pablo Eloy Donnet  
+© 2024 >vlf_ - Pablo Eloy Donnet  
 Todos los derechos reservados
 
 Desarrollado para Sistemas PEDSA
@@ -100,7 +100,7 @@ Desarrollado para Sistemas PEDSA
 
 Para consultas sobre el desarrollo:
 - **Desarrollador:** Pablo Eloy Donnet
-- **Marca:** VLF dev
+- **Marca:** >vlf_
 - **Cliente:** Sistemas PEDSA
 
 ---

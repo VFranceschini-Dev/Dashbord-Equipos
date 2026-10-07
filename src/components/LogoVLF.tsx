@@ -6,12 +6,12 @@ interface LogoVLFProps {
 
 export default function LogoVLF({ size = 'md', showName = false, className = '' }: LogoVLFProps) {
   const sizes = {
-    sm: { width: 80, height: 24, fontSize: 14, codeSize: 10 },
-    md: { width: 120, height: 36, fontSize: 20, codeSize: 14 },
-    lg: { width: 180, height: 54, fontSize: 30, codeSize: 20 },
+    sm: { width: 80, height: 24, fontSize: 14 },
+    md: { width: 120, height: 36, fontSize: 20 },
+    lg: { width: 180, height: 54, fontSize: 30 },
   };
 
-  const { width, height, fontSize, codeSize } = sizes[size];
+  const { width, height, fontSize } = sizes[size];
 
   return (
     <div className={`inline-flex items-center gap-2 ${className}`}>
@@ -36,40 +36,16 @@ export default function LogoVLF({ size = 'md', showName = false, className = '' 
           </linearGradient>
         </defs>
 
-        {/* VLF Text */}
+        {/* >vlf_ Text - Terminal style */}
         <text
           x="5"
           y="38"
-          fontFamily="Arial, sans-serif"
+          fontFamily="monospace, 'Courier New', Courier"
           fontSize="36"
           fontWeight="bold"
           fill="url(#textGradient)"
         >
-          VLF
-        </text>
-
-        {/* Code brackets </> */}
-        <text
-          x="95"
-          y="38"
-          fontFamily="monospace"
-          fontSize="28"
-          fontWeight="bold"
-          fill="url(#logoGradient)"
-        >
-          {'</>'}
-        </text>
-
-        {/* dev text */}
-        <text
-          x="145"
-          y="38"
-          fontFamily="Arial, sans-serif"
-          fontSize="24"
-          fontWeight="600"
-          fill="url(#textGradient)"
-        >
-          dev
+          {'>vlf_'}
         </text>
 
         {/* Decorative line */}
