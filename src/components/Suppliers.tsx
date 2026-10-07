@@ -257,6 +257,7 @@ export default function Suppliers() {
         onClose={() => setShowImport(false)}
         onImport={handleImport}
         title="Proveedores"
+        entityType="suppliers"
         templateHeaders={['nombre', 'cuit', 'contacto', 'email', 'telefono', 'direccion', 'categoria']}
         mapping={{
           'nombre': 'name', 'name': 'name',

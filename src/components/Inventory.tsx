@@ -433,6 +433,7 @@ export default function Inventory() {
         onClose={() => setShowImport(false)}
         onImport={handleImport}
         title="Tóner"
+        entityType="toners"
         templateHeaders={['modelo', 'marca', 'color', 'stock', 'minStock', 'maxStock', 'precio', 'proveedor']}
         mapping={{
           'modelo': 'model', 'model': 'model',

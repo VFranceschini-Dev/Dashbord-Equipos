@@ -1,7 +1,14 @@
 import { useState, useRef } from 'react';
-import { Upload, FileText, FileSpreadsheet, X, CheckCircle, AlertCircle, Download } from 'lucide-react';
+import { Upload, FileText, FileSpreadsheet, X, CheckCircle, AlertCircle, Download, Database, Cloud } from 'lucide-react';
 import { importCSV } from '../utils/csvImporter';
 import { importExcel } from '../utils/excelImporter';
+import { 
+  syncPrintersToSupabase, 
+  syncTonersToSupabase, 
+  syncEquipmentsToSupabase, 
+  syncSuppliersToSupabase, 
+  syncCollaboratorsToSupabase 
+} from '../services/supabaseSync';
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -11,6 +18,7 @@ interface ImportModalProps {
   templateHeaders: string[];
   mapping: Record<string, string>;
   validator?: (row: any) => string | null;
+  entityType?: 'printers' | 'toners' | 'equipments' | 'suppliers' | 'collaborators';
 }
 
 export default function ImportModal({
@@ -21,14 +29,21 @@ export default function ImportModal({
   templateHeaders,
   mapping,
   validator,
+  entityType,
 }: ImportModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
+  const [saveToSupabase, setSaveToSupabase] = useState(false);
+  const [syncingToSupabase, setSyncingToSupabase] = useState(false);
   const [result, setResult] = useState<{
     success: boolean;
     imported: number;
     total: number;
     errors: string[];
+    supabaseResult?: {
+      synced: number;
+      errors: string[];
+    };
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -73,21 +88,60 @@ export default function ImportModal({
       }
 
       // Si hay errores pero también datos importados, mostrar resultado parcial
-      if (importResult.errors.length > 0 && importResult.data.length > 0) {
-        setResult({
-          success: false,
-          imported: importResult.data.length,
-          total: importResult.totalRows,
-          errors: importResult.errors,
-        });
-      } else {
-        setResult({
-          success: importResult.success,
-          imported: importResult.data.length,
-          total: importResult.totalRows,
-          errors: importResult.errors,
-        });
+      let finalResult: any = {
+        success: importResult.success,
+        imported: importResult.data.length,
+        total: importResult.totalRows,
+        errors: importResult.errors,
+      };
+
+      // Sincronizar con Supabase si está seleccionado y hay datos importados
+      if (saveToSupabase && importResult.data.length > 0 && entityType) {
+        setSyncingToSupabase(true);
+        
+        try {
+          let supabaseResult;
+          
+          switch (entityType) {
+            case 'printers':
+              supabaseResult = await syncPrintersToSupabase(importResult.data as any[]);
+              break;
+            case 'toners':
+              supabaseResult = await syncTonersToSupabase(importResult.data as any[]);
+              break;
+            case 'equipments':
+              supabaseResult = await syncEquipmentsToSupabase(importResult.data as any[]);
+              break;
+            case 'suppliers':
+              supabaseResult = await syncSuppliersToSupabase(importResult.data as any[]);
+              break;
+            case 'collaborators':
+              supabaseResult = await syncCollaboratorsToSupabase(importResult.data as any[]);
+              break;
+            default:
+              supabaseResult = { success: 0, errors: ['Tipo de entidad no soportado'] };
+          }
+          
+          finalResult.supabaseResult = supabaseResult;
+          
+          // Si hubo errores en la sincronización con Supabase, agregarlos a los errores
+          if (supabaseResult.errors.length > 0) {
+            finalResult.errors = [...finalResult.errors, ...supabaseResult.errors];
+            finalResult.success = false;
+          }
+        } catch (error) {
+          finalResult.supabaseResult = {
+            synced: 0,
+            errors: [`Error al sincronizar con Supabase: ${error}`],
+          };
+          finalResult.errors.push(`Error al sincronizar con Supabase: ${error}`);
+          finalResult.success = false;
+        }
+        
+        setSyncingToSupabase(false);
       }
+
+      setResult(finalResult);
     } catch (error) {
       setResult({
         success: false,
@@ -223,28 +277,55 @@ export default function ImportModal({
             </div>
           </div>
 
+          {/* Opción de guardar en Supabase */}
+          {entityType && (
+            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-200 dark:border-purple-800">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={saveToSupabase}
+                  onChange={(e) => setSaveToSupabase(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-purple-600 border-purple-300 rounded focus:ring-purple-500"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Database size={16} className="text-purple-600 dark:text-purple-400" />
+                    <span className="text-sm font-semibold text-purple-900 dark:text-purple-100">
+                      Guardar en Base de Datos (Supabase)
+                    </span>
+                  </div>
+                  <p className="text-xs text-purple-700 dark:text-purple-300">
+                    Los datos importados se sincronizarán con tu base de datos en la nube. 
+                    Esto permite acceder a los datos desde cualquier dispositivo y mantener un respaldo automático.
+                  </p>
+                </div>
+              </label>
+            </div>
+          )}
+
           {/* Botones de acción */}
           <div className="flex gap-3">
             <button
               onClick={handleImport}
-              disabled={!file || importing}
+              disabled={!file || importing || syncingToSupabase}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
-              {importing ? (
+              {importing || syncingToSupabase ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Importando...
+                  {syncingToSupabase ? 'Sincronizando con Supabase...' : 'Importando...'}
                 </>
               ) : (
                 <>
                   <Upload size={20} />
-                  Importar Datos
+                  {saveToSupabase ? 'Importar y Guardar en Supabase' : 'Importar Datos'}
                 </>
               )}
             </button>
             <button
               onClick={() => { reset(); onClose(); }}
-              className="px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 font-medium"
+              disabled={importing || syncingToSupabase}
+              className="px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancelar
             </button>
@@ -274,6 +355,39 @@ export default function ImportModal({
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     Total de filas procesadas: {result.total}
                   </p>
+                  
+                  {/* Resultados de sincronización con Supabase */}
+                  {result.supabaseResult && (
+                    <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Cloud size={16} className="text-purple-600 dark:text-purple-400" />
+                        <span className="text-sm font-semibold text-purple-900 dark:text-purple-100">
+                          Sincronización con Supabase
+                        </span>
+                      </div>
+                      <p className="text-sm text-purple-700 dark:text-purple-300">
+                        {result.supabaseResult.synced > 0 
+                          ? `✓ ${result.supabaseResult.synced} registros sincronizados con la base de datos`
+                          : '✗ No se pudieron sincronizar registros con la base de datos'}
+                      </p>
+                      {result.supabaseResult.errors.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-1">
+                            Errores de sincronización:
+                          </p>
+                          <ul className="list-disc list-inside text-xs text-red-600 dark:text-red-400 max-h-20 overflow-y-auto">
+                            {result.supabaseResult.errors.slice(0, 5).map((error, i) => (
+                              <li key={i}>{error}</li>
+                            ))}
+                            {result.supabaseResult.errors.length > 5 && (
+                              <li>... y {result.supabaseResult.errors.length - 5} errores más</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {result.errors.length > 0 && (
                     <div className="mt-3">
                       <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">
