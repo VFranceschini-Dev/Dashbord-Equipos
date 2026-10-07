@@ -55,10 +55,7 @@ export default function LogoVLF({ size = 'md', showName = false, className = '' 
       {showName && (
         <div className="flex flex-col">
           <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-            Pablo Eloy Donnet
-          </span>
-          <span className="text-[10px] text-gray-500 dark:text-gray-400">
-            Desarrollador
+            Desarrollado por {">vlf_"}
           </span>
         </div>
       )}
