@@ -297,7 +297,7 @@ npm run typecheck
 
 ## 📞 Soporte
 
-**Desarrollado por:** Area Sistemas PEDSA  
+**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA  
 **Versión:** 2.0.0  
 **Año:** 2024
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Printer, Eye, EyeOff, AlertCircle, Shield, Server } from 'lucide-react';
+import LogoVLF from './LogoVLF';
 
 export default function Login() {
   const { login } = useAuth();
@@ -137,9 +138,17 @@ export default function Login() {
           </div>
         </div>
 
-        <p className="text-center text-blue-200 text-xs mt-6">
-          © 2024 Dashboard Control de Equipamientos - Desarrollado por <span className="font-semibold">VFL</span> para <span className="font-semibold">Area Sistemas PEDSA</span>
-        </p>
+        <div className="text-center mt-6 space-y-2">
+          <div className="flex justify-center">
+            <LogoVLF size="md" />
+          </div>
+          <p className="text-blue-200 text-xs">
+            Desarrollado por <span className="font-semibold text-white">Pablo Eloy Donnet</span>
+          </p>
+          <p className="text-blue-300 text-xs">
+            © 2024 VLF dev - Para Sistemas PEDSA
+          </p>
+        </div>
       </div>
     </div>
   );

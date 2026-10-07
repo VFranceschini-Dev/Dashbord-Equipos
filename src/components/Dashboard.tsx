@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 import LowStockAlerts from './LowStockAlerts';
+import LogoVLF from './LogoVLF';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts, equipments, suppliers, collaborators, setCurrentPage } = useApp();
@@ -384,17 +385,7 @@ export default function Dashboard() {
         <div className="relative p-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
-                  <Server className="w-6 h-6 text-white" />
-                </div>
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-800" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                  Desarrollado por VFL para Area Sistemas PEDSA
-                </h3>
-              </div>
+              <LogoVLF size="md" showName={true} />
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">

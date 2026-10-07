@@ -579,7 +579,7 @@ Si necesitas ayuda con la migración:
 ---
 
 **Desarrollado por:** VFL  
-**Para:** Area Sistemas PEDSA  
+**Para:** Sistemas PEDSA - Desarrollado por Pablo Eloy Donnet (VLF dev)  
 **Versión:** 1.0.0  
 **Fecha:** 2024  
 **Estado:** 📋 Planificación

@@ -466,7 +466,7 @@ const handleSyncServer = async (server: ExternalServer) => {
 
 ## 📞 Soporte
 
-**Desarrollado por:** Area Sistemas PEDSA  
+**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA  
 **Versión:** 2.1.0  
 **Última actualización:** 2024
 

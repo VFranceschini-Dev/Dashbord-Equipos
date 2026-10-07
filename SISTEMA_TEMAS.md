@@ -339,7 +339,7 @@ El sistema de temas claro/oscuro está **completamente funcional** y listo para 
 **Estado:** ✅ Implementado y probado  
 **Versión:** 2.0.0  
 **Fecha:** 2024  
-**Desarrollado por:** Area Sistemas PEDSA
+**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA
 
 ---
 

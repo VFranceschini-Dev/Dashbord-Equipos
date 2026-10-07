@@ -406,7 +406,7 @@ const toggleTheme = () => {
 
 ## 📞 Soporte
 
-**Desarrollado por:** Area Sistemas PEDSA  
+**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA  
 **Versión:** 2.5.0  
 **Última actualización:** 2024
 
@@ -416,4 +416,4 @@ Para soporte técnico o consultas, contactar al equipo de desarrollo.
 
 ## 📄 Licencia
 
-Todos los derechos reservados - Area Sistemas PEDSA
+Todos los derechos reservados - VLF dev para Sistemas PEDSA

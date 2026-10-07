@@ -15,8 +15,8 @@ Actualizar la identidad del sistema y los créditos de desarrollo según las esp
 
 ### 2. Créditos de Desarrollo
 
-**Antes:** "Desarrollado por Area Sistemas PEDSA"  
-**Ahora:** "Desarrollado por VFL para Area Sistemas PEDSA"
+**Antes:** "Desarrollado por VLF dev para Sistemas PEDSA"  
+**Ahora:** "Desarrollado por VLF dev para Sistemas PEDSA"
 
 ### 3. Versión Actualizada
 
@@ -67,7 +67,7 @@ Actualizar la identidad del sistema y los créditos de desarrollo según las esp
 <p className="text-center">
   © 2024 Dashboard Control de Equipamientos - 
   Desarrollado por <span className="font-semibold">VFL</span> para 
-  <span className="font-semibold">Area Sistemas PEDSA</span>
+  <span className="font-semibold">VLF dev para Sistemas PEDSA</span>
 </p>
 ```
 
@@ -87,7 +87,7 @@ Actualizar la identidad del sistema y los créditos de desarrollo según las esp
 </p>
 
 <h3 className="text-sm font-bold">
-  Desarrollado por VFL para Area Sistemas PEDSA
+  Desarrollado por VLF dev para Sistemas PEDSA
 </h3>
 
 <p className="text-xs font-bold">2.9.0</p>
@@ -104,18 +104,18 @@ Actualizar la identidad del sistema y los créditos de desarrollo según las esp
 # Dashboard Control de Equipamientos
 
 Sistema integral de gestión de equipamientos, impresión y monitoreo remoto 
-desarrollado por **VFL** para **Area Sistemas PEDSA**.
+desarrollado por **VLF dev** para **Sistemas PEDSA**.
 
 ## 📝 Créditos
 
 **Desarrollado por:** VFL  
-**Para:** Area Sistemas PEDSA  
+**Para:** Sistemas PEDSA  
 **Versión:** 2.9.0  
 **Año:** 2024
 
 ## 📄 Licencia
 
-Todos los derechos reservados - VFL / Area Sistemas PEDSA
+Todos los derechos reservados - VLF dev / Sistemas PEDSA
 ```
 
 ---
@@ -132,7 +132,7 @@ Todos los derechos reservados - VFL / Area Sistemas PEDSA
 **VFL**
 
 ### Cliente
-**Area Sistemas PEDSA**
+**Sistemas PEDSA**
 
 ### Versión Actual
 **2.9.0**
@@ -156,7 +156,7 @@ Todos los derechos reservados - VFL / Area Sistemas PEDSA
 ### Pantalla de Login
 - ✅ Título: "Dashboard Control"
 - ✅ Subtítulo: "de Equipamientos"
-- ✅ Footer: "© 2024 Dashboard Control de Equipamientos - Desarrollado por VFL para Area Sistemas PEDSA"
+- ✅ Footer: "© 2024 Dashboard Control de Equipamientos - Desarrollado por VLF dev para Sistemas PEDSA"
 
 ### Sidebar
 - ✅ Nombre: "Dashboard Control"
@@ -165,7 +165,7 @@ Todos los derechos reservados - VFL / Area Sistemas PEDSA
 ### Dashboard
 - ✅ Mensaje de bienvenida: "Bienvenido al Dashboard Control"
 - ✅ Descripción: "de Equipamientos - Gestión integral de recursos e inventario"
-- ✅ Footer: "Desarrollado por VFL para Area Sistemas PEDSA"
+- ✅ Footer: "Desarrollado por VLF dev para Sistemas PEDSA"
 - ✅ Versión: "2.9.0"
 
 ### Navegador

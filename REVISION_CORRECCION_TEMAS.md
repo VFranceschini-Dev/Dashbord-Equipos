@@ -437,7 +437,7 @@ El sistema de temas claro/oscuro está **completamente funcional** y **profesion
 
 ---
 
-**Revisado por:** Area Sistemas PEDSA  
+**Revisado por:** VLF dev para Sistemas PEDSA  
 **Versión:** 2.8.0  
 **Fecha:** 2024  
 **Estado:** ✅ Problema resuelto y verificado
