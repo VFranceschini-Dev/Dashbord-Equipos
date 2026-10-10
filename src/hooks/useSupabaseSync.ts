@@ -37,7 +37,7 @@ export function useSupabaseSync(): UseSupabaseSyncReturn {
     action: 'create' | 'update' | 'delete'
   ): Promise<boolean> => {
     setSyncStatus('syncing');
-    setLastSyncMessage(`Sincronizando ${type}...`);
+    setLastSyncMessage('Procesando...');
 
     try {
       let success = false;
@@ -86,21 +86,21 @@ export function useSupabaseSync(): UseSupabaseSyncReturn {
           }
           break;
         default:
-          throw new Error(`Tipo de entidad no soportado: ${type}`);
+          throw new Error('Operación no soportada');
       }
 
       if (success) {
         setSyncStatus('success');
-        setLastSyncMessage(`${type} sincronizado correctamente`);
+        setLastSyncMessage('Datos guardados correctamente');
       } else {
         setSyncStatus('error');
-        setLastSyncMessage(`Error al sincronizar ${type}`);
+        setLastSyncMessage('Error al guardar los datos');
       }
 
       return success;
     } catch (error) {
       setSyncStatus('error');
-      setLastSyncMessage(`Error: ${error}`);
+      setLastSyncMessage('Error al guardar los datos');
       return false;
     }
   }, []);
