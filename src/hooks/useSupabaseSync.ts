@@ -40,64 +40,64 @@ export function useSupabaseSync(): UseSupabaseSyncReturn {
     setLastSyncMessage('Procesando...');
 
     try {
-      let success = false;
+      let result: { success: boolean; error?: string };
 
       switch (type) {
         case 'printer':
           if (action === 'delete') {
-            success = await deletePrinterFromSupabase(data.id);
+            result = await deletePrinterFromSupabase(data.id);
           } else {
-            success = await syncPrinterToSupabase(data as Printer);
+            result = await syncPrinterToSupabase(data as Printer);
           }
           break;
         case 'toner':
           if (action === 'delete') {
-            success = await deleteTonerFromSupabase(data.id);
+            result = await deleteTonerFromSupabase(data.id);
           } else {
-            success = await syncTonerToSupabase(data as TonerItem);
+            result = await syncTonerToSupabase(data as TonerItem);
           }
           break;
         case 'equipment':
           if (action === 'delete') {
-            success = await deleteEquipmentFromSupabase(data.id);
+            result = await deleteEquipmentFromSupabase(data.id);
           } else {
-            success = await syncEquipmentToSupabase(data as Equipment);
+            result = await syncEquipmentToSupabase(data as Equipment);
           }
           break;
         case 'supplier':
           if (action === 'delete') {
-            success = await deleteSupplierFromSupabase(data.id);
+            result = await deleteSupplierFromSupabase(data.id);
           } else {
-            success = await syncSupplierToSupabase(data as Supplier);
+            result = await syncSupplierToSupabase(data as Supplier);
           }
           break;
         case 'collaborator':
           if (action === 'delete') {
-            success = await deleteCollaboratorFromSupabase(data.id);
+            result = await deleteCollaboratorFromSupabase(data.id);
           } else {
-            success = await syncCollaboratorToSupabase(data as Collaborator);
+            result = await syncCollaboratorToSupabase(data as Collaborator);
           }
           break;
         case 'voucher':
           if (action === 'delete') {
-            success = await deleteVoucherFromSupabase(data.id);
+            result = await deleteVoucherFromSupabase(data.id);
           } else {
-            success = await syncVoucherToSupabase(data as Voucher);
+            result = await syncVoucherToSupabase(data as Voucher);
           }
           break;
         default:
           throw new Error('Operación no soportada');
       }
 
-      if (success) {
+      if (result.success) {
         setSyncStatus('success');
         setLastSyncMessage('Datos guardados correctamente');
       } else {
         setSyncStatus('error');
-        setLastSyncMessage('Error al guardar los datos');
+        setLastSyncMessage(result.error || 'Error al guardar los datos');
       }
 
-      return success;
+      return result.success;
     } catch (error) {
       setSyncStatus('error');
       setLastSyncMessage('Error al guardar los datos');

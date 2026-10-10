@@ -38,37 +38,71 @@ export async function syncPrintersFromSupabase(): Promise<Printer[]> {
   }));
 }
 
-export async function syncPrinterToSupabase(printer: Printer): Promise<boolean> {
-  const userId = getCurrentUserId();
-  const supabasePrinter = {
-    user_id: userId,
-    name: printer.name,
-    location: printer.location,
-    department: printer.department,
-    model: printer.model,
-    status: printer.status,
-    toner_model: printer.tonerModel,
-    last_maintenance: printer.lastMaintenance,
-    total_pages: printer.totalPages,
-  };
-  
-  if (printer.id && printer.id.length === 36) {
-    // Actualizar existente
-    const { error } = await printersService.update(printer.id, supabasePrinter);
-    return !error;
-  } else {
-    // Crear nuevo
-    const { data, error } = await printersService.create(supabasePrinter);
-    if (!error && data) {
-      printer.id = data.id;
+export async function syncPrinterToSupabase(printer: Printer): Promise<{ success: boolean; error?: string }> {
+  try {
+    const userId = getCurrentUserId();
+    
+    // Validar datos requeridos
+    if (!printer.name || !printer.model) {
+      return { success: false, error: 'Nombre y modelo son obligatorios' };
     }
-    return !error;
+    
+    const supabasePrinter = {
+      user_id: userId,
+      name: printer.name,
+      location: printer.location || '',
+      department: printer.department || '',
+      model: printer.model,
+      status: printer.status,
+      toner_model: printer.tonerModel || '',
+      last_maintenance: printer.lastMaintenance || '',
+      total_pages: printer.totalPages || 0,
+    };
+    
+    // Verificar si ya existe en Supabase
+    if (printer.id && printer.id.length === 36) {
+      // Intentar actualizar
+      const { data, error } = await printersService.update(printer.id, supabasePrinter);
+      
+      if (error) {
+        // Si falla el update, intentar crear (puede ser que no exista en Supabase)
+        const { data: newData, error: createError } = await printersService.create(supabasePrinter);
+        if (createError) {
+          return { success: false, error: `Error al crear: ${createError.message}` };
+        }
+        if (newData) {
+          printer.id = newData.id;
+        }
+        return { success: true };
+      }
+      
+      return { success: true };
+    } else {
+      // Crear nuevo
+      const { data, error } = await printersService.create(supabasePrinter);
+      if (error) {
+        return { success: false, error: `Error al crear: ${error.message}` };
+      }
+      if (data) {
+        printer.id = data.id;
+      }
+      return { success: true };
+    }
+  } catch (error) {
+    return { success: false, error: `Error inesperado: ${error}` };
   }
 }
 
-export async function deletePrinterFromSupabase(id: string): Promise<boolean> {
-  const { error } = await printersService.delete(id);
-  return !error;
+export async function deletePrinterFromSupabase(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await printersService.delete(id);
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: `Error inesperado: ${error}` };
+  }
 }
 
 // ===== SINCRONIZACIÓN DE TÓNERS =====
