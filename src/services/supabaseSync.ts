@@ -577,3 +577,105 @@ export async function checkSupabaseConnection(): Promise<boolean> {
     return false;
   }
 }
+
+// ===== SINCRONIZACIÓN MASIVA (para importaciones) =====
+
+export async function syncPrintersToSupabase(printers: Printer[]): Promise<{ success: number; errors: string[] }> {
+  let success = 0;
+  const errors: string[] = [];
+  
+  for (const printer of printers) {
+    try {
+      const result = await syncPrinterToSupabase(printer);
+      if (result) {
+        success++;
+      } else {
+        errors.push(`Error al sincronizar impresora: ${printer.name}`);
+      }
+    } catch (error) {
+      errors.push(`Error al sincronizar impresora ${printer.name}: ${error}`);
+    }
+  }
+  
+  return { success, errors };
+}
+
+export async function syncTonersToSupabase(toners: TonerItem[]): Promise<{ success: number; errors: string[] }> {
+  let success = 0;
+  const errors: string[] = [];
+  
+  for (const toner of toners) {
+    try {
+      const result = await syncTonerToSupabase(toner);
+      if (result) {
+        success++;
+      } else {
+        errors.push(`Error al sincronizar tóner: ${toner.model}`);
+      }
+    } catch (error) {
+      errors.push(`Error al sincronizar tóner ${toner.model}: ${error}`);
+    }
+  }
+  
+  return { success, errors };
+}
+
+export async function syncEquipmentsToSupabase(equipments: Equipment[]): Promise<{ success: number; errors: string[] }> {
+  let success = 0;
+  const errors: string[] = [];
+  
+  for (const equipment of equipments) {
+    try {
+      const result = await syncEquipmentToSupabase(equipment);
+      if (result) {
+        success++;
+      } else {
+        errors.push(`Error al sincronizar equipamiento: ${equipment.name}`);
+      }
+    } catch (error) {
+      errors.push(`Error al sincronizar equipamiento ${equipment.name}: ${error}`);
+    }
+  }
+  
+  return { success, errors };
+}
+
+export async function syncSuppliersToSupabase(suppliers: Supplier[]): Promise<{ success: number; errors: string[] }> {
+  let success = 0;
+  const errors: string[] = [];
+  
+  for (const supplier of suppliers) {
+    try {
+      const result = await syncSupplierToSupabase(supplier);
+      if (result) {
+        success++;
+      } else {
+        errors.push(`Error al sincronizar proveedor: ${supplier.name}`);
+      }
+    } catch (error) {
+      errors.push(`Error al sincronizar proveedor ${supplier.name}: ${error}`);
+    }
+  }
+  
+  return { success, errors };
+}
+
+export async function syncCollaboratorsToSupabase(collaborators: Collaborator[]): Promise<{ success: number; errors: string[] }> {
+  let success = 0;
+  const errors: string[] = [];
+  
+  for (const collaborator of collaborators) {
+    try {
+      const result = await syncCollaboratorToSupabase(collaborator);
+      if (result) {
+        success++;
+      } else {
+        errors.push(`Error al sincronizar colaborador: ${collaborator.name} ${collaborator.lastName}`);
+      }
+    } catch (error) {
+      errors.push(`Error al sincronizar colaborador ${collaborator.name}: ${error}`);
+    }
+  }
+  
+  return { success, errors };
+}

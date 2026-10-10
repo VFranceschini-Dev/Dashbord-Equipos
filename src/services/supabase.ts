@@ -82,7 +82,7 @@ export interface SupabaseSupplier {
   email: string;
   phone: string;
   address: string;
-  category: string;
+  category: string[]; // Array para soportar múltiples categorías
   active: boolean;
   notes: string;
   created_at?: string;

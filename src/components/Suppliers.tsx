@@ -19,7 +19,7 @@ export default function Suppliers() {
 
   const emptyForm: Omit<Supplier, 'id'> = {
     name: '', cuit: '', contact: '', email: '', phone: '', address: '',
-    category: 'Hardware', active: true, notes: '',
+    category: ['Hardware'], active: true, notes: '',
   };
   const [form, setForm] = useState<Omit<Supplier, 'id'>>(emptyForm);
 
@@ -27,21 +27,44 @@ export default function Suppliers() {
     const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.cuit.toLowerCase().includes(search.toLowerCase()) ||
       s.contact.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = filterCategory === 'all' || s.category === filterCategory;
+    const matchCategory = filterCategory === 'all' || s.category.includes(filterCategory);
     return matchSearch && matchCategory;
   });
 
   const handleImport = (importedData: any[]) => {
     importedData.forEach(item => {
+      // Convertir categoría a array si es string
+      let categories: string[];
+      if (Array.isArray(item.category)) {
+        categories = item.category;
+      } else if (typeof item.category === 'string') {
+        // Soportar categorías separadas por coma
+        categories = item.category.split(',').map((c: string) => c.trim()).filter((c: string) => c);
+      } else {
+        categories = ['Hardware'];
+      }
+      
       addSupplier({
         ...item,
         id: uuidv4(),
         active: item.active !== false,
-        category: item.category || 'Hardware',
+        category: categories,
         notes: item.notes || '',
       } as Supplier);
     });
     setShowImport(false);
+  };
+
+  const toggleCategory = (category: string) => {
+    if (form.category.includes(category)) {
+      // Si ya está seleccionada, quitarla (pero mantener al menos una)
+      if (form.category.length > 1) {
+        setForm({ ...form, category: form.category.filter(c => c !== category) });
+      }
+    } else {
+      // Si no está seleccionada, agregarla
+      setForm({ ...form, category: [...form.category, category] });
+    }
   };
 
   const handleSubmit = () => {
@@ -130,19 +153,31 @@ export default function Suppliers() {
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" placeholder="XX-XXXXXXXX-X" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Persona de Contacto</label>
-                  <input type="text" value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Persona de Contacto</label>
+                <input type="text" value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Categorías <span className="text-xs text-gray-500 font-normal">(puedes seleccionar varias)</span>
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {SUPPLIER_CATEGORIES.map(cat => (
+                    <label key={cat} className="flex items-center gap-2 p-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={form.category.includes(cat)}
+                        onChange={() => toggleCategory(cat)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{cat}</span>
+                    </label>
+                  ))}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
-                  <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm">
-                    {SUPPLIER_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Seleccionadas: {form.category.join(', ')}
+                </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -233,9 +268,13 @@ export default function Suppliers() {
               )}
             </div>
             <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">
-                <Tag size={10} /> {supplier.category}
-              </span>
+              <div className="flex flex-wrap gap-1">
+                {supplier.category.map(cat => (
+                  <span key={cat} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">
+                    <Tag size={10} /> {cat}
+                  </span>
+                ))}
+              </div>
               <div className="flex gap-1">
                 <button onClick={() => startEdit(supplier)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600"><Edit2 size={16} /></button>
                 <button onClick={() => setDeleteConfirm(supplier.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>
@@ -257,6 +296,7 @@ export default function Suppliers() {
         onClose={() => setShowImport(false)}
         onImport={handleImport}
         title="Proveedores"
+        entityType="suppliers"
         templateHeaders={['nombre', 'cuit', 'contacto', 'email', 'telefono', 'direccion', 'categoria']}
         mapping={{
           'nombre': 'name', 'name': 'name',

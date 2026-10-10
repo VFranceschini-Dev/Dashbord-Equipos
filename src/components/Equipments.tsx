@@ -355,6 +355,7 @@ export default function Equipments() {
         onClose={() => setShowImport(false)}
         onImport={handleImport}
         title="Equipos"
+        entityType="equipments"
         templateHeaders={['nombre', 'tipo', 'marca', 'modelo', 'serial', 'codigo', 'categoria']}
         mapping={{
           'nombre': 'name', 'name': 'name',

@@ -69,7 +69,7 @@ export interface Supplier {
   email: string;
   phone: string;
   address: string;
-  category: string;
+  category: string[]; // Ahora soporta múltiples categorías
   active: boolean;
   notes: string;
 }

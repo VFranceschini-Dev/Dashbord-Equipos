@@ -307,6 +307,7 @@ export default function Printers() {
         onClose={() => setShowImport(false)}
         onImport={handleImport}
         title="Impresoras"
+        entityType="printers"
         templateHeaders={['nombre', 'modelo', 'ubicacion', 'departamento', 'toner', 'estado', 'paginas']}
         mapping={{
           // Nombre

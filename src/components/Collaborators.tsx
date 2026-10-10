@@ -270,6 +270,7 @@ export default function Collaborators() {
         onClose={() => setShowImport(false)}
         onImport={handleImport}
         title="Colaboradores"
+        entityType="collaborators"
         templateHeaders={['nombre', 'apellido', 'dni', 'email', 'telefono', 'departamento', 'cargo']}
         mapping={{
           'nombre': 'name', 'name': 'name',
