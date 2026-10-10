@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
   email TEXT NOT NULL DEFAULT '',
   phone TEXT NOT NULL DEFAULT '',
   address TEXT NOT NULL DEFAULT '',
-  category TEXT NOT NULL DEFAULT 'Hardware',
+  category TEXT[] NOT NULL DEFAULT ARRAY['Hardware'], -- Array para soportar múltiples categorías
   active BOOLEAN NOT NULL DEFAULT true,
   notes TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
