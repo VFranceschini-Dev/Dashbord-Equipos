@@ -6,7 +6,6 @@ import {
   TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight,
   Database, Wifi, HardDrive
 } from 'lucide-react';
-import ThemeToggle from './ThemeToggle';
 import LowStockAlerts from './LowStockAlerts';
 import LogoVLF from './LogoVLF';
 import SyncPanel from './SyncPanel';
@@ -151,14 +150,13 @@ export default function Dashboard() {
               <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Panel de Control</span>
             </div>
             <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1">
-              Bienvenido al Dashboard Control
+              Dashboard de Equipamiento
             </h1>
             <p className="text-gray-600 dark:text-slate-400 text-sm lg:text-base">
-              de Equipamientos - Gestión integral de recursos e inventario
+              Gestión integral de recursos e inventario
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <ThemeToggle />
             <div className="bg-white/80 dark:bg-slate-700/80 backdrop-blur-sm border border-blue-200 dark:border-slate-600 rounded-xl px-4 py-2.5">
               <p className="text-xs text-gray-600 dark:text-slate-400">Fecha</p>
               <p className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -357,7 +355,7 @@ export default function Dashboard() {
               <Activity size={12} /> Sistema inicializado
             </div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              ¡Bienvenido al Dashboard Control de Equipamientos!
+              ¡Bienvenido al Dashboard de Equipamiento!
             </h3>
             <p className="text-sm text-gray-600 dark:text-slate-400 mb-6 max-w-lg mx-auto">
               Comienza registrando tus recursos para gestionar tu infraestructura de forma eficiente

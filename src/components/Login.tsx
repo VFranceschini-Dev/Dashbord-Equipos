@@ -143,7 +143,7 @@ export default function Login() {
             <LogoVLF size="md" />
           </div>
           <p className="text-blue-200 text-xs">
-            Desarrollado por <span className="font-semibold text-white">Pablo Eloy Donnet</span>
+            Desarrollado por <span className="font-semibold text-white">&nbsp;&nbsp;&nbsp;&nbsp;&gt;vlf_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;VLFranceschini Dev</span>
           </p>
           <p className="text-blue-300 text-xs">
             © 2024 VLF dev - Para Sistemas PEDSA
