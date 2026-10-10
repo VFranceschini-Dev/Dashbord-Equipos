@@ -19,7 +19,7 @@ export default function SyncPanel() {
   // Sincronizar TODO desde Supabase hacia localStorage
   const handleSyncFromSupabase = async () => {
     setSyncingAll(true);
-    setSyncMessage('Descargando datos desde Supabase...');
+    setSyncMessage('Procesando...');
 
     try {
       const data = await syncAllFromSupabase();
@@ -31,9 +31,9 @@ export default function SyncPanel() {
       setCollaborators(data.collaborators);
       setVouchers(data.vouchers);
       
-      setSyncMessage(`✓ Datos descargados: ${data.printers.length} impresoras, ${data.toners.length} tóners, ${data.equipments.length} equipos, ${data.suppliers.length} proveedores, ${data.collaborators.length} colaboradores`);
+      setSyncMessage('✓ Datos actualizados correctamente');
     } catch (error) {
-      setSyncMessage(`✗ Error al sincronizar: ${error}`);
+      setSyncMessage('✗ Error al actualizar los datos');
     }
 
     setSyncingAll(false);
@@ -42,7 +42,7 @@ export default function SyncPanel() {
   // Sincronizar TODO desde localStorage hacia Supabase
   const handleSyncToSupabase = async () => {
     setSyncingAll(true);
-    setSyncMessage('Subiendo datos a Supabase...');
+    setSyncMessage('Procesando...');
 
     try {
       let totalSynced = 0;
@@ -91,12 +91,12 @@ export default function SyncPanel() {
       }
 
       if (totalErrors === 0) {
-        setSyncMessage(`✓ ${totalSynced} registros sincronizados con Supabase`);
+        setSyncMessage('✓ Datos guardados correctamente');
       } else {
-        setSyncMessage(`⚠ ${totalSynced} sincronizados, ${totalErrors} errores`);
+        setSyncMessage('⚠ Algunos datos no pudieron guardarse');
       }
     } catch (error) {
-      setSyncMessage(`✗ Error al sincronizar: ${error}`);
+      setSyncMessage('✗ Error al guardar los datos');
     }
 
     setSyncingAll(false);

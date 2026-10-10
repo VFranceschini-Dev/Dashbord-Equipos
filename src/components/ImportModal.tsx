@@ -144,7 +144,7 @@ export default function ImportModal({
       setSaveResult({
         success: false,
         saved: 0,
-        errors: [`Error al guardar en Supabase: ${error}`],
+        errors: ['Error al guardar los datos'],
       });
     }
 
@@ -225,7 +225,7 @@ export default function ImportModal({
         }`}>
           1
         </div>
-        <span className="text-sm font-medium">Importar</span>
+        <span className="text-sm font-medium">Cargar</span>
       </div>
       <div className={`w-8 h-0.5 ${currentStep === 'review' || currentStep === 'save' ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-700'}`} />
       <div className={`flex items-center gap-2 ${currentStep === 'review' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}`}>
@@ -256,26 +256,26 @@ export default function ImportModal({
       {/* Plantillas */}
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
         <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
-          📥 Descarga una plantilla para empezar:
+          📥 Importar plantilla (descarga el modelo para completar):
         </p>
         <div className="flex gap-2">
           <button
             onClick={() => handleDownloadTemplate('csv')}
             className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300"
           >
-            <FileText size={16} />
-            CSV
+            <Download size={16} />
+            Importar CSV
           </button>
           <button
             onClick={() => handleDownloadTemplate('xlsx')}
             className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300"
           >
-            <FileSpreadsheet size={16} />
-            Excel
+            <Download size={16} />
+            Importar Excel
           </button>
         </div>
         <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
-          Columnas: {templateHeaders.join(', ')}
+          Columnas requeridas: {templateHeaders.join(', ')}
         </p>
       </div>
 
@@ -332,12 +332,12 @@ export default function ImportModal({
           {importing ? (
             <>
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Importando...
+              Cargando...
             </>
           ) : (
             <>
               <Upload size={20} />
-              Importar y Revisar
+              Cargar Archivo
             </>
           )}
         </button>
@@ -424,17 +424,17 @@ export default function ImportModal({
         </div>
       </div>
 
-      {/* Información sobre Supabase */}
+      {/* Información sobre guardado */}
       {entityType && (
         <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-200 dark:border-purple-800">
           <div className="flex items-start gap-2">
             <Database className="text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" size={18} />
             <div>
               <p className="text-sm font-semibold text-purple-900 dark:text-purple-100">
-                Guardar en Base de Datos (Supabase)
+                Guardar en Base de Datos
               </p>
               <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">
-                Al hacer clic en "Guardar en Supabase", los datos se sincronizarán con tu base de datos en la nube. 
+                Al hacer clic en "Guardar", los datos se sincronizarán con tu base de datos en la nube. 
                 Esto permite acceder a los datos desde cualquier dispositivo y mantener un respaldo automático.
               </p>
             </div>
@@ -460,12 +460,12 @@ export default function ImportModal({
             {syncingToSupabase ? (
               <>
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Guardando en Supabase...
+                Guardando...
               </>
             ) : (
               <>
                 <Cloud size={20} />
-                Guardar en Supabase
+                Guardar
               </>
             )}
           </button>
@@ -505,7 +505,7 @@ export default function ImportModal({
                 {saveResult.success ? '✓ Datos guardados exitosamente' : '⚠ Guardado parcial'}
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                {saveResult.saved} de {importedData.length} registros sincronizados con Supabase
+                {saveResult.saved} de {importedData.length} registros guardados correctamente
               </p>
               
               {saveResult.errors.length > 0 && (
@@ -534,13 +534,13 @@ export default function ImportModal({
           Resumen de la operación:
         </h4>
         <div className="space-y-1 text-sm text-blue-700 dark:text-blue-300">
-          <p>• <strong>{importedData.length}</strong> registros importados localmente</p>
-          <p>• <strong>{saveResult?.saved || 0}</strong> registros guardados en Supabase</p>
+          <p>• <strong>{importedData.length}</strong> registros procesados</p>
+          <p>• <strong>{saveResult?.saved || 0}</strong> registros guardados correctamente</p>
           {importErrors.length > 0 && (
-            <p>• <strong>{importErrors.length}</strong> filas con errores (no importadas)</p>
+            <p>• <strong>{importErrors.length}</strong> filas con errores (no procesadas)</p>
           )}
           {saveResult && saveResult.errors.length > 0 && (
-            <p>• <strong>{saveResult.errors.length}</strong> errores de sincronización</p>
+            <p>• <strong>{saveResult.errors.length}</strong> registros con errores</p>
           )}
         </div>
       </div>
@@ -565,7 +565,7 @@ export default function ImportModal({
               Importar {title}
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {currentStep === 'upload' && 'Paso 1: Selecciona y carga tu archivo'}
+              {currentStep === 'upload' && 'Paso 1: Carga tu archivo'}
               {currentStep === 'review' && 'Paso 2: Revisa los datos antes de guardar'}
               {currentStep === 'save' && 'Paso 3: Confirmación de guardado'}
             </p>
