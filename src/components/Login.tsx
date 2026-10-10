@@ -146,7 +146,7 @@ export default function Login() {
             Desarrollado por <span className="font-semibold text-white">&nbsp;&nbsp;&nbsp;&nbsp;&gt;vlf_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;VLFranceschini Dev</span>
           </p>
           <p className="text-blue-300 text-xs">
-            © 2024 VLF dev - Para Sistemas PEDSA
+            © 2024 VLF dev
           </p>
         </div>
       </div>
