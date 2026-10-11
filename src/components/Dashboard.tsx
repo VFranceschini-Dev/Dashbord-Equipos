@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import LowStockAlerts from './LowStockAlerts';
 import LogoVLF from './LogoVLF';
-import SyncPanel from './SyncPanel';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts, equipments, suppliers, collaborators, setCurrentPage } = useApp();
@@ -297,9 +296,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
-      {/* Sync Panel */}
-      <SyncPanel />
 
       {/* Alerts */}
       {unreadAlerts > 0 && (
