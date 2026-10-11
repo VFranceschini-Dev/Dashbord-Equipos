@@ -4,7 +4,7 @@ import { Printer, TonerItem, Movement, Equipment, Supplier, Collaborator, Vouche
 import { v4 as uuidv4 } from 'uuid';
 
 // ID del usuario actual (en producción, esto vendría de la autenticación)
-const getCurrentUserId = (): string => {
+export const getCurrentUserId = (): string => {
   const userId = localStorage.getItem('current_user_id');
   if (!userId) {
     // Generar un ID de usuario por defecto para desarrollo
