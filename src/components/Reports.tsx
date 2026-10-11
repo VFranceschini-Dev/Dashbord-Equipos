@@ -160,7 +160,7 @@ export default function Reports() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" fontSize={12} />
               <YAxis fontSize={12} />
-              <Tooltip formatter={(value: number) => [`$${value}`, 'Gasto']} />
+              <Tooltip formatter={(value) => [`$${Number(value).toLocaleString('es-AR')}`, 'Gasto']} />
               <Area type="monotone" dataKey="gasto" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
@@ -179,7 +179,7 @@ export default function Reports() {
                 cy="50%"
                 outerRadius={90}
                 dataKey="value"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 labelLine={false}
               >
                 {brandData.map((_, index) => (
