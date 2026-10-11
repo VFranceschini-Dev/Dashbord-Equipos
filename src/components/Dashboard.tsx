@@ -1,17 +1,14 @@
 import { useApp } from '../context/AppContext';
-import * as db from '../services/localDatabase';
 import { getLowStockGroups } from '../utils/tonerCompatibility';
 import {
-  Printer, Package, AlertTriangle, Monitor, Server, Users, Building2, FileText,
-  TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight,
-  Database, Wifi, HardDrive
+  Printer, Package, AlertTriangle, Monitor, Users, Building2, FileText,
+  TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight
 } from 'lucide-react';
 import LowStockAlerts from './LowStockAlerts';
 import LogoVLF from './LogoVLF';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts, equipments, suppliers, collaborators, setCurrentPage } = useApp();
-  const syncStats = db.getSyncStats();
 
   const activePrinters = printers.filter(p => p.status === 'active').length;
   
@@ -241,61 +238,6 @@ export default function Dashboard() {
 
       {/* Low Stock Alerts */}
       <LowStockAlerts />
-
-      {/* Sync Stats */}
-      {syncStats.totalServers > 0 && (
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-700 rounded-2xl p-6 border border-blue-200 dark:border-slate-600">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 ${getColorClasses('blue').bg} rounded-xl`}>
-                <Database size={20} className={getColorClasses('blue').text} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 dark:text-white">Estado de Sincronización</h3>
-                <p className="text-xs text-gray-600 dark:text-slate-400">
-                  {syncStats.activeServers} servidor{syncStats.activeServers !== 1 ? 'es' : ''} activo{syncStats.activeServers !== 1 ? 's' : ''}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setCurrentPage('data-sync')}
-              className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold"
-            >
-              Ver detalles <ChevronRight size={14} />
-            </button>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Server size={14} className={getColorClasses('blue').text} />
-                <p className="text-xs text-gray-600 dark:text-slate-400">Servidores</p>
-              </div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalServers}</p>
-            </div>
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <HardDrive size={14} className={getColorClasses('emerald').text} />
-                <p className="text-xs text-gray-600 dark:text-slate-400">Dispositivos</p>
-              </div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalDevices}</p>
-            </div>
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Wifi size={14} className={getColorClasses('emerald').text} />
-                <p className="text-xs text-gray-600 dark:text-slate-400">Conectados</p>
-              </div>
-              <p className={`text-2xl font-bold ${getColorClasses('emerald').text}`}>{syncStats.connectedDevices}</p>
-            </div>
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Activity size={14} className={getColorClasses('purple').text} />
-                <p className="text-xs text-gray-600 dark:text-slate-400">Sincronizaciones</p>
-              </div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{syncStats.totalSyncs}</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Alerts */}
       {unreadAlerts > 0 && (
