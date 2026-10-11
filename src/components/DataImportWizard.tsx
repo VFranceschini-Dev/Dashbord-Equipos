@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   UploadCloud, FileSpreadsheet, DatabaseBackup, X, PlusCircle, CheckCircle2, RefreshCw,
-  MinusCircle, AlertCircle, Download, Loader2, ChevronLeft, ChevronRight, ArrowLeft,
+  MinusCircle, AlertCircle, Download, Loader2, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import type { TableImportConfig, ImportRowResult, RowStatus } from '../config/importConfig';
 import { validateCuit, validateEmail, parseBoolean, parseArray, fieldChanged } from '../config/importConfig';
@@ -10,7 +10,7 @@ import {
   parseCsv,
 } from '../utils/excelToCsv';
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2; // Paso 1: subir archivo · Paso 2: revisar (la confirmación es un modal encima)
 
 interface PreviewData {
   fileName: string;
@@ -47,7 +47,7 @@ export default function DataImportWizard({
   const pendingCount = preview ? preview.totals.new + preview.totals.update : 0;
 
   // Aviso si el usuario intenta cerrar con datos sin confirmar.
-  const hasPendingWork = !!preview && step > 1 && !saving;
+  const hasPendingWork = !!preview && step >= 2 && !saving;
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       if (hasPendingWork) e.preventDefault();
@@ -73,6 +73,9 @@ export default function DataImportWizard({
       setFileError('El archivo debe ser un Excel (.xlsx). Revisá que tenga esa extensión.');
       return;
     }
+    // Avance automático: apenas se elige/suelta el archivo se procesa y pasa al Paso 2.
+    // Si el archivo es inválido o no tiene registros, buildPreview devuelve ok:false
+    // y nos quedamos en el Paso 1 mostrando el motivo (nunca se abre una vista previa vacía).
     setConverting(true);
     try {
       const wb = await readWorkbook(file);
@@ -89,8 +92,8 @@ export default function DataImportWizard({
       const { headers, rows } = sheetToData(wb, chosen);
       const csv = toCsv(headers, rows);
       await buildPreview(file.name, csv);
-      setStep(2);
     } catch (err) {
+      setStep(1);
       setFileError(err instanceof Error ? err.message : 'No se pudo convertir el archivo. Verificá que sea un Excel válido.');
     } finally {
       setConverting(false);
@@ -98,11 +101,18 @@ export default function DataImportWizard({
   };
 
   // ---------------- Validación + clasificación ----------------
-  const buildPreview = useCallback(async (fileName: string, csv: string) => {
+  // Devuelve ok:true si se construyó la vista previa (y avanzamos al Paso 2 automáticamente),
+  // u ok:false con el motivo (el usuario permanece en el Paso 1 con el error visible).
+  const buildPreview = useCallback(async (fileName: string, csv: string): Promise<{ ok: boolean; message?: string }> => {
     // Parseo RFC4180 del CSV intermedio (maneja comas y saltos de línea dentro de campos).
-    const parsed = parseCsv(csv);
+    let parsed;
+    try {
+      parsed = parseCsv(csv);
+    } catch {
+      return { ok: false, message: 'No se pudo leer el archivo. Verificá que sea un Excel (.xlsx) válido.' };
+    }
     if (parsed.headers.length === 0) {
-      throw new Error('No se pudo leer el encabezado del archivo.');
+      return { ok: false, message: 'El archivo está vacío o no tiene encabezados. Completalo con datos e intentá de nuevo.' };
     }
 
     const headerMap = new Map<string, number>(); // columna destino -> índice en el CSV
@@ -122,9 +132,10 @@ export default function DataImportWizard({
 
     const missingRequired = config.columns.filter((c) => c.required && !headerMap.has(c.column));
     if (missingRequired.length > 0) {
-      throw new Error(
-        `Faltan columnas obligatorias en el archivo: ${missingRequired.map((c) => c.label).join(', ')}. Descargá la plantilla para ver los encabezados correctos.`,
-      );
+      return {
+        ok: false,
+        message: `Faltan columnas obligatorias en el archivo: ${missingRequired.map((c) => c.label).join(', ')}. Descargá la plantilla para ver los encabezados correctos.`,
+      };
     }
 
     const existing = await config.fetchExisting();
@@ -232,6 +243,10 @@ export default function DataImportWizard({
       results.push({ status, values, errors, changes });
     }
 
+    if (results.length === 0) {
+      return { ok: false, message: 'El archivo no contiene registros para importar. Revisá que tenga filas de datos debajo del encabezado.' };
+    }
+
     setPreview({
       fileName,
       csv,
@@ -241,6 +256,9 @@ export default function DataImportWizard({
     });
     setPage(0);
     setStatusFilter('all');
+    // Avance automático al Paso 2 sin clic adicional del usuario.
+    setStep(2);
+    return { ok: true };
   }, [config]);
 
   // ---------------- Plantilla ----------------
@@ -343,12 +361,12 @@ export default function DataImportWizard({
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Importar {config.moduleLabel}</h2>
             <div className="mt-1 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-              {([1, 2, 3] as Step[]).map((s, idx) => (
+              {([1, 2] as Step[]).map((s, idx) => (
                 <span key={s} className="flex items-center gap-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${step >= s ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-gray-700'}`}>
-                    {idx === 0 ? '1. Subir archivo' : idx === 1 ? '2. Revisar' : '3. Confirmar'}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${step >= s ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-gray-700'} ${(confirmOpen || saving) && s === 2 ? 'ring-2 ring-amber-400' : ''}`}>
+                    {idx === 0 ? '1. Subir archivo' : '2. Revisa los datos antes de guardar'}
                   </span>
-                  {idx < 2 && <span aria-hidden>→</span>}
+                  {idx === 0 && <span aria-hidden>→</span>}
                 </span>
               ))}
             </div>
@@ -384,7 +402,7 @@ export default function DataImportWizard({
                 {converting ? (
                   <>
                     <Loader2 size={36} className="animate-spin text-indigo-600" />
-                    <p className="text-sm text-gray-600 dark:text-gray-300">Convirtiendo el archivo…</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Leyendo archivo…</p>
                   </>
                 ) : (
                   <>
@@ -490,18 +508,9 @@ export default function DataImportWizard({
             </div>
           )}
 
-          {/* PASO 3 */}
-          {step === 3 && preview && (
-            <div className="space-y-4 py-4 text-center">
-              <DatabaseBackup size={40} className="mx-auto text-amber-500" />
-              <p className="text-gray-700 dark:text-gray-200">
-                Se van a escribir <strong>{preview.totals.new} registros nuevos</strong> y <strong>{preview.totals.update} actualizaciones</strong> en <strong>{config.moduleLabel}</strong>.
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Los registros sin cambios y los que tienen error no se modifican. No se elimina ningún registro existente.</p>
-              {saveError && (
-                <pre className="mx-auto max-w-xl whitespace-pre-wrap rounded-lg bg-red-50 p-3 text-left text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300" role="alert">{saveError}</pre>
-              )}
-            </div>
+          {/* Errores de grabación (se muestran sobre la vista previa; el paso 3 es el modal) */}
+          {saveError && step === 2 && (
+            <pre className="mt-4 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-red-50 p-3 text-left text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300" role="alert">{saveError}</pre>
           )}
         </div>
 
@@ -511,29 +520,18 @@ export default function DataImportWizard({
             {saving && progress.total > 0 ? `Guardando ${Math.min(progress.done, progress.total)} de ${progress.total}…` : ''}
           </div>
           <div className="flex items-center gap-2">
-            {step === 2 && (
+            {step === 2 && preview && (
               <>
-                <button onClick={attemptClose} className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">Descartar</button>
-                <button
-                  onClick={() => setStep(3)}
-                  disabled={pendingCount === 0}
-                  title={pendingCount === 0 ? 'No hay filas nuevas ni con cambios para escribir' : ''}
-                  className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <DatabaseBackup size={16} /> Actualizar base de datos ({pendingCount})
-                </button>
-              </>
-            )}
-            {step === 3 && (
-              <>
-                <button onClick={() => setStep(2)} disabled={saving} className="flex items-center gap-1 rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-50"><ArrowLeft size={14} /> Volver</button>
+                <button onClick={attemptClose} disabled={saving} className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-50">Descartar</button>
+                {/* Acción principal: abre el modal de confirmación antes de escribir */}
                 <button
                   onClick={() => setConfirmOpen(true)}
                   disabled={saving || pendingCount === 0}
+                  title={pendingCount === 0 ? 'No hay filas nuevas ni con cambios para escribir' : ''}
                   className="flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? <Loader2 size={16} className="animate-spin" /> : <DatabaseBackup size={16} />}
-                  Actualizar base de datos ({pendingCount})
+                  Guardar ({pendingCount})
                 </button>
               </>
             )}
