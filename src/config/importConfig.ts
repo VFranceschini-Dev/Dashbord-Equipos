@@ -124,12 +124,65 @@ export function parseArray(value: string, separator = ','): string[] {
 
 // ============================ PROVEEDORES ============================
 
-import { suppliersService } from '../services/supabase';
+import { supabase, suppliersService } from '../services/supabase';
+import type { PostgrestError } from '@supabase/supabase-js';
 import { getCurrentUserId } from '../services/supabaseSync';
 
+/** Traduce errores técnicos de Supabase/Postgres a lenguaje simple para el usuario. */
+export function friendlyDbError(err: PostgrestError | { message: string } | null, moduleLabel = 'los datos'): string {
+  if (!err) return `No se pudo guardar ${moduleLabel}.`;
+  const msg = String(err.message ?? '');
+  console.error('Error técnico de Supabase:', { code: (err as PostgrestError).code, message: msg, details: (err as PostgrestError).details, hint: (err as PostgrestError).hint });
+  const m = /column(?:m)?\s+(\w+)\D/i.exec(msg);
+  switch ((err as PostgrestError).code) {
+    case '23505': // unique_violation
+      if (/cuit/i.test(msg)) return 'Ya existe un proveedor con ese CUIT.';
+      return 'El registro ya existe en la base de datos.';
+    case '23502': // not_null_violation
+      return m ? `Falta un dato obligatorio: ${m[1]}.` : `Falta un dato obligatorio en ${moduleLabel}.`;
+    case '23503': // foreign_key_violation
+      return 'Hay un dato que referencia a otro registro que no existe (por ejemplo una categoría o un proveedor inexistente).';
+    case '23514': // check_violation
+      return 'Algún valor no tiene el formato esperado (por ejemplo una lista vacía donde se requiere al menos un elemento).';
+    case '42501': // insufficient_privilege
+      return `No tenés permiso para guardar ${moduleLabel}.`;
+    case 'PGRST116':
+      return 'El registro que se quería actualizar ya no existe en la base de datos.';
+    default:
+      if (/invalid input syntax for type json|is not an array|array must not contain nulls/i.test(msg)) {
+        return 'Un campo de lista (por ejemplo Categorías) quedó vacío o inválido.';
+      }
+      if (/new row violates row-level security policy/i.test(msg)) {
+        return 'Tu sesión no coincide con los datos que estás intentando guardar. Volvé a iniciar sesión e intentá de nuevo.';
+      }
+      if (/failed to fetch|networkerror|timeout/i.test(msg)) {
+        return 'Se perdió la conexión con la base de datos. Revisá tu internet e intentá de nuevo.';
+      }
+      return `No se pudo guardar: ${msg}`;
+  }
+}
+
+/** Devuelve el id del usuario autenticado REAL (auth.uid()), o null si no hay sesión.
+ *  Es imprescindible: las políticas RLS comparan auth.uid() = user_id, y un UUID
+ *  inventado (localStorage) haría fallar el INSERT aunque el formato sea válido. */
+async function getAuthenticatedUserId(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function buildSuppliersConfig(): TableImportConfig {
+  let cachedUserId: string | null | undefined;
   const ctx = {
-    get userId() { return getCurrentUserId(); },
+    async getUserId(): Promise<string | null> {
+      if (cachedUserId === undefined) {
+        cachedUserId = await getAuthenticatedUserId();
+      }
+      return cachedUserId ?? getCurrentUserId();
+    },
     create: (row: Omit<SupabaseSupplier, 'id' | 'created_at' | 'updated_at'>) => suppliersService.create(row),
     update: (id: string, patch: Partial<SupabaseSupplier>) => suppliersService.update(id, patch),
     getAll: (userId: string) => suppliersService.getAll(userId),
@@ -170,11 +223,21 @@ export function buildSuppliersConfig(): TableImportConfig {
       ) || normName(a.name) !== normName(b.name) || fieldChanged(a.category, b.category),
     matchKeyOf: (values) => normalizeName(values.name),
     fetchExisting: async () => {
-      const { data } = await ctx.getAll(ctx.userId);
+      const userId = await ctx.getUserId();
+      if (!userId) return [];
+      const { data } = await ctx.getAll(userId);
       return (data ?? []) as unknown as Record<string, unknown>[];
     },
     insertRows: async (rows) => {
-      const payload = rows.map((r) => ({ ...r, user_id: ctx.userId })) as Omit<
+      const userId = await ctx.getUserId();
+      if (!userId) {
+        // Sin sesión real no hay forma de cumplir la RLS: fallar temprano con motivo claro.
+        return {
+          inserted: 0,
+          failed: rows.map((r) => ({ label: String(r.name ?? ''), error: 'No iniciaste sesión en la base de datos. Volvé a iniciar sesión e intentá de nuevo.' })),
+        };
+      }
+      const payload = rows.map((r) => ({ ...r, user_id: userId })) as Omit<
         SupabaseSupplier,
         'id' | 'created_at' | 'updated_at'
       >[];
@@ -184,7 +247,7 @@ export function buildSuppliersConfig(): TableImportConfig {
       for (const row of payload) {
         const res = await ctx.create(row);
         if (res.error) {
-          failed.push({ label: String(row.name ?? ''), error: res.error.message });
+          failed.push({ label: String(row.name ?? ''), error: friendlyDbError(res.error, 'proveedores') });
         } else {
           inserted += 1;
         }
@@ -193,7 +256,7 @@ export function buildSuppliersConfig(): TableImportConfig {
     },
     updateRow: async (id, values) => {
       const { error } = await ctx.update(id, values as Partial<SupabaseSupplier>);
-      return { error: error ? error.message : null };
+      return { error: error ? friendlyDbError(error, 'el proveedor') : null };
     },
   };
 }

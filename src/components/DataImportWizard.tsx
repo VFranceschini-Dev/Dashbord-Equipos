@@ -20,6 +20,15 @@ interface PreviewData {
   totals: Record<RowStatus, number>;
 }
 
+interface SaveFailure { label: string; error: string }
+
+interface SaveOutcome {
+  allFailed: boolean; // falló todo (y no se guardó ni un registro)
+  inserted: number;
+  updated: number;
+  failures: SaveFailure[];
+}
+
 const DEFAULT_BATCH_SIZE = 500;
 
 export default function DataImportWizard({
@@ -42,6 +51,7 @@ export default function DataImportWizard({
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<SaveOutcome | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const pendingCount = preview ? preview.totals.new + preview.totals.update : 0;
@@ -275,61 +285,71 @@ export default function DataImportWizard({
     if (!preview) return;
     setSaving(true);
     setSaveError(null);
+    setOutcome(null);
     const toWrite = preview.results.filter((r) => r.status === 'new' || r.status === 'update');
     setProgress({ done: 0, total: toWrite.length });
     let inserted = 0;
     let updated = 0;
-    const failures: string[] = [];
+    const failures: SaveFailure[] = [];
 
-    const existing = await config.fetchExisting();
-    const existingByKey = new Map<string, { id: string }>();
-    for (const row of existing) {
-      const values = config.existingToValues(row);
-      existingByKey.set(config.matchKeyOf(values), row as unknown as { id: string });
-    }
-
-    const news = toWrite.filter((r) => r.status === 'new');
-    const batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
-    for (let i = 0; i < news.length; i += batchSize) {
-      const batch = news.slice(i, i + batchSize).map((r) => r.values);
-      const { inserted: ok, failed } = await config.insertRows(batch);
-      inserted += ok;
-      failures.push(...failed.map((f) => `«${f.label}»: ${f.error}`));
-      setProgress({ done: Math.min(i + batchSize, toWrite.length), total: toWrite.length });
-    }
-
-    for (const row of toWrite.filter((r) => r.status === 'update')) {
-      const key = config.matchKeyOf(row.values);
-      const dbRow = existingByKey.get(key);
-      if (!dbRow) {
-        failures.push(`No se encontró el registro "${key}" para actualizar`);
-        continue;
+    try {
+      const existing = await config.fetchExisting();
+      const existingByKey = new Map<string, { id: string }>();
+      for (const row of existing) {
+        const values = config.existingToValues(row);
+        existingByKey.set(config.matchKeyOf(values), row as unknown as { id: string });
       }
-      const { error } = await config.updateRow(dbRow.id, row.values);
-      if (error) failures.push(`${key}: ${error}`);
-      else updated += 1;
-      setProgress((p) => ({ ...p, done: p.done + 1 }));
+
+      const news = toWrite.filter((r) => r.status === 'new');
+      const batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
+      for (let i = 0; i < news.length; i += batchSize) {
+        const batch = news.slice(i, i + batchSize).map((r) => r.values);
+        const { inserted: ok, failed } = await config.insertRows(batch);
+        inserted += ok;
+        failures.push(...failed);
+        setProgress({ done: Math.min(i + batchSize, toWrite.length), total: toWrite.length });
+      }
+
+      for (const row of toWrite.filter((r) => r.status === 'update')) {
+        const key = config.matchKeyOf(row.values);
+        const dbRow = existingByKey.get(key);
+        if (!dbRow) {
+          failures.push({ label: key, error: 'No se encontró el registro en la base de datos para actualizar.' });
+          continue;
+        }
+        const { error } = await config.updateRow(dbRow.id, row.values);
+        if (error) failures.push({ label: key, error });
+        else updated += 1;
+        setProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
+    } catch (err) {
+      // Error inesperado (red, crash): lo registramos completo y lo mostramos en simple.
+      console.error('Error inesperado al guardar la importación:', err);
+      failures.push({ label: '(general)', error: 'Ocurrió un problema inesperado al guardar. Revisá tu conexión e intentá de nuevo.' });
     }
 
     setSaving(false);
     setConfirmOpen(false);
 
+    // Si NO se guardó ni un registro, marcamos "allFailed" => título rojo "No se pudo guardar".
+    const allFailed = failures.length > 0 && inserted + updated === 0;
+    setOutcome({ allFailed, inserted, updated, failures });
+
     if (failures.length > 0) {
-      setSaveError(failures.join('\n'));
+      setSaveError(failures.map((f) => `«${f.label}»: ${f.error}`).join('\n'));
       downloadTextFile(
         `errores_importacion_${config.table}.txt`,
-        failures.join('\n'),
+        failures.map((f) => `${f.label}: ${f.error}`).join('\n'),
         'text/plain;charset=utf-8',
       );
     }
-    window.alert(
-      `Importación terminada: ${inserted} insertados, ${updated} actualizados, ${failures.length} fallidos.`,
-    );
     if (failures.length === 0) {
+      // Todo guardado: limpiar vista previa, ocultar el botón y refrescar el módulo.
       setPreview(null);
       setStep(1);
       onSaved();
     } else {
+      // Refrescamos igualmente: el listado debe reflejar solo lo que existe realmente en la BD.
       onSaved();
     }
   };
@@ -508,9 +528,46 @@ export default function DataImportWizard({
             </div>
           )}
 
-          {/* Errores de grabación (se muestran sobre la vista previa; el paso 3 es el modal) */}
-          {saveError && step === 2 && (
-            <pre className="mt-4 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-red-50 p-3 text-left text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300" role="alert">{saveError}</pre>
+          {/* Resultado de la grabación: banner con título según el caso y acciones */}
+          {outcome && outcome.failures.length > 0 && step === 2 && (
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-left dark:border-red-800 dark:bg-red-900/30" role="alert">
+              <h4 className={`flex items-center gap-2 text-sm font-bold ${outcome.allFailed ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                {outcome.allFailed ? (
+                  <>No se pudo guardar</>
+                ) : (
+                  <>Guardado parcial: {outcome.inserted + outcome.updated} registro(s) guardados, {outcome.failures.length} con problemas</>
+                )}
+              </h4>
+              <ul className="mt-2 max-h-40 space-y-1 overflow-auto text-xs text-red-700 dark:text-red-300">
+                {outcome.failures.map((f, i) => (
+                  <li key={i}>• «{f.label}»: {f.error}</li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                Se descargó un archivo con el detalle de los errores. El listado muestra solo lo que realmente está guardado en la base de datos.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  onClick={() => void runSave()}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  <RefreshCw size={13} /> Volver a intentar
+                </button>
+                <button
+                  onClick={() => { setOutcome(null); setSaveError(null); }}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  Volver a la vista previa
+                </button>
+                <button
+                  onClick={attemptClose}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Finalizar
+                </button>
+              </div>
+            </div>
           )}
         </div>
 
