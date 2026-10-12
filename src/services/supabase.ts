@@ -176,7 +176,7 @@ export interface SupabaseSyncedDevice {
 export const printersService = {
   async getAll(userId: string) {
     const { data, error } = await supabase
-      .from('printers')
+      .from('app_printers')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
@@ -185,7 +185,7 @@ export const printersService = {
 
   async create(printer: Omit<SupabasePrinter, 'id' | 'created_at' | 'updated_at'>) {
     const { data, error } = await supabase
-      .from('printers')
+      .from('app_printers')
       .insert([printer])
       .select()
       .single();
@@ -194,7 +194,7 @@ export const printersService = {
 
   async update(id: string, updates: Partial<SupabasePrinter>) {
     const { data, error } = await supabase
-      .from('printers')
+      .from('app_printers')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
@@ -204,7 +204,7 @@ export const printersService = {
 
   async delete(id: string) {
     const { error } = await supabase
-      .from('printers')
+      .from('app_printers')
       .delete()
       .eq('id', id);
     return { error };
@@ -525,9 +525,9 @@ export const syncedDevicesService = {
 // Función para verificar la conexión
 export async function testConnection() {
   const { data, error } = await supabase
-    .from('printers')
+    .from('app_printers')
     .select('count')
     .limit(1);
-
+  
   return { connected: !error, error };
 }
