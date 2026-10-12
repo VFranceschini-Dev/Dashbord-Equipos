@@ -2,20 +2,20 @@ import { useApp } from '../context/AppContext';
 import { getLowStockGroups } from '../utils/tonerCompatibility';
 import {
   Printer, Package, AlertTriangle, Monitor, Users, Building2, FileText,
-  TrendingUp, TrendingDown, Activity, Shield, Clock, ChevronRight
+  Activity, Shield, Clock, ChevronRight
 } from 'lucide-react';
 import LowStockAlerts from './LowStockAlerts';
 import LogoVLF from './LogoVLF';
 
 export default function Dashboard() {
-  const { printers, toners, movements, alerts, equipments, suppliers, collaborators, setCurrentPage } = useApp();
-
+  const { printers, toners, movements, alerts, equipments, suppliers, collaborators, vouchers, setCurrentPage, dataLoading } = useApp();
+//                              ^^^^^^^^ ← AGREGADO (necesario para leer los comprobantes reales)
   const activePrinters = printers.filter(p => p.status === 'active').length;
-  
+
   // Calcular alertas de stock bajo agrupando por compatibilidad
   const lowStockGroups = getLowStockGroups(toners);
   const lowStockItems = lowStockGroups.length;
-  
+
   const totalTonerValue = toners.reduce((sum, t) => sum + t.stock * t.unitPrice, 0);
   const totalMovements = movements.length;
   const unreadAlerts = alerts.filter(a => !a.read).length;
@@ -27,8 +27,6 @@ export default function Dashboard() {
       subtitle: `${equipments.filter(e => e.status === 'assigned').length} asignados`,
       icon: Monitor,
       color: 'blue',
-      trend: '+12%',
-      trendUp: true,
       page: 'equipments' as const,
     },
     {
@@ -37,8 +35,6 @@ export default function Dashboard() {
       subtitle: `${collaborators.filter(c => c.active).length} activos`,
       icon: Users,
       color: 'violet',
-      trend: '+5%',
-      trendUp: true,
       page: 'collaborators' as const,
     },
     {
@@ -47,8 +43,6 @@ export default function Dashboard() {
       subtitle: `${suppliers.filter(s => s.active).length} activos`,
       icon: Building2,
       color: 'emerald',
-      trend: '+3%',
-      trendUp: true,
       page: 'suppliers' as const,
     },
     {
@@ -57,8 +51,6 @@ export default function Dashboard() {
       subtitle: `${activePrinters} activas`,
       icon: Printer,
       color: 'amber',
-      trend: '0%',
-      trendUp: true,
       page: 'printers' as const,
     },
   ];
@@ -74,11 +66,11 @@ export default function Dashboard() {
     },
     {
       title: 'Comprobantes',
-      value: movements.length,
-      subtitle: 'Este período',
+      value: vouchers.length,          // ← antes: movements.length  (mostraba movimientos bajo un título de comprobantes)
+      subtitle: 'Total registrado',    // ← antes: 'Este período'    (tampoco era un dato real)
       icon: FileText,
       color: 'emerald',
-      page: 'vouchers' as const,
+      page: 'vouchers' as const,       // ← sin cambios: ya navegaba a la pantalla de comprobantes
     },
     {
       title: 'Alertas Stock',
@@ -131,6 +123,15 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto p-6">
+      {dataLoading.global && (
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          Cargando datos...
+        </div>
+      )}
       {/* Hero Header */}
       <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 rounded-2xl p-6 lg:p-8 shadow-lg dark:shadow-2xl border border-blue-200 dark:border-slate-700">
         <div className="absolute inset-0 opacity-5 dark:opacity-10">
@@ -181,19 +182,11 @@ export default function Dashboard() {
               className="group relative bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-md dark:shadow-xl border border-gray-200 dark:border-slate-700 hover:shadow-xl hover:border-gray-300 dark:hover:border-slate-600 transition-all duration-300 text-left overflow-hidden"
             >
               <div className={`absolute -top-8 -right-8 w-24 h-24 ${colors.bg} opacity-20 rounded-full blur-2xl group-hover:opacity-30 transition-opacity`} />
-              
+
               <div className="relative">
                 <div className="flex items-start justify-between mb-4">
                   <div className={`p-2.5 rounded-xl ${colors.bg} group-hover:scale-110 transition-transform duration-300`}>
                     <Icon size={22} className={colors.text} />
-                  </div>
-                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                    stat.trendUp 
-                      ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' 
-                      : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                  }`}>
-                    {stat.trendUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                    {stat.trend}
                   </div>
                 </div>
                 <div>
@@ -261,9 +254,9 @@ export default function Dashboard() {
               <div
                 key={alert.id}
                 className={`p-4 rounded-xl border transition-all hover:shadow-lg ${
-                  alert.severity === 'high' 
+                  alert.severity === 'high'
                     ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' :
-                  alert.severity === 'medium' 
+                  alert.severity === 'medium'
                     ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' :
                   'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
                 }`}

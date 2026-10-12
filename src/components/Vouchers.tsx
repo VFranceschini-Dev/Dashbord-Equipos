@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ModuleSyncControls from './ModuleSyncControls';
 import { Voucher } from '../types';
 import {
-  Plus, Search, Edit2, Trash2, X, FileText, DollarSign, Calendar, Building, CheckCircle, Clock, XCircle
+  Plus, Search, Edit2, Trash2, X, FileText, DollarSign, Calendar, Building, CheckCircle, Clock, XCircle, Loader2
 } from 'lucide-react';
 
 const typeConfig = {
@@ -21,7 +22,7 @@ const statusConfig = {
 };
 
 export default function Vouchers() {
-  const { vouchers, addVoucher, updateVoucher, deleteVoucher, suppliers } = useApp();
+  const { vouchers, addVoucher, updateVoucher, deleteVoucher, suppliers, dataLoading} = useApp();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -45,8 +46,10 @@ export default function Vouchers() {
     return matchSearch && matchType && matchStatus;
   });
 
-  const totalAmount = vouchers.reduce((sum, v) => sum + v.amount, 0);
-  const pendingAmount = vouchers.filter(v => v.status === 'pending').reduce((sum, v) => sum + v.amount, 0);
+  const totalAmountARS = vouchers.filter(v => v.currency === 'ARS').reduce((sum, v) => sum + v.amount, 0);
+  const totalAmountUSD = vouchers.filter(v => v.currency === 'USD').reduce((sum, v) => sum + v.amount, 0);
+  const pendingAmountARS = vouchers.filter(v => v.status === 'pending' && v.currency === 'ARS').reduce((sum, v) => sum + v.amount, 0);
+  const pendingAmountUSD = vouchers.filter(v => v.status === 'pending' && v.currency === 'USD').reduce((sum, v) => sum + v.amount, 0);
 
   const handleSubmit = () => {
     if (!form.number || !form.supplierName) return;
@@ -75,18 +78,19 @@ export default function Vouchers() {
 
   return (
     <div className="space-y-5">
+      <ModuleSyncControls module="vouchers" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <p className="text-xs text-gray-500">Total Comprobantes</p>
           <p className="text-2xl font-bold">{vouchers.length}</p>
         </div>
         <div className="bg-white rounded-xl p-4 border border-emerald-100 shadow-sm">
-          <p className="text-xs text-emerald-600">Monto Total</p>
-          <p className="text-2xl font-bold text-emerald-700">${totalAmount.toLocaleString('es-AR')}</p>
+          <p className="text-xs text-emerald-600">Monto Total (ARS / USD)</p>
+          <p className="text-2xl font-bold text-emerald-700">${totalAmountARS.toLocaleString('es-AR')} / USD ${totalAmountUSD.toLocaleString('es-AR')}</p>
         </div>
         <div className="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
-          <p className="text-xs text-amber-600">Monto Pendiente</p>
-          <p className="text-2xl font-bold text-amber-700">${pendingAmount.toLocaleString('es-AR')}</p>
+          <p className="text-xs text-amber-600">Monto Pendiente (ARS / USD)</p>
+          <p className="text-2xl font-bold text-amber-700">${pendingAmountARS.toLocaleString('es-AR')} / USD ${pendingAmountUSD.toLocaleString('es-AR')}</p>
         </div>
         <div className="bg-white rounded-xl p-4 border border-blue-100 shadow-sm">
           <p className="text-xs text-blue-600">Procesados</p>
@@ -271,11 +275,19 @@ export default function Vouchers() {
           </table>
         </div>
         {filtered.length === 0 && (
+        dataLoading.global || dataLoading.module === 'vouchers' ? (
+          <div className="text-center py-12">
+            <Loader2 size={32} className="mx-auto animate-spin text-blue-500 mb-3" />
+            <p className="text-gray-500">Cargando datos...</p>
+          </div>
+        ) : (
+
           <div className="text-center py-12">
             <FileText size={48} className="mx-auto text-gray-300 mb-3" />
             <p className="text-gray-500">No se encontraron comprobantes</p>
           </div>
-        )}
+        )
+      )}
       </div>
     </div>
   );

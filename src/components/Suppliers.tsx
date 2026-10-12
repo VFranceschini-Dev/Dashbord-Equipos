@@ -111,7 +111,7 @@ export default function Suppliers() {
         </div>
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <p className="text-xs text-gray-500">Categorías</p>
-          <p className="text-2xl font-bold">{new Set(suppliers.map(s => s.category)).size}</p>
+          <p className="text-2xl font-bold">{new Set(suppliers.flatMap(s => s.category).map(c => c.trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, ''))).size}</p>
         </div>
         <div className="bg-white rounded-xl p-4 border border-red-100 shadow-sm">
           <p className="text-xs text-red-600">Inactivos</p>
