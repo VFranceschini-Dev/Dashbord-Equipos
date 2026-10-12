@@ -64,12 +64,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // de localStorage para filtrar datos por usuario en Supabase.
     localStorage.setItem('current_user_id', profile.id);
     setUser(profile);
+    setLoading(false);
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
     await supabaseSignOut();
     localStorage.removeItem('current_user_id');
     setUser(null);
+    setLoading(false);
   }, []);
 
   return (
