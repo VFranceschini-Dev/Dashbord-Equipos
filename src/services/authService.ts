@@ -28,7 +28,15 @@ async function getProfile(session: Session): Promise<AuthUserProfile> {
       .eq('id', user.id)
       .maybeSingle();
 
-    if (!error && data) {
+    // Si la consulta falla porque la tabla profiles aún no existe
+    // (code 42P01 = undefined_table en Postgres), se usa el fallback.
+    // Cualquier otro error (p. ej. RLS mal configurada) se registra para diagnóstico.
+    if (error) {
+      const code = (error as { code?: string }).code;
+      if (code !== '42P01') {
+        console.warn('[authService] Error consultando profiles:', error.message);
+      }
+    } else if (data) {
       return {
         id: user.id,
         email: user.email ?? '',
@@ -36,8 +44,9 @@ async function getProfile(session: Session): Promise<AuthUserProfile> {
         role: data.role === 'admin' ? 'admin' : 'user',
       };
     }
-  } catch {
+  } catch (err) {
     // La tabla profiles puede no existir todavía: usar metadatos de auth.
+    console.warn('[authService] Excepción consultando profiles:', err);
   }
 
   const appRole = user.app_metadata?.role;
