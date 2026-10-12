@@ -1,4 +1,16 @@
-los metadatos del usuario de Supabase Auth.
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase } from './supabase';
+
+export interface AuthUserProfile {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'user';
+}
+
+/**
+ * Construye el perfil del usuario: intenta leer la tabla profiles y, si no
+ * existe, usa los metadatos del usuario de Supabase Auth.
  */
 async function getProfile(session: Session): Promise<AuthUserProfile> {
   const user = session.user;
