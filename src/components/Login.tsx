@@ -11,18 +11,25 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      const success = login(email, password);
-      if (!success) {
+    try {
+      await login(email, password);
+    } catch (err: any) {
+      const message: string = err?.message || '';
+      if (/invalid login credentials/i.test(message)) {
         setError('Credenciales inválidas. Verifique su email y contraseña.');
+      } else if (/email not confirmed/i.test(message)) {
+        setError('Su email aún no fue confirmado. Revise su bandeja de entrada.');
+      } else {
+        setError(message || 'No se pudo iniciar sesión. Intente nuevamente.');
       }
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   return (
@@ -33,7 +40,7 @@ export default function Login() {
           backgroundSize: '32px 32px'
         }} />
       </div>
-      
+
       <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
 

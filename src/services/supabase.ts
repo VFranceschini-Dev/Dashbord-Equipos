@@ -1,8 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Configuración de Supabase
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://tu-proyecto.supabase.co';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'tu-anon-key';
+// Configuración de Supabase (requerida vía variables de entorno .env)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  // Falla explícito en lugar de usar credenciales placeholder inválidas.
+  throw new Error(
+    'Faltan las variables de entorno VITE_SUPABASE_URL y/o VITE_SUPABASE_ANON_KEY. ' +
+      'Definilas en el archivo .env antes de ejecutar la aplicación.'
+  );
+}
 
 // Crear cliente de Supabase
 export const supabase = createClient(supabaseUrl, supabaseKey);
@@ -520,6 +528,6 @@ export async function testConnection() {
     .from('printers')
     .select('count')
     .limit(1);
-  
+
   return { connected: !error, error };
 }

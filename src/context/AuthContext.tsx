@@ -1,52 +1,79 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-
-interface User {
-  email: string;
-  name: string;
-  role: 'admin' | 'user';
-}
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import {
+  AuthUserProfile,
+  signInWithPassword,
+  signOut as supabaseSignOut,
+  getSessionProfile,
+  onAuthStateChange,
+} from '../services/authService';
 
 interface AuthContextType {
-  user: User | null;
-  login: (email: string, password: string) => boolean;
-  logout: () => void;
+  user: AuthUserProfile | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DEFAULT_USERS = [
-  { email: 'soporte@donnet.com.ar', password: 'Admin2024!Seguro', name: 'Administrador', role: 'admin' as const },
-  { email: 'usuario@donnet.com.ar', password: 'User2024!Test', name: 'Ana García', role: 'user' as const },
-];
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const savedUser = localStorage.getItem('toner_user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  const [user, setUser] = useState<AuthUserProfile | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const login = (email: string, password: string): boolean => {
-    const foundUser = DEFAULT_USERS.find(
-      u => u.email === email && u.password === password
-    );
-    
-    if (foundUser) {
-      const userData = { email: foundUser.email, name: foundUser.name, role: foundUser.role };
-      setUser(userData);
-      localStorage.setItem('toner_user', JSON.stringify(userData));
-      return true;
-    }
-    return false;
-  };
+  // Al montar, restaurar la sesión de Supabase Auth (el token persiste automáticamente).
+  useEffect(() => {
+    let mounted = true;
 
-  const logout = () => {
+    const applyProfile = (profile: AuthUserProfile | null) => {
+      if (!mounted) return;
+      // Mantener 'current_user_id' sincronizado para los servicios de supabaseSync.
+      if (profile) {
+        localStorage.setItem('current_user_id', profile.id);
+      } else {
+        localStorage.removeItem('current_user_id');
+      }
+      setUser(profile);
+    };
+
+    getSessionProfile()
+      .then(applyProfile)
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    // Mantener el estado sincronizado ante cambios de sesión/token.
+    const unsubscribe = onAuthStateChange(session => {
+      if (!session) {
+        applyProfile(null);
+      } else {
+        getSessionProfile().then(applyProfile);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const login = useCallback(async (email: string, password: string): Promise<void> => {
+    // Lanza Error si las credenciales son inválidas; el llamador debe manejarlo.
+    const profile = await signInWithPassword(email, password);
+    // Retrocompatibilidad: los servicios de sincronización leen 'current_user_id'
+    // de localStorage para filtrar datos por usuario en Supabase.
+    localStorage.setItem('current_user_id', profile.id);
+    setUser(profile);
+  }, []);
+
+  const logout = useCallback(async (): Promise<void> => {
+    await supabaseSignOut();
+    localStorage.removeItem('current_user_id');
     setUser(null);
-    localStorage.removeItem('toner_user');
-  };
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );
