@@ -1,11 +1,22 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Printer, TonerItem, Movement, Alert, Page, Equipment, Supplier, Collaborator, Voucher } from '../types';
-import { initialPrinters, initialToners, initialMovements, initialAlerts, initialEquipments, initialSuppliers, initialCollaborators, initialVouchers } from '../data';
+import { useAuth } from './AuthContext';
+import {
+  syncAllFromSupabase,
+  loadModuleFromSupabase,
+  ModuleKey,
+} from '../services/supabaseSync';
 import { v4 as uuidv4 } from 'uuid';
 
 interface AppContextType {
   currentPage: Page;
   setCurrentPage: (page: Page) => void;
+  // Estado de carga/errores de datos desde Supabase
+  dataLoading: { global: boolean; module: ModuleKey | null };
+  moduleErrors: Partial<Record<ModuleKey, string>>;
+  refreshModule: (module: ModuleKey) => Promise<void>;
+  /** Recarga uno o todos los módulos desde Supabase (alias solicitado: reload). */
+  reload: (modulo?: ModuleKey) => Promise<void>;
   printers: Printer[];
   setPrinters: React.Dispatch<React.SetStateAction<Printer[]>>;
   addPrinter: (printer: Omit<Printer, 'id'>) => void;
@@ -48,15 +59,142 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
-  const [printers, setPrinters] = useState<Printer[]>(initialPrinters);
-  const [toners, setToners] = useState<TonerItem[]>(initialToners);
-  const [movements, setMovements] = useState<Movement[]>(initialMovements);
-  const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
-  const [equipments, setEquipments] = useState<Equipment[]>(initialEquipments);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
-  const [collaborators, setCollaborators] = useState<Collaborator[]>(initialCollaborators);
-  const [vouchers, setVouchers] = useState<Voucher[]>(initialVouchers);
+  // Estados arrancan vacíos: se cargan desde Supabase al iniciar sesión.
+  const [printers, setPrinters] = useState<Printer[]>([]);
+  const [toners, setToners] = useState<TonerItem[]>([]);
+  const [movements, setMovements] = useState<Movement[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [vouchers, setVouchers] = useState<Voucher[]>([]);
+
+  const [dataLoading, setDataLoading] = useState<{ global: boolean; module: ModuleKey | null }>({ global: true, module: null });
+  const [moduleErrors, setModuleErrors] = useState<Partial<Record<ModuleKey, string>>>({});
+
+  // Evita carreras si cambia el usuario mientras una carga está en vuelo.
+  const loadSeq = useRef(0);
+
+  const applyAllData = useCallback((data: Awaited<ReturnType<typeof syncAllFromSupabase>>) => {
+    setPrinters(data.printers);
+    setToners(data.toners);
+    setMovements(data.movements);
+    setEquipments(data.equipments);
+    setSuppliers(data.suppliers);
+    setCollaborators(data.collaborators);
+    setVouchers(data.vouchers);
+    setModuleErrors(data.errors || {});
+  }, []);
+
+  // Carga inicial: cuando hay sesión iniciada (o cambia de usuario), leer todos
+  // los módulos desde Supabase en paralelo. Al cerrar sesión, limpiar memoria.
+  useEffect(() => {
+    if (!user) {
+      // Cierre de sesión: limpiar datos en memoria y estado de carga.
+      loadSeq.current += 1;
+      setPrinters([]);
+      setToners([]);
+      setMovements([]);
+      setAlerts([]);
+      setEquipments([]);
+      setSuppliers([]);
+      setCollaborators([]);
+      setVouchers([]);
+      setModuleErrors({});
+      setDataLoading({ global: false, module: null });
+      return;
+    }
+
+    const seq = ++loadSeq.current;
+    setDataLoading({ global: true, module: null });
+    setModuleErrors({});
+
+    syncAllFromSupabase()
+      .then(data => {
+        if (seq !== loadSeq.current) return; // el usuario cambió; descartar
+        applyAllData(data);
+      })
+      .catch(error => {
+        console.error('Error al cargar datos desde Supabase:', error);
+        if (seq === loadSeq.current) {
+          setModuleErrors({ printers: 'No se pudieron cargar los datos desde Supabase' });
+        }
+      })
+      .finally(() => {
+        if (seq === loadSeq.current) setDataLoading(prev => ({ ...prev, global: false }));
+      });
+  }, [user?.id, applyAllData]);
+
+  // Recarga de un solo módulo (botón "Actualizar" de cada pantalla).
+  const refreshModule = useCallback(async (module: ModuleKey) => {
+    if (!user) return;
+    const seq = loadSeq.current;
+    setDataLoading(prev => ({ ...prev, module }));
+    try {
+      // Carga tipada por módulo: el switch de abajo necesita acceso a los setters específicos.
+      const result = await (async () => {
+        switch (module) {
+          case 'printers': return loadModuleFromSupabase('printers');
+          case 'toners': return loadModuleFromSupabase('toners');
+          case 'movements': return loadModuleFromSupabase('movements');
+          case 'equipments': return loadModuleFromSupabase('equipments');
+          case 'suppliers': return loadModuleFromSupabase('suppliers');
+          case 'collaborators': return loadModuleFromSupabase('collaborators');
+          case 'vouchers': return loadModuleFromSupabase('vouchers');
+        }
+      })();
+      if (seq !== loadSeq.current) return;
+      const data = result.data as unknown;
+      switch (module) {
+        case 'printers': setPrinters(data as Printer[]); break;
+        case 'toners': setToners(data as TonerItem[]); break;
+        case 'movements': setMovements(data as Movement[]); break;
+        case 'equipments': setEquipments(data as Equipment[]); break;
+        case 'suppliers': setSuppliers(data as Supplier[]); break;
+        case 'collaborators': setCollaborators(data as Collaborator[]); break;
+        case 'vouchers': setVouchers(data as Voucher[]); break;
+      }
+      setModuleErrors(prev => {
+        const next = { ...prev };
+        if (result.error) next[module] = result.error;
+        else delete next[module];
+        return next;
+      });
+    } catch (error) {
+      console.error(`Error al actualizar el módulo ${module}:`, error);
+      if (seq === loadSeq.current) {
+        setModuleErrors(prev => ({ ...prev, [module]: 'No se pudieron actualizar los datos desde Supabase' }));
+      }
+    } finally {
+      if (seq === loadSeq.current) setDataLoading(prev => ({ ...prev, module: null }));
+    }
+  }, [user]);
+
+  // Recarga uno o todos los módulos desde Supabase (sin recargar la página).
+  const reload = useCallback(async (modulo?: ModuleKey) => {
+    if (!user) return;
+    if (modulo) {
+      await refreshModule(modulo);
+      return;
+    }
+    const seq = ++loadSeq.current;
+    setDataLoading({ global: true, module: null });
+    setModuleErrors({});
+    try {
+      const data = await syncAllFromSupabase();
+      if (seq !== loadSeq.current) return;
+      applyAllData(data);
+    } catch (error) {
+      console.error('Error al recargar datos desde Supabase:', error);
+      if (seq === loadSeq.current) {
+        setModuleErrors({ printers: 'No se pudieron cargar los datos desde Supabase' });
+      }
+    } finally {
+      if (seq === loadSeq.current) setDataLoading(prev => ({ ...prev, global: false }));
+    }
+  }, [user, refreshModule, applyAllData]);
 
   const addPrinter = (printer: Omit<Printer, 'id'>) => {
     setPrinters(prev => [...prev, { ...printer, id: uuidv4() }]);
@@ -130,6 +268,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider value={{
       currentPage, setCurrentPage,
+      dataLoading, moduleErrors, refreshModule, reload,
       printers, setPrinters, addPrinter, updatePrinter, deletePrinter,
       toners, setToners, addToner, updateToner, deleteToner,
       movements, setMovements, addMovement,

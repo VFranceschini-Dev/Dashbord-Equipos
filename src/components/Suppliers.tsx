@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ModuleSyncControls from './ModuleSyncControls';
 import { Supplier } from '../types';
 import { SUPPLIER_CATEGORIES } from '../data';
 import {
-  Plus, Search, Edit2, Trash2, X, Building2, Phone, Mail, MapPin, Tag, CheckCircle, XCircle, User, Upload
+  Plus, Search, Edit2, Trash2, X, Building2, Phone, Mail, MapPin, Tag, CheckCircle, XCircle, User, Upload, Loader2
 } from 'lucide-react';
 import DataImportWizard from './DataImportWizard';
 import { buildSuppliersConfig } from '../config/importConfig';
-import { syncSuppliersFromSupabase } from '../services/supabaseSync';
 
 export default function Suppliers() {
-  const { suppliers, setSuppliers, addSupplier, updateSupplier, deleteSupplier } = useApp();
+  const { suppliers, addSupplier, updateSupplier, deleteSupplier, dataLoading, refreshModule } = useApp();
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [showForm, setShowForm] = useState(false);
@@ -34,15 +34,11 @@ export default function Suppliers() {
 
   const importConfig = useMemo(() => buildSuppliersConfig(), []);
 
-  // Tras una importación exitosa en Supabase, recarga el listado sin recargar la página.
+  // Tras una importación exitosa en Supabase, recarga el listado desde la base
+  // usando reload del contexto ('suppliers'), sin recargar la página.
   const handleImportSaved = async () => {
     setShowImport(false);
-    try {
-      const data = await syncSuppliersFromSupabase();
-      setSuppliers(data);
-    } catch {
-      /* si falla la recarga, el usuario puede refrescar la página */
-    }
+    await refreshModule('suppliers');
   };
   const toggleCategory = (category: string) => {
     if (form.category.includes(category)) {
@@ -78,6 +74,7 @@ export default function Suppliers() {
 
   return (
     <div className="space-y-5">
+      <ModuleSyncControls module="suppliers" />
       <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
         <div className="flex gap-2 flex-wrap">
           <div className="relative">
@@ -274,10 +271,18 @@ export default function Suppliers() {
       </div>
 
       {filtered.length === 0 && (
+        dataLoading.global || dataLoading.module === 'suppliers' ? (
+          <div className="text-center py-12">
+            <Loader2 size={32} className="mx-auto animate-spin text-blue-500 mb-3" />
+            <p className="text-gray-500">Cargando datos...</p>
+          </div>
+        ) : (
+
         <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
           <Building2 size={48} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500">No se encontraron proveedores</p>
         </div>
+        )
       )}
 
       {showImport && (
