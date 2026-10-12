@@ -11,18 +11,25 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      const success = login(email, password);
-      if (!success) {
+    try {
+      await login(email, password);
+    } catch (err: any) {
+      const message: string = err?.message || '';
+      if (/invalid login credentials/i.test(message)) {
         setError('Credenciales inválidas. Verifique su email y contraseña.');
+      } else if (/email not confirmed/i.test(message)) {
+        setError('Su email aún no fue confirmado. Revise su bandeja de entrada.');
+      } else {
+        setError(message || 'No se pudo iniciar sesión. Intente nuevamente.');
       }
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   return (
