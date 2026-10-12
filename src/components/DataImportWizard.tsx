@@ -101,7 +101,8 @@ export default function DataImportWizard({
       }
       const { headers, rows } = sheetToData(wb, chosen);
       const csv = toCsv(headers, rows);
-      await buildPreview(file.name, csv);
+      const result = await buildPreview(file.name, csv);
+      if (!result.ok) setFileError(result.message ?? 'No se pudo leer el archivo.');
     } catch (err) {
       setStep(1);
       setFileError(err instanceof Error ? err.message : 'No se pudo convertir el archivo. Verificá que sea un Excel válido.');
@@ -431,7 +432,7 @@ export default function DataImportWizard({
                     <p className="text-xs text-gray-500 dark:text-gray-400">Formato aceptado: Excel (.xlsx)</p>
                   </>
                 )}
-                <input ref={inputRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => void handleFiles(e.target.files)} />
+                <input ref={inputRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => { void handleFiles(e.target.files); e.target.value = ''; }} />
               </div>
               <button onClick={downloadTemplate} className="flex items-center gap-2 text-sm text-indigo-600 hover:underline dark:text-indigo-400">
                 <Download size={16} /> Descargar plantilla
