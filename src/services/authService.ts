@@ -95,10 +95,10 @@ export async function getSessionProfile(): Promise<AuthUserProfile | null> {
  * Devuelve la función para cancelar la suscripción.
  */
 export function onAuthStateChange(
-  callback: (session: Session | null) => void
+  callback: (event: string, session: Session | null) => void
 ): () => void {
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    callback(session);
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    callback(event, session);
   });
   return () => data.subscription.unsubscribe();
 }

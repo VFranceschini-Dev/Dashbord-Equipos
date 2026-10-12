@@ -79,6 +79,10 @@ create trigger on_auth_user_created
 --         crypt('CambiarEstaClave1!', gen_salt('bf')), now());
 -- update auth.users set raw_user_meta_data = jsonb_set(raw_user_meta_data,'{role}','"admin"')
 --   where email='admin@dominio.com';
+-- Nota: si activaste "Confirm email" en Supabase Auth, ese INSERT no alcanza
+-- para que el login funcione; lo más simple es crear el usuario desde
+-- Supabase Dashboard > Authentication > Add user (con "Auto-confirm user" tildado)
+-- y recién después ejecutar el UPDATE de role de arriba.
 SQL
 echo "Generado supabase-auth-setup.sql — ejecutalo en Supabase > SQL Editor."
 
