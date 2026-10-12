@@ -25,10 +25,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    const applyProfile = (profile: AuthUserProfile | null) => {
+      if (!mounted) return;
+      // Mantener 'current_user_id' sincronizado para los servicios de supabaseSync.
+      if (profile) {
+        localStorage.setItem('current_user_id', profile.id);
+      } else {
+        localStorage.removeItem('current_user_id');
+      }
+      setUser(profile);
+    };
+
     getSessionProfile()
-      .then(profile => {
-        if (mounted) setUser(profile);
-      })
+      .then(applyProfile)
       .finally(() => {
         if (mounted) setLoading(false);
       });
@@ -36,11 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Mantener el estado sincronizado ante cambios de sesión/token.
     const unsubscribe = onAuthStateChange(session => {
       if (!session) {
-        setUser(null);
+        applyProfile(null);
       } else {
-        getSessionProfile().then(profile => {
-          if (mounted) setUser(profile);
-        });
+        getSessionProfile().then(applyProfile);
       }
     });
 
@@ -53,11 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     // Lanza Error si las credenciales son inválidas; el llamador debe manejarlo.
     const profile = await signInWithPassword(email, password);
+    // Retrocompatibilidad: los servicios de sincronización leen 'current_user_id'
+    // de localStorage para filtrar datos por usuario en Supabase.
+    localStorage.setItem('current_user_id', profile.id);
     setUser(profile);
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
     await supabaseSignOut();
+    localStorage.removeItem('current_user_id');
     setUser(null);
   }, []);
 
