@@ -6,3 +6,6 @@ build/
 .env
 *.patch
 tsconfig.tsbuildinfo
+
+# SQL generado por setup-supabase-auth.sh (puede contener datos sensibles)
+supabase-auth-setup.sql
