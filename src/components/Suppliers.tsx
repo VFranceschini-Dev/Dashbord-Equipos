@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Supplier } from '../types';
 import { SUPPLIER_CATEGORIES } from '../data';
 import {
   Plus, Search, Edit2, Trash2, X, Building2, Phone, Mail, MapPin, Tag, CheckCircle, XCircle, User, Upload
 } from 'lucide-react';
-import ImportModal from './ImportModal';
-import { v4 as uuidv4 } from 'uuid';
+import DataImportWizard from './DataImportWizard';
+import { buildSuppliersConfig } from '../config/importConfig';
+import { syncSuppliersFromSupabase } from '../services/supabaseSync';
 
 export default function Suppliers() {
-  const { suppliers, addSupplier, updateSupplier, deleteSupplier } = useApp();
+  const { suppliers, setSuppliers, addSupplier, updateSupplier, deleteSupplier } = useApp();
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [showForm, setShowForm] = useState(false);
@@ -31,30 +32,18 @@ export default function Suppliers() {
     return matchSearch && matchCategory;
   });
 
-  const handleImport = (importedData: any[]) => {
-    importedData.forEach(item => {
-      // Convertir categoría a array si es string
-      let categories: string[];
-      if (Array.isArray(item.category)) {
-        categories = item.category;
-      } else if (typeof item.category === 'string') {
-        // Soportar categorías separadas por coma
-        categories = item.category.split(',').map((c: string) => c.trim()).filter((c: string) => c);
-      } else {
-        categories = ['Hardware'];
-      }
-      
-      addSupplier({
-        ...item,
-        id: uuidv4(),
-        active: item.active !== false,
-        category: categories,
-        notes: item.notes || '',
-      } as Supplier);
-    });
-    setShowImport(false);
-  };
+  const importConfig = useMemo(() => buildSuppliersConfig(), []);
 
+  // Tras una importación exitosa en Supabase, recarga el listado sin recargar la página.
+  const handleImportSaved = async () => {
+    setShowImport(false);
+    try {
+      const data = await syncSuppliersFromSupabase();
+      setSuppliers(data);
+    } catch {
+      /* si falla la recarga, el usuario puede refrescar la página */
+    }
+  };
   const toggleCategory = (category: string) => {
     if (form.category.includes(category)) {
       // Si ya está seleccionada, quitarla (pero mantener al menos una)
@@ -291,27 +280,12 @@ export default function Suppliers() {
         </div>
       )}
 
-      <ImportModal
-        isOpen={showImport}
-        onClose={() => setShowImport(false)}
-        onImport={handleImport}
-        title="Proveedores"
-        entityType="suppliers"
-        templateHeaders={['nombre', 'cuit', 'contacto', 'email', 'telefono', 'direccion', 'categoria']}
-        mapping={{
-          'nombre': 'name', 'name': 'name',
-          'cuit': 'cuit',
-          'contacto': 'contact', 'contact': 'contact',
-          'email': 'email',
-          'telefono': 'phone', 'phone': 'phone',
-          'direccion': 'address', 'address': 'address',
-          'categoria': 'category', 'category': 'category',
-        }}
-        validator={(row) => {
-          if (!row.name) return 'Nombre es obligatorio';
-          return null;
-        }}
-      />
-    </div>
+      {showImport && (
+        <DataImportWizard
+          config={importConfig}
+          onClose={() => setShowImport(false)}
+          onSaved={handleImportSaved}
+        />
+      )}    </div>
   );
 }
