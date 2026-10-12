@@ -1,4 +1,4 @@
-import type { Session, User } from '@supabase/supabase-js';
+import { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
 export interface AuthUserProfile {
@@ -9,8 +9,9 @@ export interface AuthUserProfile {
 }
 
 /**
- * Construye el perfil del usuario: intenta leer la tabla profiles y, si no
- * existe, usa los metadatos del usuario de Supabase Auth.
+ * Obtiene el perfil del usuario desde la tabla `public.profiles`.
+ * Si la tabla no existe o no hay registro, devuelve un perfil por defecto
+ * derivado de los metadatos del usuario de Supabase Auth.
  */
 async function getProfile(session: Session): Promise<AuthUserProfile> {
   const user = session.user;
@@ -27,7 +28,15 @@ async function getProfile(session: Session): Promise<AuthUserProfile> {
       .eq('id', user.id)
       .maybeSingle();
 
-    if (!error && data) {
+    // Si la consulta falla porque la tabla profiles aún no existe
+    // (code 42P01 = undefined_table en Postgres), se usa el fallback.
+    // Cualquier otro error (p. ej. RLS mal configurada) se registra para diagnóstico.
+    if (error) {
+      const code = (error as { code?: string }).code;
+      if (code !== '42P01') {
+        console.warn('[authService] Error consultando profiles:', error.message);
+      }
+    } else if (data) {
       return {
         id: user.id,
         email: user.email ?? '',
@@ -35,8 +44,9 @@ async function getProfile(session: Session): Promise<AuthUserProfile> {
         role: data.role === 'admin' ? 'admin' : 'user',
       };
     }
-  } catch {
+  } catch (err) {
     // La tabla profiles puede no existir todavía: usar metadatos de auth.
+    console.warn('[authService] Excepción consultando profiles:', err);
   }
 
   const appRole = user.app_metadata?.role;
@@ -85,10 +95,10 @@ export async function getSessionProfile(): Promise<AuthUserProfile | null> {
  * Devuelve la función para cancelar la suscripción.
  */
 export function onAuthStateChange(
-  callback: (session: Session | null) => void
+  callback: (event: string, session: Session | null) => void
 ): () => void {
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    callback(session);
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    callback(event, session);
   });
   return () => data.subscription.unsubscribe();
 }

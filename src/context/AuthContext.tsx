@@ -43,10 +43,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
     // Mantener el estado sincronizado ante cambios de sesión/token.
-    const unsubscribe = onAuthStateChange(session => {
+    const unsubscribe = onAuthStateChange((event, session) => {
       if (!session) {
-        applyProfile(null);
-      } else {
+        // IMPORTANTE: supabase-js dispara INITIAL_SESSION (con sesión válida)
+        // y luego SIGNED_OUT al cerrar sesión en OTRA pestaña. Si ignoráramos
+        // INITIAL_SESSION, la última notificación (SIGNED_OUT) desloguearía al
+        // usuario recién restaurado. Por eso solo se reacciona a los eventos
+        // explícitos de cierre/apertura de sesión.
+        if (event === 'SIGNED_OUT') {
+          applyProfile(null);
+        }
+        return;
+      }
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
         getSessionProfile().then(applyProfile);
       }
     });
@@ -64,12 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // de localStorage para filtrar datos por usuario en Supabase.
     localStorage.setItem('current_user_id', profile.id);
     setUser(profile);
+    setLoading(false);
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
     await supabaseSignOut();
     localStorage.removeItem('current_user_id');
     setUser(null);
+    setLoading(false);
   }, []);
 
   return (
