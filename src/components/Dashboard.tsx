@@ -9,7 +9,7 @@ import LogoVLF from './LogoVLF';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts, equipments, suppliers, collaborators, setCurrentPage } = useApp();
-  
+
   const activePrinters = printers.filter(p => p.status === 'active').length;
   
   // Calcular alertas de stock bajo agrupando por compatibilidad
