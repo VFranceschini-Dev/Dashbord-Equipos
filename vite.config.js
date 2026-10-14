@@ -11,5 +11,14 @@ export default defineConfig({
     hmr: {
       port: 3000,
     },
+    proxy: {
+      // Backend intermedio de Metabase (server/, puerto 4000). En producción
+      // el frontend apunta directo a la URL interna del backend vía variable
+      // de entorno o rewrite en el hosting.
+      "/api/metabase": {
+        target: "http://localhost:4000",
+        changeOrigin: true,
+      },
+    },
   },
 });
