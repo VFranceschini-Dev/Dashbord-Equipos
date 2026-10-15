@@ -12,10 +12,12 @@ export default defineConfig({
       port: 3000,
     },
     proxy: {
-      '/api/metabase': {
-        target: 'http://localhost:4000',
-        changeOrigin: true,
-      },
+      // El backend propio (server/) fue eliminado: los usuarios de SAI_TEST se
+      // leen a través del proxy interno https://ipa.donnet.com.ar/api que ya está
+      // desplegado en la red. Para desarrollo local contra ese proxy no hace falta
+      // nada (metabaseProxy.ts usa la URL absoluta). Si alguna vez volvés a correr
+      // un backend local, descomentá:
+      // "/api/metabase": { target: "http://localhost:4000", changeOrigin: true },
     },
   },
 })

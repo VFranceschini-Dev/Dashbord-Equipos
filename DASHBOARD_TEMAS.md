@@ -301,10 +301,7 @@ http://localhost:5173
 ```
 
 ### Paso 3: Iniciar Sesión
-```
-Email: soporte@donnet.com.ar
-Contraseña: 6mn78az39*
-```
+Ingresá con tu cuenta registrada en Supabase Auth (email y contraseña personales).
 
 ### Paso 4: Ver el Dashboard en Modo Claro
 - El dashboard se muestra con colores claros por defecto

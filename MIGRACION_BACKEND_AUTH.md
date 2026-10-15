@@ -5,11 +5,10 @@
 El sistema actualmente utiliza autenticación hardcodeada en el frontend:
 
 ```typescript
-// src/context/AuthContext.tsx
-const DEFAULT_USERS = [
-  { email: 'soporte@donnet.com.ar', password: 'Admin2024!Seguro', name: 'Administrador', role: 'admin' },
-  { email: 'usuario@donnet.com.ar', password: 'User2024!Test', name: 'Ana García', role: 'user' },
-];
+// src/context/AuthContext.tsx (versión antigua, login hardcodeado — ya migrada a Supabase Auth)
+// Las credenciales de ejemplo fueron eliminadas de esta documentación por estar expuestas
+// en un repositorio público. Ver historial de git si necesitás reconstruir el contexto.
+const DEFAULT_USERS = [ /* usuarios hardcodeados con email + contraseña en claro */ ];
 ```
 
 ### Problemas de Seguridad

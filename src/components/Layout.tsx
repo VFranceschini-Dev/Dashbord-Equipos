@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
-  Monitor, Users, Building2, FileText, ChevronRight, Settings, Server, RefreshCw
+  Monitor, ClipboardCheck, Users, Building2, FileText, ChevronRight, Settings, Server, RefreshCw
 } from 'lucide-react';
 import { useState } from 'react';
 import ThemeToggle from './ThemeToggle';
@@ -12,6 +12,7 @@ import ThemeToggle from './ThemeToggle';
 const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
   { page: 'equipments', label: 'Equipamientos', icon: <Monitor size={20} /> },
+  { page: 'asignaciones', label: 'Asignaciones', icon: <ClipboardCheck size={20} /> },
   { page: 'collaborators', label: 'Colaboradores', icon: <Users size={20} /> },
   { page: 'suppliers', label: 'Proveedores', icon: <Building2 size={20} /> },
   { page: 'vouchers', label: 'Comprobantes', icon: <FileText size={20} /> },

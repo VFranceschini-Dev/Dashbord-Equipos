@@ -14,6 +14,7 @@ import Collaborators from './components/Collaborators';
 import Vouchers from './components/Vouchers';
 import ServerConfig from './components/ServerConfig';
 import DataSync from './components/DataSync';
+import EquipmentAssignments from './components/EquipmentAssignments';
 
 function PageRouter() {
   const { currentPage } = useApp();
@@ -23,6 +24,8 @@ function PageRouter() {
       return <Dashboard />;
     case 'printers':
       return <Printers />;
+    case 'asignaciones':
+      return <EquipmentAssignments />;
     case 'inventory':
       return <Inventory />;
     case 'movements':
