@@ -254,7 +254,7 @@ export const tonersService = {
 export const movementsService = {
   async getAll(userId: string) {
     const { data, error } = await supabase
-      .from('movements')
+      .from('toner_movements')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
@@ -263,7 +263,7 @@ export const movementsService = {
 
   async create(movement: Omit<SupabaseMovement, 'id' | 'created_at'>) {
     const { data, error } = await supabase
-      .from('movements')
+      .from('toner_movements')
       .insert([movement])
       .select()
       .single();
@@ -272,7 +272,7 @@ export const movementsService = {
 
   async delete(id: string) {
     const { error } = await supabase
-      .from('movements')
+      .from('toner_movements')
       .delete()
       .eq('id', id);
     return { error };

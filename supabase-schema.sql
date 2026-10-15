@@ -50,9 +50,9 @@ CREATE INDEX idx_toner_items_user_id ON toner_items(user_id);
 CREATE INDEX idx_toner_items_color ON toner_items(color);
 
 -- ============================================
--- TABLA: MOVEMENTS (Movimientos de Tóner)
+-- TABLA: TONER_MOVEMENTS (Movimientos de Tóner)
 -- ============================================
-CREATE TABLE IF NOT EXISTS movements (
+CREATE TABLE IF NOT EXISTS toner_movements (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   type TEXT NOT NULL CHECK (type IN ('delivery', 'return', 'restock', 'disposal')),
@@ -67,9 +67,9 @@ CREATE TABLE IF NOT EXISTS movements (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_movements_user_id ON movements(user_id);
-CREATE INDEX idx_movements_type ON movements(type);
-CREATE INDEX idx_movements_date ON movements(date);
+CREATE INDEX idx_toner_movements_user_id ON toner_movements(user_id);
+CREATE INDEX idx_toner_movements_type ON toner_movements(type);
+CREATE INDEX idx_toner_movements_date ON toner_movements(date);
 
 -- ============================================
 -- TABLA: EQUIPMENTS (Equipamientos)
@@ -287,7 +287,7 @@ CREATE TRIGGER update_synced_devices_updated_at BEFORE UPDATE ON synced_devices
 -- Habilitar RLS en todas las tablas
 ALTER TABLE printers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE toner_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE movements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE toner_movements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE equipments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE collaborators ENABLE ROW LEVEL SECURITY;
@@ -322,13 +322,13 @@ CREATE POLICY "Users can update their own toner_items" ON toner_items
 CREATE POLICY "Users can delete their own toner_items" ON toner_items
   FOR DELETE USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can view their own movements" ON movements
+CREATE POLICY "Users can view their own toner movements" ON toner_movements
   FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can insert their own movements" ON movements
+CREATE POLICY "Users can insert their own toner movements" ON toner_movements
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can delete their own movements" ON movements
+CREATE POLICY "Users can delete their own toner movements" ON toner_movements
   FOR DELETE USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can view their own equipments" ON equipments
@@ -420,7 +420,7 @@ CREATE POLICY "Users can delete their own alerts" ON alerts
 -- ============================================
 -- Migración: movimientos de EQUIPOS (hardware) asignados a usuarios de SAI_TEST.
 -- Ejecutar en Supabase > SQL Editor. No modifica tablas existentes.
--- La tabla "movements" actual es de TÓNER y NO se reutiliza acá.
+-- La tabla "toner_movements" (ex movements) es de TÓNER y NO se reutiliza acá.
 
 create table if not exists public.equipment_movements (
   id uuid primary key default gen_random_uuid(),

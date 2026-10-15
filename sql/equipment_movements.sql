@@ -1,6 +1,6 @@
 -- Migración: movimientos de EQUIPOS (hardware) asignados a usuarios de SAI_TEST.
 -- Ejecutar en Supabase > SQL Editor. No modifica tablas existentes.
--- La tabla "movements" actual es de TÓNER y NO se reutiliza acá.
+-- La tabla "toner_movements" (ex movements) es de TÓNER y NO se reutiliza acá.
 
 create table if not exists public.equipment_movements (
   id uuid primary key default gen_random_uuid(),
