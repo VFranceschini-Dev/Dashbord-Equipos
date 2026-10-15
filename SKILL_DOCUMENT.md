@@ -100,10 +100,7 @@ Sistema web completo para la gestión de impresoras, tóner, equipamientos, cola
 - **Usuario**: Acceso a funcionalidades básicas
 
 **Credenciales de Acceso:**
-| Rol | Email | Contraseña |
-|-----|-------|------------|
-| Administrador | soporte@donnet.com.ar | 6mn78az39* |
-| Usuario | usuario@donnet.com.ar | user123 |
+No se documentan credenciales en este repositorio. El login se realiza con Supabase Auth; las cuentas se administran desde Supabase > Authentication.
 
 ---
 

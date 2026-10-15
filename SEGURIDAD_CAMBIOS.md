@@ -28,21 +28,9 @@ El archivo `README.md` contenía credenciales de acceso visibles en un repositor
 
 **Cambio:** Se actualizaron las contraseñas por defecto:
 
-**Antes:**
-```typescript
-const DEFAULT_USERS = [
-  { email: 'soporte@donnet.com.ar', password: '6mn78az39*', name: 'Administrador', role: 'admin' },
-  { email: 'usuario@donnet.com.ar', password: 'user123', name: 'Ana García', role: 'user' },
-];
-```
+**Antes:** (credenciales eliminadas de la documentación; ya no se reproducen acá para no volver a exponerlas en el repositorio público)
 
-**Después:**
-```typescript
-const DEFAULT_USERS = [
-  { email: 'soporte@donnet.com.ar', password: 'Admin2024!Seguro', name: 'Administrador', role: 'admin' },
-  { email: 'usuario@donnet.com.ar', password: 'User2024!Test', name: 'Ana García', role: 'user' },
-];
-```
+**Después:** (las nuevas contraseñas tampoco se documentan: un repositorio público no es un guardapolvo de credenciales. Se gestionan en Supabase > Authentication)
 
 **Motivo:** 
 - Las contraseñas anteriores estaban expuestas en el README
@@ -104,15 +92,9 @@ git push origin HEAD
 
 ---
 
-## 🔐 Nuevas Credenciales (NO DOCUMENTADAS)
+## 🔐 Nuevas Credenciales
 
-**Administrador:**
-- Email: `soporte@donnet.com.ar`
-- Contraseña: `Admin2024!Seguro`
-
-**Usuario de Prueba:**
-- Email: `usuario@donnet.com.ar`
-- Contraseña: `User2024!Test`
+Por seguridad, estas credenciales **ya no se documentan en el repositorio** (es público). Se gestionan y rotan directamente en Supabase > Authentication. Si las cuentas de ejemplo (`soporte@…` / `usuario@…`) siguen activas con las contraseñas que figuraban aquí, **cambiarlas ahora**.
 
 ⚠️ **IMPORTANTE:** 
 - Estas credenciales NO deben compartirse públicamente

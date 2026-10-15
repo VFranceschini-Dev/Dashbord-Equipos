@@ -166,10 +166,7 @@
 
 ## 🔐 Credenciales de Acceso
 
-| Rol | Email | Contraseña |
-|-----|-------|------------|
-| Administrador | soporte@donnet.com.ar | 6mn78az39* |
-| Usuario | usuario@donnet.com.ar | user123 |
+No se documentan credenciales en este repositorio público. El ingreso se hace con Supabase Auth (cuentas gestionadas en Supabase > Authentication). Nunca publicar emails/contraseñas reales ni claves de API en la documentación.
 
 ---
 
