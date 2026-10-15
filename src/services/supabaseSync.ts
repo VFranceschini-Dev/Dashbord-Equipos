@@ -15,16 +15,21 @@ export const getCurrentUserId = (): string => {
   return userId;
 };
 
+// Nota: las funciones sync*FromSupabase de CARGA lanzan el error si la
+// consulta falla (antes devolvían [], lo que no permitía distinguir
+// "sin datos" de "falló"). Para cargar tolerando fallos por módulo usá
+// loadModuleFromSupabase / syncAllFromSupabase, que capturan el error.
+
 // ===== SINCRONIZACIÓN DE IMPRESORAS =====
 export async function syncPrintersFromSupabase(): Promise<Printer[]> {
   const userId = getCurrentUserId();
   const { data, error } = await printersService.getAll(userId);
-  
+
   if (error) {
     console.error('Error al obtener impresoras de Supabase:', error);
-    return [];
+    throw new Error(`Error al obtener impresoras de Supabase: ${error.message}`);
   }
-  
+
   return (data || []).map(p => ({
     id: p.id,
     name: p.name,
@@ -41,12 +46,12 @@ export async function syncPrintersFromSupabase(): Promise<Printer[]> {
 export async function syncPrinterToSupabase(printer: Printer): Promise<{ success: boolean; error?: string }> {
   try {
     const userId = getCurrentUserId();
-    
+
     // Validar datos requeridos
     if (!printer.name || !printer.model) {
       return { success: false, error: 'Nombre y modelo son obligatorios' };
     }
-    
+
     const supabasePrinter = {
       user_id: userId,
       name: printer.name,
@@ -58,12 +63,12 @@ export async function syncPrinterToSupabase(printer: Printer): Promise<{ success
       last_maintenance: printer.lastMaintenance || '',
       total_pages: printer.totalPages || 0,
     };
-    
+
     // Verificar si ya existe en Supabase
     if (printer.id && printer.id.length === 36) {
       // Intentar actualizar
       const { data, error } = await printersService.update(printer.id, supabasePrinter);
-      
+
       if (error) {
         // Si falla el update, intentar crear (puede ser que no exista en Supabase)
         const { data: newData, error: createError } = await printersService.create(supabasePrinter);
@@ -75,7 +80,7 @@ export async function syncPrinterToSupabase(printer: Printer): Promise<{ success
         }
         return { success: true };
       }
-      
+
       return { success: true };
     } else {
       // Crear nuevo
@@ -109,12 +114,12 @@ export async function deletePrinterFromSupabase(id: string): Promise<{ success: 
 export async function syncTonersFromSupabase(): Promise<TonerItem[]> {
   const userId = getCurrentUserId();
   const { data, error } = await tonersService.getAll(userId);
-  
+
   if (error) {
     console.error('Error al obtener tóners de Supabase:', error);
-    return [];
+    throw new Error(`Error al obtener tóners de Supabase: ${error.message}`);
   }
-  
+
   return (data || []).map(t => ({
     id: t.id,
     model: t.model,
@@ -143,7 +148,7 @@ export async function syncTonerToSupabase(toner: TonerItem): Promise<boolean> {
     supplier: toner.supplier,
     last_restock: toner.lastRestock,
   };
-  
+
   if (toner.id && toner.id.length === 36) {
     const { error } = await tonersService.update(toner.id, supabaseToner);
     return !error;
@@ -165,12 +170,12 @@ export async function deleteTonerFromSupabase(id: string): Promise<boolean> {
 export async function syncMovementsFromSupabase(): Promise<Movement[]> {
   const userId = getCurrentUserId();
   const { data, error } = await movementsService.getAll(userId);
-  
+
   if (error) {
     console.error('Error al obtener movimientos de Supabase:', error);
-    return [];
+    throw new Error(`Error al obtener movimientos de Supabase: ${error.message}`);
   }
-  
+
   return (data || []).map(m => ({
     id: m.id,
     type: m.type as 'delivery' | 'return' | 'restock' | 'disposal',
@@ -199,7 +204,7 @@ export async function syncMovementToSupabase(movement: Movement): Promise<boolea
     user: movement.user,
     notes: movement.notes,
   };
-  
+
   const { data, error } = await movementsService.create(supabaseMovement);
   if (!error && data) {
     movement.id = data.id;
@@ -211,12 +216,12 @@ export async function syncMovementToSupabase(movement: Movement): Promise<boolea
 export async function syncEquipmentsFromSupabase(): Promise<Equipment[]> {
   const userId = getCurrentUserId();
   const { data, error } = await equipmentsService.getAll(userId);
-  
+
   if (error) {
     console.error('Error al obtener equipamientos de Supabase:', error);
-    return [];
+    throw new Error(`Error al obtener equipamientos de Supabase: ${error.message}`);
   }
-  
+
   return (data || []).map(e => ({
     id: e.id,
     name: e.name,
@@ -251,7 +256,7 @@ export async function syncEquipmentToSupabase(equipment: Equipment): Promise<boo
     warranty_end: equipment.warrantyEnd,
     notes: equipment.notes,
   };
-  
+
   if (equipment.id && equipment.id.length === 36) {
     const { error } = await equipmentsService.update(equipment.id, supabaseEquipment);
     return !error;
@@ -273,12 +278,12 @@ export async function deleteEquipmentFromSupabase(id: string): Promise<boolean> 
 export async function syncSuppliersFromSupabase(): Promise<Supplier[]> {
   const userId = getCurrentUserId();
   const { data, error } = await suppliersService.getAll(userId);
-  
+
   if (error) {
     console.error('Error al obtener proveedores de Supabase:', error);
-    return [];
+    throw new Error(`Error al obtener proveedores de Supabase: ${error.message}`);
   }
-  
+
   return (data || []).map(s => ({
     id: s.id,
     name: s.name,
@@ -307,7 +312,7 @@ export async function syncSupplierToSupabase(supplier: Supplier): Promise<boolea
     active: supplier.active,
     notes: supplier.notes,
   };
-  
+
   if (supplier.id && supplier.id.length === 36) {
     const { error } = await suppliersService.update(supplier.id, supabaseSupplier);
     return !error;
@@ -329,12 +334,12 @@ export async function deleteSupplierFromSupabase(id: string): Promise<boolean> {
 export async function syncCollaboratorsFromSupabase(): Promise<Collaborator[]> {
   const userId = getCurrentUserId();
   const { data, error } = await collaboratorsService.getAll(userId);
-  
+
   if (error) {
     console.error('Error al obtener colaboradores de Supabase:', error);
-    return [];
+    throw new Error(`Error al obtener colaboradores de Supabase: ${error.message}`);
   }
-  
+
   return (data || []).map(c => ({
     id: c.id,
     name: c.name,
@@ -367,7 +372,7 @@ export async function syncCollaboratorToSupabase(collaborator: Collaborator): Pr
     join_date: collaborator.joinDate,
     notes: collaborator.notes,
   };
-  
+
   if (collaborator.id && collaborator.id.length === 36) {
     const { error } = await collaboratorsService.update(collaborator.id, supabaseCollaborator);
     return !error;
@@ -389,12 +394,12 @@ export async function deleteCollaboratorFromSupabase(id: string): Promise<boolea
 export async function syncVouchersFromSupabase(): Promise<Voucher[]> {
   const userId = getCurrentUserId();
   const { data, error } = await vouchersService.getAll(userId);
-  
+
   if (error) {
     console.error('Error al obtener comprobantes de Supabase:', error);
-    return [];
+    throw new Error(`Error al obtener comprobantes de Supabase: ${error.message}`);
   }
-  
+
   return (data || []).map(v => ({
     id: v.id,
     number: v.number,
@@ -427,7 +432,7 @@ export async function syncVoucherToSupabase(voucher: Voucher): Promise<boolean> 
     status: voucher.status,
     notes: voucher.notes,
   };
-  
+
   if (voucher.id && voucher.id.length === 36) {
     const { error } = await vouchersService.update(voucher.id, supabaseVoucher);
     return !error;
@@ -449,12 +454,12 @@ export async function deleteVoucherFromSupabase(id: string): Promise<boolean> {
 export async function syncExternalServersFromSupabase(): Promise<ExternalServer[]> {
   const userId = getCurrentUserId();
   const { data, error } = await externalServersService.getAll(userId);
-  
+
   if (error) {
     console.error('Error al obtener servidores de Supabase:', error);
     return [];
   }
-  
+
   return (data || []).map(s => ({
     id: s.id,
     name: s.name,
@@ -487,7 +492,7 @@ export async function syncExternalServerToSupabase(server: ExternalServer): Prom
     status: server.status,
     notes: server.notes,
   };
-  
+
   if (server.id && server.id.length === 36) {
     const { error } = await externalServersService.update(server.id, supabaseServer);
     return !error;
@@ -509,12 +514,12 @@ export async function deleteExternalServerFromSupabase(id: string): Promise<bool
 export async function syncSyncedDevicesFromSupabase(): Promise<SyncedDevice[]> {
   const userId = getCurrentUserId();
   const { data, error } = await syncedDevicesService.getAll(userId);
-  
+
   if (error) {
     console.error('Error al obtener dispositivos sincronizados de Supabase:', error);
     return [];
   }
-  
+
   return (data || []).map(d => ({
     id: d.id,
     serverId: d.server_id,
@@ -551,7 +556,7 @@ export async function syncSyncedDeviceToSupabase(device: SyncedDevice): Promise<
     synced_at: device.syncedAt,
     local_equipment_id: device.localEquipmentId,
   };
-  
+
   if (device.id && device.id.length === 36) {
     const { error } = await syncedDevicesService.update(device.id, supabaseDevice);
     return !error;
@@ -565,6 +570,89 @@ export async function syncSyncedDeviceToSupabase(device: SyncedDevice): Promise<
 }
 
 // ===== SINCRONIZACIÓN COMPLETA =====
+
+// Resultado de una carga por módulo: datos + error (si la tabla no existe,
+// falla la RLS o hay un problema de red). Así la UI puede avisar al usuario
+// en vez de mostrar "sin resultados" cuando en realidad hubo un fallo.
+export type ModuleLoad<T> = { data: T; error?: string };
+
+const moduleLabels: Record<string, string> = {
+  printers: 'impresoras',
+  toners: 'tóners',
+  movements: 'movimientos',
+  equipments: 'equipamientos',
+  suppliers: 'proveedores',
+  collaborators: 'colaboradores',
+  vouchers: 'comprobantes',
+};
+
+/**
+ * Envuelve una consulta de módulo para capturar errores sin romper el resto.
+ * Las funciones sync*FromSupabase lanzan el error si la consulta falla; aquí
+ * se captura y se convierte en un mensaje breve para la UI, distinguiendo
+ * "tabla sin datos" (no hay error) de "la consulta falló" (hay error).
+ */
+// Mensaje en español según el código de error de Postgres/Supabase.
+function describeLoadError(label: string, table: string, error: unknown): string {
+  const code = (error as { code?: string } | null)?.code;
+  const message = (error as { message?: string } | null)?.message ?? String(error);
+  // 42P01 undefined_table / PGRST205 Could not find the table in schema cache
+  if (code === '42P01' || /could not find the table|relation .* does not exist|schema cache/i.test(message)) {
+    return `La tabla ${table} todavía no existe en la base de datos`;
+  }
+  if (/row-level security|permission denied/i.test(message)) {
+    return `No tenés permisos para leer ${label} (políticas RLS)`;
+  }
+  return `No se pudieron cargar los ${label} desde Supabase`;
+}
+
+const moduleTables: Record<string, string> = {
+  printers: 'app_printers',
+  toners: 'toner_items',
+  movements: 'movements',
+  equipments: 'equipments',
+  suppliers: 'suppliers',
+  collaborators: 'collaborators',
+  vouchers: 'vouchers',
+};
+
+async function loadModule<T>(name: string, fn: () => Promise<T[]>): Promise<ModuleLoad<T[]>> {
+  try {
+    const data = await fn();
+    return { data };
+  } catch (error) {
+    console.error(`Error al cargar ${moduleLabels[name] || name} desde Supabase:`, error);
+    const label = moduleLabels[name] || name;
+    return { data: [], error: describeLoadError(label, moduleTables[name] ?? name, error) };
+  }
+}
+
+export async function loadModuleFromSupabase<K extends ModuleKey>(
+  key: K
+): Promise<ModuleLoad<ModuleDataMap[K]>> {
+  switch (key) {
+    case 'printers': return loadModule('printers', syncPrintersFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
+    case 'toners': return loadModule('toners', syncTonersFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
+    case 'movements': return loadModule('movements', syncMovementsFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
+    case 'equipments': return loadModule('equipments', syncEquipmentsFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
+    case 'suppliers': return loadModule('suppliers', syncSuppliersFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
+    case 'collaborators': return loadModule('collaborators', syncCollaboratorsFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
+    case 'vouchers': return loadModule('vouchers', syncVouchersFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
+  }
+}
+
+export interface ModuleDataMap {
+  printers: Printer[];
+  toners: TonerItem[];
+  movements: Movement[];
+  equipments: Equipment[];
+  suppliers: Supplier[];
+  collaborators: Collaborator[];
+  vouchers: Voucher[];
+}
+
+export type ModuleKey = keyof ModuleDataMap;
+
 export async function syncAllFromSupabase(): Promise<{
   printers: Printer[];
   toners: TonerItem[];
@@ -575,29 +663,46 @@ export async function syncAllFromSupabase(): Promise<{
   vouchers: Voucher[];
   externalServers: ExternalServer[];
   syncedDevices: SyncedDevice[];
+  errors: Partial<Record<ModuleKey, string>>;
 }> {
-  const [printers, toners, movements, equipments, suppliers, collaborators, vouchers, externalServers, syncedDevices] = await Promise.all([
-    syncPrintersFromSupabase(),
-    syncTonersFromSupabase(),
-    syncMovementsFromSupabase(),
-    syncEquipmentsFromSupabase(),
-    syncSuppliersFromSupabase(),
-    syncCollaboratorsFromSupabase(),
-    syncVouchersFromSupabase(),
-    syncExternalServersFromSupabase(),
-    syncSyncedDevicesFromSupabase(),
+  // Consultas en paralelo con Promise.allSettled: si una tabla falla, las
+  // demás se cargan igual y el error queda registrado por módulo.
+  const results = await Promise.allSettled([
+    loadModule<Printer>('printers', syncPrintersFromSupabase),
+    loadModule<TonerItem>('toners', syncTonersFromSupabase),
+    loadModule<Movement>('movements', syncMovementsFromSupabase),
+    loadModule<Equipment>('equipments', syncEquipmentsFromSupabase),
+    loadModule<Supplier>('suppliers', syncSuppliersFromSupabase),
+    loadModule<Collaborator>('collaborators', syncCollaboratorsFromSupabase),
+    loadModule<Voucher>('vouchers', syncVouchersFromSupabase),
+    syncExternalServersFromSupabase().then(data => ({ data } as ModuleLoad<ExternalServer[]>)),
+    syncSyncedDevicesFromSupabase().then(data => ({ data } as ModuleLoad<SyncedDevice[]>)),
   ]);
-  
+
+  const keys: (keyof typeof moduleLabels & ModuleKey | 'externalServers' | 'syncedDevices')[] =
+    ['printers', 'toners', 'movements', 'equipments', 'suppliers', 'collaborators', 'vouchers', 'externalServers', 'syncedDevices'];
+
+  const errors: Partial<Record<ModuleKey, string>> = {};
+  const okData = results.map((res, i): ModuleLoad<any[]> => {
+    if (res.status === 'fulfilled') return res.value;
+    // Redundancia defensiva: loadModule nunca rechaza, pero allSettled lo cubre igual.
+    console.error(`Error al cargar ${keys[i]} desde Supabase:`, res.reason);
+    if (i < 7) errors[keys[i] as ModuleKey] = `No se pudieron cargar los datos desde Supabase`;
+    return { data: [] };
+  });
+  const [printers, toners, movements, equipments, suppliers, collaborators, vouchers, externalServers, syncedDevices] = okData;
+
   return {
-    printers,
-    toners,
-    movements,
-    equipments,
-    suppliers,
-    collaborators,
-    vouchers,
-    externalServers,
-    syncedDevices,
+    printers: printers.data,
+    toners: toners.data,
+    movements: movements.data,
+    equipments: equipments.data,
+    suppliers: suppliers.data,
+    collaborators: collaborators.data,
+    vouchers: vouchers.data,
+    externalServers: externalServers.data,
+    syncedDevices: syncedDevices.data,
+    errors,
   };
 }
 
@@ -617,7 +722,7 @@ export async function checkSupabaseConnection(): Promise<boolean> {
 export async function syncPrintersToSupabase(printers: Printer[]): Promise<{ success: number; errors: string[] }> {
   let success = 0;
   const errors: string[] = [];
-  
+
   for (const printer of printers) {
     try {
       const result = await syncPrinterToSupabase(printer);
@@ -630,14 +735,14 @@ export async function syncPrintersToSupabase(printers: Printer[]): Promise<{ suc
       errors.push(`Error al sincronizar impresora ${printer.name}: ${error}`);
     }
   }
-  
+
   return { success, errors };
 }
 
 export async function syncTonersToSupabase(toners: TonerItem[]): Promise<{ success: number; errors: string[] }> {
   let success = 0;
   const errors: string[] = [];
-  
+
   for (const toner of toners) {
     try {
       const result = await syncTonerToSupabase(toner);
@@ -650,14 +755,14 @@ export async function syncTonersToSupabase(toners: TonerItem[]): Promise<{ succe
       errors.push(`Error al sincronizar tóner ${toner.model}: ${error}`);
     }
   }
-  
+
   return { success, errors };
 }
 
 export async function syncEquipmentsToSupabase(equipments: Equipment[]): Promise<{ success: number; errors: string[] }> {
   let success = 0;
   const errors: string[] = [];
-  
+
   for (const equipment of equipments) {
     try {
       const result = await syncEquipmentToSupabase(equipment);
@@ -670,14 +775,14 @@ export async function syncEquipmentsToSupabase(equipments: Equipment[]): Promise
       errors.push(`Error al sincronizar equipamiento ${equipment.name}: ${error}`);
     }
   }
-  
+
   return { success, errors };
 }
 
 export async function syncSuppliersToSupabase(suppliers: Supplier[]): Promise<{ success: number; errors: string[] }> {
   let success = 0;
   const errors: string[] = [];
-  
+
   for (const supplier of suppliers) {
     try {
       const result = await syncSupplierToSupabase(supplier);
@@ -690,14 +795,14 @@ export async function syncSuppliersToSupabase(suppliers: Supplier[]): Promise<{ 
       errors.push(`Error al sincronizar proveedor ${supplier.name}: ${error}`);
     }
   }
-  
+
   return { success, errors };
 }
 
 export async function syncCollaboratorsToSupabase(collaborators: Collaborator[]): Promise<{ success: number; errors: string[] }> {
   let success = 0;
   const errors: string[] = [];
-  
+
   for (const collaborator of collaborators) {
     try {
       const result = await syncCollaboratorToSupabase(collaborator);
@@ -710,7 +815,7 @@ export async function syncCollaboratorsToSupabase(collaborators: Collaborator[])
       errors.push(`Error al sincronizar colaborador ${collaborator.name}: ${error}`);
     }
   }
-  
+
   return { success, errors };
 }
 

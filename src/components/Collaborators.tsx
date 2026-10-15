@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ModuleSyncControls from './ModuleSyncControls';
 import { Collaborator } from '../types';
 import { DEPARTMENTS } from '../data';
 import {
-  Plus, Search, Edit2, Trash2, X, Users, Mail, Phone, Building, Briefcase, Calendar, CheckCircle, XCircle, Monitor, Upload
+  Plus, Search, Edit2, Trash2, X, Users, Mail, Phone, Building, Briefcase, Calendar, CheckCircle, XCircle, Monitor, Upload, Loader2
 } from 'lucide-react';
 import ImportModal from './ImportModal';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function Collaborators() {
-  const { collaborators, addCollaborator, updateCollaborator, deleteCollaborator, equipments } = useApp();
+  const { collaborators, addCollaborator, updateCollaborator, deleteCollaborator, equipments, dataLoading} = useApp();
   const [search, setSearch] = useState('');
   const [filterDepartment, setFilterDepartment] = useState<string>('all');
   const [showForm, setShowForm] = useState(false);
@@ -70,6 +71,7 @@ export default function Collaborators() {
 
   return (
     <div className="space-y-5">
+      <ModuleSyncControls module="collaborators" />
       <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
         <div className="flex gap-2 flex-wrap">
           <div className="relative">
@@ -110,7 +112,7 @@ export default function Collaborators() {
         </div>
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <p className="text-xs text-gray-500">Departamentos</p>
-          <p className="text-2xl font-bold">{new Set(collaborators.map(c => c.department)).size}</p>
+          <p className="text-2xl font-bold">{new Set(collaborators.map(c => c.department.trim().toLowerCase())).size}</p>
         </div>
       </div>
 
@@ -259,10 +261,18 @@ export default function Collaborators() {
       </div>
 
       {filtered.length === 0 && (
+        dataLoading.global || dataLoading.module === 'collaborators' ? (
+          <div className="text-center py-12">
+            <Loader2 size={32} className="mx-auto animate-spin text-blue-500 mb-3" />
+            <p className="text-gray-500">Cargando datos...</p>
+          </div>
+        ) : (
+
         <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
           <Users size={48} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500">No se encontraron colaboradores</p>
         </div>
+        )
       )}
 
       <ImportModal
