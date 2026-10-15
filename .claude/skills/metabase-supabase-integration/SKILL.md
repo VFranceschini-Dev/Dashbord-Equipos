@@ -48,10 +48,9 @@ server/
     ├── queries/
     │   └── saiTest.js          # TODAS las consultas a la DB externa viven acá
     ├── services/
-    │   ├── dbEngine.js         # detecta motor SQL desde metadata (sin asumir)
-    │   └── usuariosService.js  # caché TTL 5min + toUsuario() (proyección segura)
+    │   └── usuariosService.js  # caché TTL 5min + toPublicUser() (proyección segura)
     ├── routes/
-    │   └── metabaseRoutes.js   # GET /usuarios?q=, POST /usuarios/refresh (zod)
+    │   └── usuariosRoutes.js   # GET /usuarios?q=, POST /usuarios/refresh (zod)
     └── middleware/
         └── errorHandler.js     # ZodError→400, MetabaseError→502, sin loguear PII/keys
 ```
@@ -80,8 +79,26 @@ Antes de mapear nada, correr `test:metabase` que combina:
 - `GET /api/database/:id/metadata` → nombre/tipo/PK de cada campo y **motor SQL detectado** (postgres/sqlserver/mysql...).
 Normalizar claves a minúsculas (`lowerCaseKeys`) porque ciertos motores devuelven mayúsculas.
 
-### 4. Proyección segura (toUsuario)
+### 4. Proyección segura (toPublicUser)
 Devolver SOLO campos necesarios (id, nombre, área, estado). Excluir explícitamente columnas sensibles que aparecen en tablas legadas (`contrasenia`, `servicekey_path`, `identityrecord`, vencimientos). Búsqueda `?q=` hecha EN MEMORIA sobre la caché — nunca se arma SQL con texto del usuario.
+
+**Ejemplo real verificado (UsuariosAccesos, source-table 1406):**
+```js
+// Columnas reales: usuariosaccesoid(PK), nombre, descripcion, tipo, perfil,
+// ubicacionid, identityrecord*, contrasenia*, vencimiento*, gestionid,
+// contraseniavencimiento*, contraseniaperiodo*, servicekey_path*, ultimoacceso, activo
+// (*) sensibles → excluidas de toda proyección.
+function toPublicUser(row) {
+  const val = k => (row[k] != null ? String(row[k]).trim() : null);
+  return {
+    id: val('usuariosaccesoid'),
+    nombre: val('nombre') || val('descripcion'),
+    area: val('perfil') || val('ubicacionid'),
+    estado: val('activo'),
+  };
+}
+```
+Ver `references/usuarios-service-example.js` para el servicio completo (caché TTL + dedupe + búsqueda).
 
 ### 5. Timeout y errores claros
 Todo fetch con `AbortController` (default 15s). Errores tipados `MetabaseError` con status; 401/403 ⇒ API key inválida o grupo sin permisos de lectura; el middleware traduce MetabaseError→502 sin filtrar headers/payloads.
@@ -139,3 +156,17 @@ Al registrar movimiento: `asignacion → assigned`, `devolucion → available`, 
 ## Referencias
 - `references/metabase-client.js` — cliente completo corregido (formato dataset + paginación + card).
 - `references/supabase-abm-pattern.ts` — extracto del patrón ABM {success,error} listo para copiar.
+
+## Código de referencia en este skill (`references/`)
+
+Todos los archivos son copias verificadas del código **funcionando** en Dashbord-Equipos (rama main, backend `server/` probado contra Metabase v0.55.3 real):
+
+| Archivo | Origen en el proyecto | Qué contiene |
+|---|---|---|
+| `metabase-client.js` | `server/src/clients/metabaseClient.js` | Cliente completo corregido: x-api-key, AbortController, formato correcto de /api/dataset (`database` al nivel superior), paginación offset, card query, `databaseEngine()` |
+| `queries-example.js` | `server/src/queries/saiTest.js` | Queries SAI_TEST: `usuariosAccesos()` + `columnasUsuariosAccesos()` vía metadata |
+| `usuarios-service-example.js` | `server/src/services/usuariosService.js` | Caché TTL + dedupe + proyección segura sobre columnas REALES de UsuariosAccesos (excluye contrasenia/servicekey_path/identityrecord/vencimientos) |
+| `test-metabase-script.js` | `server/scripts/testMetabase.js` | Prueba de conexión sin datos personales (motor, filas, columnas) |
+| `supabase-abm-pattern.ts` | extracto de `src/context/AppContext.tsx` + `src/services/supabaseSync.ts` | Patrón ABM {success,error?}, alta sin uuid local, modal solo cierra si success |
+
+Uso en proyectos nuevos: copiá el archivo de referencia a la ruta equivalente y ajustá nombres de tabla/columnas tras correr el test de descubrimiento (nunca antes).

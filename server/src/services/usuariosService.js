@@ -6,30 +6,36 @@ import { config } from '../config.js';
  * Cachea en memoria (TTL configurable) y expone solo los campos necesarios.
  * La búsqueda por texto se hace SOBRE la lista cacheada (nunca se arma SQL
  * con el input del usuario).
+ *
+ * Mapeo confirmado con `npm run test:metabase` contra UsuariosAccesos
+ * (source-table 1406, SAI_TEST). Columnas REALES de la tabla:
+ *   usuariosaccesoid (PK), nombre, descripcion, tipo, perfil, ubicacionid,
+ *   identityrecord, contrasenia, vencimiento, gestionid,
+ *   contraseniavencimiento, contraseniaperiodo, servicekey_path,
+ *   ultimoacceso, activo
+ *
+ * SEGURIDAD: las columnas sensibles (contrasenia, contraseniavencimiento,
+ * contraseniaperiodo, servicekey_path, identityrecord, vencimiento) se
+ * EXCLUYEN explícitamente: nunca salen de este servicio ni se exponen por la API.
  */
 
 let cache = { users: null, fetchedAt: 0 };
 let inflight = null;
 
-// Candidatos de nombre de columna (los reales se confirman con npm run test:metabase).
-const ID_KEYS = ['id', 'idusuario', 'id_usuario', 'codigo', 'cod', 'legajo', 'usuario'];
-const NAME_KEYS = ['nombre', 'name', 'nombrecompleto', 'nombre_completo', 'apellidos', 'apellido'];
-const AREA_KEYS = ['area', 'región', 'region', 'departamento', 'sector', 'ubicacion', 'oficina'];
-const STATUS_KEYS = ['estado', 'status', 'activo', 'active', 'habilitado'];
+// Campos prohibidos: jamás deben proyectarse hacia el frontend.
+const SENSITIVE_KEYS = [
+  'contrasenia', 'password', 'identityrecord', 'servicekey_path',
+  'vencimiento', 'contraseniavencimiento', 'contraseniaperiodo',
+];
 
-function pick(obj, keys) {
-  for (const k of keys) {
-    if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') return String(obj[k]).trim();
-  }
-  return null;
-}
-
+/** Proyección segura: SOLO id, nombre, área/perfil y estado. */
 function toPublicUser(row) {
+  const val = k => (row[k] !== undefined && row[k] !== null ? String(row[k]).trim() : null);
   return {
-    id: pick(row, ID_KEYS),
-    nombre: pick(row, NAME_KEYS),
-    area: pick(row, AREA_KEYS),
-    estado: pick(row, STATUS_KEYS),
+    id: val('usuariosaccesoid'),                       // PK real de UsuariosAccesos
+    nombre: val('nombre') || val('descripcion'),       // nombre visible
+    area: val('perfil') || val('ubicacionid'),         // perfil/ubicación como "área"
+    estado: val('activo'),                             // activo/inactivo
   };
 }
 
@@ -75,3 +81,6 @@ export function cacheInfo() {
     ttlMs: config.usersCacheTtlMs,
   };
 }
+
+// Re-export para tests/herramientas internas.
+export { SENSITIVE_KEYS };
