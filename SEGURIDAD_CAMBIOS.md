@@ -107,7 +107,7 @@ Por seguridad, estas credenciales **ya no se documentan en el repositorio** (es 
 
 ### 1. Rotación de Contraseñas
 
-Si la contraseña anterior `6mn78az39*` se está usando en otros sistemas:
+Si la contraseña antigua (visible en el historial de git, sección "Credenciales de Acceso") se está usando en otros sistemas:
 - [ ] Cambiarla inmediatamente en todos los sistemas
 - [ ] Notificar a los usuarios afectados
 - [ ] Actualizar documentación interna
@@ -118,7 +118,7 @@ Aunque se eliminó del README, la contraseña anterior puede estar en el histori
 
 ```bash
 # Ver si la contraseña está en commits anteriores
-git log -p --all -S '6mn78az39*'
+git log -p --all -S '"password":' # buscar contraseñas en el historial
 
 # Si aparece, considerar:
 # - Usar git filter-branch para eliminar del historial
