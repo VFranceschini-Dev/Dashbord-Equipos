@@ -713,3 +713,55 @@ export async function syncCollaboratorsToSupabase(collaborators: Collaborator[])
   
   return { success, errors };
 }
+
+// ===== SINCRONIZACIÓN DE MOVIMIENTOS DE EQUIPOS (hardware -> usuarios SAI_TEST) =====
+import { equipmentMovementsService } from './supabase';
+import type { EquipmentMovement } from '../types';
+
+export async function syncEquipmentMovementsFromSupabase(): Promise<EquipmentMovement[]> {
+  const userId = getCurrentUserId();
+  const { data, error } = await equipmentMovementsService.getAll(userId);
+  if (error) throw new Error(`Error al obtener movimientos de equipos: ${error.message}`);
+  return (data || []).map(m => ({
+    id: m.id,
+    userId: m.user_id,
+    equipmentId: m.equipment_id,
+    usuarioRef: m.usuario_ref,
+    usuarioNombre: m.usuario_nombre,
+    usuarioArea: m.usuario_area,
+    tipo: m.tipo,
+    fecha: m.fecha,
+    observaciones: m.observaciones ?? undefined,
+    registradoPor: m.registrado_por ?? undefined,
+    createdAt: m.created_at,
+  }));
+}
+
+/** Alta atómica: RPC inserta el movimiento y actualiza status del equipo en Supabase. */
+export async function syncEquipmentMovementToSupabase(params: {
+  equipmentId: string;
+  usuarioRef: string;
+  usuarioNombre: string;
+  usuarioArea: string;
+  tipo: 'asignacion' | 'devolucion' | 'traslado' | 'baja';
+  observaciones?: string;
+  registradoPor?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { data, error } = await equipmentMovementsService.createWithStatus(params);
+    if (error) return { success: false, error: `Error al registrar el movimiento: ${error.message}` };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: `Error inesperado: ${err}` };
+  }
+}
+
+export async function deleteEquipmentMovementFromSupabase(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await equipmentMovementsService.delete(id);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: `Error inesperado: ${err}` };
+  }
+}

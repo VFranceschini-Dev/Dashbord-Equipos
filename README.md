@@ -220,3 +220,26 @@ Todos los derechos reservados - VFL / Area Sistemas PEDSA
 ---
 
 Para más información o soporte, contacta a VFL o al Area Sistemas PEDSA.
+
+## Integración Metabase (SAI_TEST) vía proxy interno
+
+Flujo: navegador (Vercel) → https://ipa.donnet.com.ar/api → Metabase (10.0.0.8:3000, solo lectura).
+El backend propio `server/` fue eliminado; el proxy interno ya expone:
+- `GET  {proxy}/health`
+- `GET  {proxy}/usuarios?q=`  (tabla UsuariosAccesos; campos: id, nombre, area, perfil, ubicacionid, estado)
+- `POST {proxy}/usuarios/refresh`
+
+Config: `VITE_METABASE_PROXY_URL` (default ipa.donnet.com.ar/api). La API key de Metabase NUNCA está en el frontend.
+
+### Asignación de equipos a usuarios
+- Página "Asignaciones" (sidebar): buscador de usuarios (Metabase, incremental con debounce),
+  formulario de movimiento (equipo + usuario + tipo asignacion/devolucion/traslado/baja + observaciones)
+  e historial desde Supabase.
+- Tabla nueva `equipment_movements` + RPC atómica `registrar_equipment_movement` (inserta movimiento y
+  actualiza `equipments.status`: asignacion/traslado→assigned, devolucion→available, baja→retired).
+  Migración: `sql/equipment_movements.sql` (ejecutar en Supabase SQL Editor). También agregada a `supabase-schema.sql`.
+- Si el proxy no responde, se muestra un aviso y el historial cacheado en Supabase sigue disponible.
+
+### Scripts
+- `./scripts/deploy-vercel.sh [--preview]` — build + deploy a Vercel (requiere VERCEL_TOKEN).
+- `./scripts/test-proxy-metabase.sh [url]` — prueba health/usuarios/búsqueda/refresh del proxy (correr desde la red interna).

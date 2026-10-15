@@ -104,7 +104,7 @@ export interface Voucher {
   notes: string;
 }
 
-export type Page = 'dashboard' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'server-config' | 'data-sync';
+export type Page = 'dashboard' | 'asignaciones' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'server-config' | 'data-sync';
 
 export interface ExternalServer {
   id: string;
@@ -150,4 +150,21 @@ export interface SyncedDevice {
   ram?: string;
   syncedAt: string;
   localEquipmentId?: string;
+}
+
+// ===== Movimientos de EQUIPOS (hardware) a usuarios de SAI_TEST/UsuariosAccesos =====
+export type EquipmentMovementType = 'asignacion' | 'devolucion' | 'traslado' | 'baja';
+
+export interface EquipmentMovement {
+  id: string;
+  userId: string;
+  equipmentId: string;
+  usuarioRef: string;        // usuariosaccesoid (Metabase, solo lectura)
+  usuarioNombre: string;     // cache del nombre al momento del movimiento
+  usuarioArea: string;       // cache del área/descripción
+  tipo: EquipmentMovementType;
+  fecha: string;
+  observaciones?: string;
+  registradoPor?: string;
+  createdAt?: string;
 }

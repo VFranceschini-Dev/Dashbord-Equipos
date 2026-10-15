@@ -531,3 +531,57 @@ export async function testConnection() {
   
   return { connected: !error, error };
 }
+// ===== EQUIPMENT MOVEMENTS (hardware -> usuarios SAI_TEST) =====
+import type { EquipmentMovement } from '../types';
+
+export interface SupabaseEquipmentMovement {
+  id?: string;
+  user_id: string;
+  equipment_id: string;
+  usuario_ref: string;
+  usuario_nombre: string;
+  usuario_area: string;
+  tipo: 'asignacion' | 'devolucion' | 'traslado' | 'baja';
+  fecha: string;
+  observaciones?: string | null;
+  registrado_por?: string | null;
+  created_at?: string;
+}
+
+export const equipmentMovementsService = {
+  async getAll(userId: string) {
+    const { data, error } = await supabase
+      .from('equipment_movements')
+      .select('*')
+      .eq('user_id', userId)
+      .order('fecha', { ascending: false });
+    return { data, error };
+  },
+
+  /** Alta atómica vía RPC: inserta el movimiento y actualiza el status del equipo. */
+  async createWithStatus(params: {
+    equipmentId: string;
+    usuarioRef: string;
+    usuarioNombre: string;
+    usuarioArea: string;
+    tipo: SupabaseEquipmentMovement['tipo'];
+    observaciones?: string;
+    registradoPor?: string;
+  }) {
+    const { data, error } = await supabase.rpc('registrar_equipment_movement', {
+      p_equipment_id: params.equipmentId,
+      p_usuario_ref: params.usuarioRef,
+      p_usuario_nombre: params.usuarioNombre,
+      p_usuario_area: params.usuarioArea,
+      p_tipo: params.tipo,
+      p_observaciones: params.observaciones ?? null,
+      p_registrado_por: params.registradoPor ?? null,
+    });
+    return { data, error };
+  },
+
+  async delete(id: string) {
+    const { error } = await supabase.from('equipment_movements').delete().eq('id', id);
+    return { error };
+  },
+};
