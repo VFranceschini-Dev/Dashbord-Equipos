@@ -1,0 +1,3446 @@
+From ea604c5b483a032e760405ecd7f1d792727bee32 Mon Sep 17 00:00:00 2001
+From: "qwen.ai[bot]" <qwenlm-intl@service.alibaba.com>
+Date: Thu, 15 Oct 2026 23:58:15 +0000
+Subject: [PATCH 2/2] Reorganizar repositorio: docs/, CHANGELOG,
+ supabase/migrations, scripts/, skills unificados; eliminar server/ y archivos
+ obsoletos
+
+---
+ .claude/skills/metabase-connection/SKILL.md   | 174 ----
+ .claude/skills/metabase-integracion/SKILL.md  | 208 ++++
+ .../references/metabase-client.js             |   0
+ .../references/metabase-usuarios-service.js}  |   0
+ .../references/queries-example.js             |   0
+ .../references/supabase-abm-pattern.ts        |   0
+ .../references/test-metabase-script.js        |   0
+ .../metabase-supabase-integration/SKILL.md    | 172 ----
+ .env.example                                  |  10 +
+ CAMBIOS_V2.9.5.md                             | 270 ------
+ CORRECCIONES_IDENTIDAD.md                     | 222 -----
+ MEJORAS_IMPLEMENTADAS.md                      | 409 --------
+ README.md                                     | 216 +++--
+ server/.env.example                           |  24 -
+ server/.gitignore                             |   3 -
+ server/Dockerfile                             |  13 -
+ server/docker-compose.yml                     |  18 -
+ server/package-lock.json                      | 895 ------------------
+ server/package.json                           |  19 -
+ server/scripts/testMetabase.js                |  49 -
+ server/src/clients/metabaseClient.js          | 144 ---
+ server/src/config.js                          |  29 -
+ server/src/index.js                           |  39 -
+ server/src/middleware/errorHandler.js         |  34 -
+ server/src/queries/saiTest.js                 |  33 -
+ server/src/routes/metabaseRoutes.js           |  42 -
+ server/src/services/usersService.js           | 141 ---
+ 27 files changed, 346 insertions(+), 2818 deletions(-)
+ delete mode 100644 .claude/skills/metabase-connection/SKILL.md
+ create mode 100644 .claude/skills/metabase-integracion/SKILL.md
+ rename .claude/skills/{metabase-supabase-integration => metabase-integracion}/references/metabase-client.js (100%)
+ rename .claude/skills/{metabase-supabase-integration/references/usuarios-service-example.js => metabase-integracion/references/metabase-usuarios-service.js} (100%)
+ rename .claude/skills/{metabase-supabase-integration => metabase-integracion}/references/queries-example.js (100%)
+ rename .claude/skills/{metabase-supabase-integration => metabase-integracion}/references/supabase-abm-pattern.ts (100%)
+ rename .claude/skills/{metabase-supabase-integration => metabase-integracion}/references/test-metabase-script.js (100%)
+ delete mode 100644 .claude/skills/metabase-supabase-integration/SKILL.md
+ delete mode 100644 CAMBIOS_V2.9.5.md
+ delete mode 100644 CORRECCIONES_IDENTIDAD.md
+ delete mode 100644 MEJORAS_IMPLEMENTADAS.md
+ delete mode 100644 server/.env.example
+ delete mode 100644 server/.gitignore
+ delete mode 100644 server/Dockerfile
+ delete mode 100644 server/docker-compose.yml
+ delete mode 100644 server/package-lock.json
+ delete mode 100644 server/package.json
+ delete mode 100644 server/scripts/testMetabase.js
+ delete mode 100644 server/src/clients/metabaseClient.js
+ delete mode 100644 server/src/config.js
+ delete mode 100644 server/src/index.js
+ delete mode 100644 server/src/middleware/errorHandler.js
+ delete mode 100644 server/src/queries/saiTest.js
+ delete mode 100644 server/src/routes/metabaseRoutes.js
+ delete mode 100644 server/src/services/usersService.js
+
+diff --git a/.claude/skills/metabase-connection/SKILL.md b/.claude/skills/metabase-connection/SKILL.md
+deleted file mode 100644
+index d466bb3..0000000
+--- a/.claude/skills/metabase-connection/SKILL.md
++++ /dev/null
+@@ -1,174 +0,0 @@
+----
+-name: metabase-connection
+-description: Conexión a Metabase v0.55.x desde Node.js/Express (solo lectura) vía API key, con cliente reutilizable, caché TTL y descubrimiento de columnas reales. Usar al integrar cualquier app con Metabase o SAI_TEST.
+----
+-
+-# Conexión a Metabase (v0.55.x) — Skill reutilizable
+-
+-Patrón verificado en producción (Dashbord-Equipos ↔ SAI_TEST db=5).
+-
+-## Reglas de oro
+-1. **La API key vive SOLO en el backend.** El navegador nunca habla con Metabase (sin CORS interno + exposición de credenciales).
+-2. **Solo lectura**: nunca INSERT/UPDATE/DELETE ni crear/archivar preguntas o dashboards.
+-3. **Nunca armar SQL con texto libre del usuario**: las búsquedas se hacen en memoria sobre la lista cacheada.
+-4. **No loguear API key ni datos personales completos.** Proyectar solo campos necesarios.
+-5. Detectar columnas reales antes de mapear; no inventar nombres ni asumir motor SQL.
+-
+-## Autenticación
+-Header `x-api-key`. La key debe pertenecer a un grupo con permisos de solo consulta sobre la BD destino.
+-
+-## Formato correcto de POST /api/dataset (FIX crítico v0.55.x)
+-El body DEBE incluir `database` en el nivel superior junto a `type` y `query`:
+-
+-```js
+-// ✅ Correcto
+-{
+-  database: 5,                 // ← si falta: error 400 "Se requiere `database`..."
+-  type: 'query',
+-  query: { 'source-table': 1406, limit: 2000, offset: 0 }
+-}
+-
+-// ❌ Incorrecto (falla con 400)
+-{ query: { type: 'query', database: 5, 'source-table': 1406 } }
+-```
+-
+-Para native: `{ database: 5, type: 'native', native: { query: '...' }, parameters: [] }`.
+-
+-## Límite de filas y paginación
+-- `/api/dataset` devuelve máximo **2000 filas** por request.
+-- Paginar con `limit`/`offset` hasta recibir una página `< pageSize`.
+-- Alternativa sin límite: pregunta guardada → `POST /api/card/{id}/query/json` (configurable por env `METABASE_CARD_ID`).
+-- Guardar contra tablas gigantes: cortar la paginación a 100k filas y lanzar error claro.
+-
+-## Cliente base (ES Modules, fetch nativo, Node 20+)
+-```js
+-import { config } from '../config.js';
+-
+-class MetabaseError extends Error {
+-  constructor(message, { status, body } = {}) { super(message); this.name='MetabaseError'; this.status=status; this.body=body; }
+-}
+-
+-async function request(path, { method='GET', body, timeoutMs=config.metabase.timeoutMs }={}) {
+-  const controller = new AbortController();
+-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+-  try {
+-    const res = await fetch(`${config.metabase.url}${path}`, {
+-      method,
+-      headers: { 'x-api-key': config.metabase.apiKey, ...(body?{'Content-Type':'application/json'}:{}) },
+-      body: body ? JSON.stringify(body) : undefined,
+-      signal: controller.signal,
+-    });
+-    let json; try { json = await res.json(); } catch { throw new MetabaseError(`Respuesta no JSON (HTTP ${res.status})`, {status:res.status}); }
+-    if (!res.ok) throw new MetabaseError(`Metabase respondió ${res.status}: ${json?.message||json?.error||''}`, {status:res.status, body:json});
+-    if (json?.error) throw new MetabaseError(`Error de Metabase: ${json.error}`, {status:res.status, body:json});
+-    return json;
+-  } catch (err) {
+-    if (err.name === 'AbortError') throw new MetabaseError(`Timeout (${timeoutMs} ms)`);
+-    throw err instanceof MetabaseError ? err : new MetabaseError(`No se pudo conectar: ${err.message}`);
+-  } finally { clearTimeout(timer); }
+-}
+-
+-/** data.cols + data.rows → array de objetos */
+-export function datasetToObjects(data) {
+-  const cols=(data?.cols||[]).map(c=>c.name), rows=data?.rows||[];
+-  return rows.map(r=>Object.fromEntries(cols.map((c,i)=>[c,r[i]])));
+-}
+-
+-function lowerCaseKeys(objs){ return objs.map(o=>Object.fromEntries(Object.entries(o).map(([k,v])=>[k.toLowerCase(),v]))); }
+-
+-export async function tabla(tableId, { limit, offset }={}) {
+-  const inner={'source-table':tableId};
+-  if(limit!=null) inner.limit=limit;
+-  if(offset!=null) inner.offset=offset;
+-  const json=await request('/api/dataset',{method:'POST',body:{database:config.metabase.dbId,type:'query',query:inner}});
+-  return lowerCaseKeys(datasetToObjects(json.data));
+-}
+-
+-export async function sql(consulta, params=[]){
+-  const json=await request('/api/dataset',{method:'POST',body:{database:config.metabase.dbId,type:'native',native:{query:consulta,'template-tags':{}},parameters:params}});
+-  return lowerCaseKeys(datasetToObjects(json.data));
+-}
+-
+-/** GET /api/database/:id/metadata → engine + tables[].fields[] (descubrimiento) */
+-export async function databaseMetadata(dbId=config.metabase.dbId){ return request(`/api/database/${dbId}/metadata`); }
+-```
+-
+-## Descubrimiento de columnas (siempre primero)
+-Antes de escribir cualquier mapeo, correr un script que:
+-1. Lea `engine` de `GET /api/database/{id}/metadata` (no asumir postgres/sqlserver).
+-2. Liste `tables[].fields[]` (nombre, base_type, primary_key) de la tabla destino.
+-3. Muestre solo nombres/tipos — nunca valores de columnas sensibles.
+-
+-## Patrón de arquitectura por capas
+-```
+-routes/   → zod valida query/params; NUNCA toca Metabase
+-services/ → cache en memoria {data, timestamp} + TTL; getUsers(q) filtra en memoria; refreshUsers() bypass TTL
+-queries/  → TODAS las consultas a la BD destino (usuariosAccesos(), etc.); agregar consulta = 1 función acá
+-clients/  → HTTP puro (request/tabla/sql/metadata)
+-config.js → valida envs obligatorias al arrancar (throw si faltan)
+-```
+-
+-## Caché con TTL + inflight dedupe
+-```js
+-let cache={data:null,timestamp:0}, inflight=null;
+-const isValid=()=>cache.data&&(Date.now()-cache.timestamp)<TTL_MS;
+-async function load(){ /* fetch + normalizar + proyectar */ }
+-export async function get(q=''){
+-  if(!isValid()) { if(!inflight) inflight=load().finally(()=>inflight=null); await inflight; }
+-  return q ? filterEnMemoria(cache.data,q) : cache.data;
+-}
+-```
+-
+-## Normalización de búsqueda
+-`String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')` sobre id/nombre/área.
+-
+-## Endpoints mínimos recomendados
+-- `GET /health` → `{status:"ok",service:"..."}` (para Docker/monitoreo)
+-- `GET /api/.../usuarios?q=` → `{success,count,data,cache:getCacheStatus()}`
+-- `POST /api/.../usuarios/refresh` → fuerza recarga
+-
+-## Seguridad Express
+-`helmet()` + `cors({origin:ALLOWED_ORIGINS.split(',')})` + `express.json({limit:'100kb'})` + middleware central de errores que traduce `MetabaseError→502` y `ZodError→400` sin loggear payloads.
+-
+-## Variables de entorno (.env.example)
+-```bash
+-PORT=4000                      # NO 3000 (lo usa Vite/Metabase)
+-METABASE_URL=http://host:3000
+-METABASE_API_KEY=...           # sin prefijo VITE_
+-METABASE_DB_ID=5
+-METABASE_TIMEOUT_MS=15000
+-SAI_USUARIOS_TABLE_ID=1406     # source-table id (sale de la URL o metadata)
+-METABASE_PAGE_SIZE=2000
+-METABASE_CARD_ID=              # opcional: pregunta guardada p/ >2000 filas
+-ALLOWED_ORIGINS=http://localhost:5173
+-USERS_CACHE_TTL_MS=300000
+-```
+-
+-## Troubleshooting de errores reales encontrados
+-| Error | Causa | Fix |
+-|---|---|---|
+-| 400 "Se requiere `database` para todas las consultas cuyo tipo no sea internal" | body sin `database` arriba | agregar `database` en el nivel superior del POST |
+-| 401/403 | API key inválida o grupo sin permisos | revisar grupo de la key en Admin > Permissions |
+-| Tabla devuelve 0 filas | source-table id equivocado | confirmar id abriendo la tabla en Metabase (URL base64 decodificada muestra `"source-table":NNNN`) |
+-| Timeout en red interna | DNS/firewall | probar curl desde el mismo host; extra_hosts en compose |
+-| `ERR_MODULE_NOT_FOUND` entre routes/services | nombres de archivo inconsistentes (usuariosService vs usersService) | unificar nombre e import/export; verificar exports con grep |
+-| Columnas en MAYÚSCULAS según motor | normalizar keys a lowercase antes de mapear | helper `lowerCaseKeys` |
+-
+-## Obtener el source-table id desde la UI de Metabase
+-Abrir la tabla → copiar URL `http://host:3000/question#eyJkYXRhc2V0X3F1ZXJ5...` → decodificar el fragmento base64 → `"source-table":1406`.
+-
+-## Prueba mínima (scripts/testMetabase.js)
+-Imprime: engine detectado, cantidad de filas, nombres de columnas (sin valores). Sale con `process.exitCode=1` en error (evitar `process.exit()` en Windows + --watch).
+-
+-## Docker (despliegue en red interna)
+-```dockerfile
+-FROM node:20-alpine
+-WORKDIR /app
+-COPY package*.json ./
+-RUN npm ci --omit=dev
+-COPY src ./src
+-USER node
+-EXPOSE 4000
+-CMD ["node","src/index.js"]
+-```
+-compose: `ports: 4000:4000`, `env_file: .env`, `extra_hosts` para alcanzar el host de Metabase desde el contenedor. Evitar `VITE_` en envs de backend.
+\ No newline at end of file
+diff --git a/.claude/skills/metabase-integracion/SKILL.md b/.claude/skills/metabase-integracion/SKILL.md
+new file mode 100644
+index 0000000..4747eca
+--- /dev/null
++++ b/.claude/skills/metabase-integracion/SKILL.md
+@@ -0,0 +1,208 @@
++---
++name: metabase-integracion
++description: Lectura de Metabase (v0.55.x, tabla SAI_TEST UsuariosAccesos) desde una app React+Vite+Supabase desplegada en Vercel, usando funciones serverless como único punto que conoce la API key. Skill unificado (ex metabase-connection + metabase-supabase-integration). Usar al integrar, depurar o extender la conexión con la base externa de solo lectura.
++---
++
++# Integración Metabase ↔ Supabase (arquitectura Vercel)
++
++Skill unificado. Reemplaza a los antiguos `metabase-connection` y
++`metabase-supabase-integration`, actualizados a la arquitectura real del proyecto:
++**ya no existe backend interno Node/Express (`server/`) ni proxy propio**; la lectura
++de la base externa pasa por **funciones serverless de Vercel** (`api/*.ts`).
++
++## Reglas de oro
++1. **La API key vive SOLO en las funciones de Vercel** (env vars sin prefijo `VITE_`).
++   El navegador nunca habla con Metabase ni con la API externa: ni CORS ni exposición de credenciales.
++2. **SAI_TEST es solo lectura**: nunca INSERT/UPDATE/DELETE, ni crear/archivar preguntas o dashboards.
++   El ABM se hace únicamente sobre Supabase.
++3. **Nunca armar SQL con texto libre del usuario**: la búsqueda (`?q=`) se filtra EN MEMORIA
++   sobre la lista cacheada.
++4. **No loguear API key ni datos personales completos.** Proyectar solo campos necesarios.
++5. Detectar columnas reales antes de mapear; no inventar nombres ni asumir motor SQL.
++
++## Arquitectura actual
++
++```
++navegador (React/Vite en Vercel)
++   │  fetch('/api/usuarios') + header Authorization: Bearer <token Supabase>
++   ▼
++función serverless api/usuarios.ts (Vercel, Node runtime)
++   │  valida sesión con supabase.auth.getUser(token) → si no: 401
++   │  x-api-key (env IPA_API_KEY, NUNCA visible en el bundle)
++   ▼
++Metabase v0.55.x expuesto públicamente por HTTPS → SAI_TEST (db=5, solo lectura)
++
++Paralelo: navegador ──HTTPS(anon key)──> Supabase (ABM, Auth, RLS por user_id)
++```
++
++## Autenticación con Metabase
++Header `x-api-key`. La key debe pertenecer a un grupo con permisos **solo de consulta**
++sobre la BD destino. Si la key se filtró alguna vez (historial git público): rotarla.
++
++## Formato correcto de POST /api/dataset (fix crítico v0.55.x)
++El body DEBE incluir `database` en el nivel superior, junto a `type` y `query`:
++
++```js
++// ✅ Correcto — sin esto: 400 "Se requiere `database` para todas las consultas cuyo tipo no sea internal"
++{ database: 5, type: 'query', query: { 'source-table': 1406, limit: 2000, offset: 0 } }
++
++// ❌ Incorrecto (database dentro de query)
++{ type: 'query', query: { database: 5, 'source-table': 1406 } }
++```
++
++Para native: `{ database: 5, type: 'native', native: { query: '...' }, parameters: [] }`.
++
++## Límite de filas y paginación
++- `/api/dataset` devuelve máximo **2000 filas** por request.
++- Paginar con `limit`/`offset` hasta recibir una página `< pageSize` (corte de seguridad a 100k filas).
++- Alternativa sin límite: pregunta guardada → `POST /api/card/{id}/query/json` (env opcional `METABASE_CARD_ID`).
++
++## Columnas REALES de UsuariosAccesos (source-table 1406, SAI_TEST db=5)
++Confirmadas por descubrimiento en producción — no inventar otras:
++
++| Columna | Uso |
++|---|---|
++| `usuariosaccesoid` (PK) | id externo → se guarda como `usuario_ref` en Supabase |
++| `nombre` | login (p. ej. `MSQUINA`) |
++| `descripcion` | nombre completo (algunos registros traen `[Descripción Usuario ...]`) |
++| `perfil`, `ubicacionid` | códigos numéricos |
++| `tipo` | `"U"` = persona; otros valores = cuentas genéricas/perfiles (CAJA, VENTAS…) |
++| `activo` | estado |
++| `gestionid`, `ultimoacceso` | auxiliares |
++| `contrasenia`, `servicekey_path`, `identityrecord`, `vencimiento*`, `contraseniaperiodo` | **SENSIBLES → excluidas de toda proyección** |
++
++### Proyección segura (toPublicUser)
++Devolver SOLO: `id, usuario (nombre), nombreCompleto (descripcion), perfilId, ubicacionId, tipo, activo`.
++
++```js
++function toPublicUser(row) {
++  const val = k => (row[k] != null ? String(row[k]).trim() : null);
++  return {
++    id: val('usuariosaccesoid'),
++    usuario: val('nombre'),
++    nombreCompleto: val('descripcion'),
++    perfilId: val('perfil'),
++    ubicacionId: val('ubicacionid'),
++    tipo: val('tipo'),            // 'U' = persona
++    activo: val('activo'),
++  };
++}
++```
++
++Búsqueda normalizada: `String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')`
++(sin tildes) sobre id/usuario/nombreCompleto. Filtros opcionales: `soloActivos`, `soloPersonas` (tipo==='U').
++
++## Cliente base (ES Modules, fetch nativo, Node 20+)
++Ver `references/metabase-client.js` (versión completa con `tabla()`, `sql()`, `databaseMetadata()`).
++Núcleo:
++
++```js
++async function request(path, { method='GET', body, timeoutMs }) {
++  const controller = new AbortController();
++  const timer = setTimeout(() => controller.abort(), timeoutMs);
++  try {
++    const res = await fetch(`${BASE_URL}${path}`, {
++      method,
++      headers: { 'x-api-key': API_KEY, ...(body ? {'Content-Type':'application/json'} : {}) },
++      body: body ? JSON.stringify(body) : undefined,
++      signal: controller.signal,
++    });
++    let json; try { json = await res.json(); } catch { throw new ExternalError(`Respuesta no JSON (HTTP ${res.status})`, {status: res.status}); }
++    if (!res.ok) throw new ExternalError(`Metabase respondió ${res.status}`, {status: res.status});
++    return json;
++  } catch (err) {
++    if (err.name === 'AbortError') throw new TimeoutError(`Timeout (${timeoutMs} ms)`);
++    throw err;
++  } finally { clearTimeout(timer); }
++}
++/** data.cols + data.rows → array de objetos, claves a lowercase (ciertos motores devuelven MAYÚSCULAS) */
++export function datasetToObjects(data) {
++  const cols = (data?.cols || []).map(c => c.name.toLowerCase()), rows = data?.rows || [];
++  return rows.map(r => Object.fromEntries(cols.map((c, i) => [c, r[i]])));
++}
++```
++
++## Función serverless (api/usuarios.ts) — contrato
++- Valida sesión: `Authorization: Bearer <token>` → `supabase.auth.getUser(token)`; sin sesión válida → **401**.
++- Parámetros aceptados (validados con zod): `q` (texto ≤ 120 chars), `soloActivos`, `soloPersonas`. Nada más.
++- Respuesta: solo los campos proyectados. Códigos: 200 ok, 400 validación, **502** API externa falla, **504** timeout.
++- Caché en memoria de instancia + TTL (~5 min) + dedupe inflight; header `Cache-Control: private, max-age=60`.
++  En serverless el caché es **solo de mejor esfuerzo** (se pierde al escalar/rotar instancias).
++- Errores: mensajes técnicos claros, sin PII ni keys en logs.
++
++## Patrón de capas (dentro de la función o módulos compartidos `api/_lib/`)
++```
++routes (handler) → zod valida query; NUNCA toca Metabase
++services         → cache TTL + toPublicUser + filtro/búsqueda en memoria
++queries          → TODAS las consultas a la BD externa (usuariosAccesos()); agregar consulta = 1 función acá
++clients          → HTTP puro (request/tabla/sql/metadata)
++config           → valida envs obligatorias al invocar (throw con nombre de variable faltante)
++```
++
++## Variables de entorno (funciones Vercel — sin prefijo VITE_)
++```bash
++IPA_API_URL=https://ipa.donnet.com.ar     # Metabase publicado por HTTPS
++IPA_API_KEY=...                           # grupo con permisos SOLO de consulta sobre SAI_TEST
++IPA_DB_ID=5                               # SAI_TEST
++IPA_USUARIOS_TABLE_ID=1406                # source-table UsuariosAccesos
++SUPABASE_URL=...                          # para validar el token de sesión
++SUPABASE_ANON_KEY=...                     # anon key (no service role)
++IPA_TIMEOUT_MS=15000                      # opcional
++USERS_CACHE_TTL_MS=300000                 # opcional
++```
++En `.env.example` van **sin valores reales**. Cargar en Vercel → Settings → Environment Variables
++(Production + Preview + Development).
++
++## Descubrimiento de columnas (siempre primero)
++Antes de escribir cualquier mapeo, correr `references/test-metabase-script.js`:
++1. Lee `engine` de `GET /api/database/{id}/metadata` (no asumir postgres/sqlserver).
++2. Lista `tables[].fields[]` (nombre, base_type, primary_key) de la tabla destino.
++3. Muestra solo nombres/tipos — nunca valores de columnas sensibles.
++
++## Lado Supabase (ABM): patrón "primero Supabase, después el estado"
++- **Alta**: crear objeto SIN id local (`uuidv4` no: un update sobre id inexistente no inserta), llamar
++  `sync*ToSupabase` (hace create y asigna el id devuelto), y recién si `success` agregar al estado.
++- **Modificación**: enviar objeto COMPLETO; actualizar estado solo si sale bien.
++- **Baja**: borrar en Supabase primero; quitar del estado solo si sale bien.
++- Resultados normalizados `{ success: boolean; error?: string }` en todas las funciones de sync.
++- Usuarios externos se guardan como `usuario_ref` + cache de login/nombre (no copiar la tabla).
++- Movimientos/asignaciones: RPC atómica (`registrar_equipment_movement` / `asignar_equipos`) que
++  inserta y actualiza `equipments.status` en una sola transacción. Ver `references/supabase-abm-pattern.ts`.
++
++## Frontend (Vite)
++- Servicio `src/services/metabaseProxy.ts` llama SOLO a `/api/usuarios` con el token de la sesión.
++- Si la función no responde: aviso claro y seguir mostrando lo guardado en Supabase (degradación elegante).
++- Desarrollo local: `vercel dev` (monta `api/` + Vite) o `npm run dev` + `npx vercel dev`.
++
++## Seguridad (checklist)
++- [ ] `.env` en `.gitignore`; `.env.example` sin valores reales.
++- [ ] API key de un grupo Metabase con permisos SOLO de consulta; rotada si se filtró.
++- [ ] Ninguna variable secreta con prefijo `VITE_` (se compila en el bundle).
++- [ ] Nunca loguear API keys ni datos personales completos.
++- [ ] Sesión Supabase validada en cada invocación de la función (401 sin token válido).
++- [ ] Zod en toda entrada; búsqueda siempre en memoria.
++
++## Troubleshooting de errores reales encontrados
++| Error | Causa | Fix |
++|---|---|---|
++| 400 "Se requiere `database`…" | body sin `database` arriba | poner `database` en el nivel superior del POST |
++| 401/403 de Metabase | API key inválida o grupo sin permisos | revisar grupo de la key en Admin > Permissions |
++| Tabla devuelve 0 filas | source-table id equivocado | abrir la tabla en Metabase y decodificar el fragmento base64 de la URL (`"source-table":NNNN`) |
++| CORS / fetch falla del navegador | el frontend apunta directo a la API externa | todo debe pasar por `api/usuarios.ts` |
++| Timeout | red lenta o DNS | subir `IPA_TIMEOUT_MS`; probar curl contra la función, no contra Metabase |
++| Claves en MAYÚSCULAS según motor | normalizar keys a lowercase | helper `datasetToObjects` ya lo hace |
++| 401 inesperado de la función | token expirado / SUPABASE_URL mal configurado | revisar sesión en cliente y envs de la función |
++
++## Referencias (`references/`)
++| Archivo | Qué contiene |
++|---|---|
++| `metabase-client.js` | Cliente completo: x-api-key, AbortController, formato correcto de `/api/dataset`, paginación offset, card query, metadata |
++| `queries-example.js` | Queries SAI_TEST: `usuariosAccesos()` + descubrimiento de columnas vía metadata |
++| `metabase-usuarios-service.js` | Caché TTL + dedupe + proyección segura sobre columnas REALES de UsuariosAccesos |
++| `test-metabase-script.js` | Prueba de conexión sin datos personales (motor, filas, columnas) |
++| `supabase-abm-pattern.ts` | Patrón ABM `{success,error?}`, alta sin uuid local, modal cierra solo si success |
++
++Historial: estos patrones nacieron con un backend Express interno (`server/`, puerto 4000, Docker en LAN),
++luego con un proxy interno en `ipa.donnet.com.ar/api`, y hoy viven en funciones serverless de Vercel.
++Las referencias conservan la lógica de cliente/servicio (paginación, timeout, proyección), que sigue vigente
++tal cual dentro de la función.
+diff --git a/.claude/skills/metabase-supabase-integration/references/metabase-client.js b/.claude/skills/metabase-integracion/references/metabase-client.js
+similarity index 100%
+rename from .claude/skills/metabase-supabase-integration/references/metabase-client.js
+rename to .claude/skills/metabase-integracion/references/metabase-client.js
+diff --git a/.claude/skills/metabase-supabase-integration/references/usuarios-service-example.js b/.claude/skills/metabase-integracion/references/metabase-usuarios-service.js
+similarity index 100%
+rename from .claude/skills/metabase-supabase-integration/references/usuarios-service-example.js
+rename to .claude/skills/metabase-integracion/references/metabase-usuarios-service.js
+diff --git a/.claude/skills/metabase-supabase-integration/references/queries-example.js b/.claude/skills/metabase-integracion/references/queries-example.js
+similarity index 100%
+rename from .claude/skills/metabase-supabase-integration/references/queries-example.js
+rename to .claude/skills/metabase-integracion/references/queries-example.js
+diff --git a/.claude/skills/metabase-supabase-integration/references/supabase-abm-pattern.ts b/.claude/skills/metabase-integracion/references/supabase-abm-pattern.ts
+similarity index 100%
+rename from .claude/skills/metabase-supabase-integration/references/supabase-abm-pattern.ts
+rename to .claude/skills/metabase-integracion/references/supabase-abm-pattern.ts
+diff --git a/.claude/skills/metabase-supabase-integration/references/test-metabase-script.js b/.claude/skills/metabase-integracion/references/test-metabase-script.js
+similarity index 100%
+rename from .claude/skills/metabase-supabase-integration/references/test-metabase-script.js
+rename to .claude/skills/metabase-integracion/references/test-metabase-script.js
+diff --git a/.claude/skills/metabase-supabase-integration/SKILL.md b/.claude/skills/metabase-supabase-integration/SKILL.md
+deleted file mode 100644
+index 85f0cf9..0000000
+--- a/.claude/skills/metabase-supabase-integration/SKILL.md
++++ /dev/null
+@@ -1,172 +0,0 @@
+----
+-name: metabase-supabase-integration
+-description: Patrón de integración para apps React/Vite + Supabase que necesitan leer datos desde Metabase (red interna) sin exponer credenciales. Usar cuando el proyecto deba conectar con una API REST de Metabase, montar un backend intermedio Node/Express, leer tablas fuente vía /api/dataset, cachear usuarios y guardar ABM en Supabase con RLS. Cubre cliente Metabase reutilizable (x-api-key, timeout, paginación 2000 filas), arquitectura en capas (clients/queries/services/routes), seguridad (API key solo en backend, helmet, CORS), esquema Supabase con user_id/RLS, patrón ABM "primero Supabase después estado" y despliegue Docker.
+----
+-
+-# Integración Metabase + Supabase
+-
+-Patrón probado para aplicaciones internas donde:
+-- **Supabase** es la base propia (ABM completo, auth, RLS por usuario).
+-- **Metabase** es una fuente de datos externa de **solo lectura** (ej: usuarios de un sistema legado en SQL Server), accesible únicamente desde la red interna.
+-- El navegador **nunca habla con Metabase**: lo hace a través de un backend intermedio Express que guarda la API key.
+-
+-## Cuándo aplicar este skill
+-- El proyecto necesita listar/buscar registros que viven en otra base expuesta por Metabase.
+-- Hay que levantar un proxy/backend interno (Node 20+, ES Modules, fetch nativo) para una API que no tiene CORS o está aislada en LAN.
+-- Se requiere persistir movimientos/asignaciones referenciando usuarios externos sin copiarlos completos (cache de nombre/área).
+-
+-## Arquitectura objetivo
+-
+-```
+-navegador (React/Vite) ──HTTPS──> backend intermedio (:4000) ──LAN──> Metabase (:3000, solo lectura)
+-        │
+-        └────HTTPS(anon key)────> Supabase (ABM, Auth, RLS por user_id)
+-```
+-
+-Reglas inquebrantables:
+-1. La API key de Metabase vive SOLO en el backend (`METABASE_API_KEY`, sin prefijo `VITE_`).
+-2. Metabase nunca se escribe: solo `POST /api/dataset`, `GET /api/database/:id/metadata` y opcionalmente `POST /api/card/:id/query/json`.
+-3. Las rutas HTTP jamás llaman a Metabase directamente: pasan por `services/`, que usa `queries/`, que usa `clients/`.
+-4. Agregar una consulta nueva a la base externa = agregar UNA función en `src/queries/<db>.js`; nadie más conoce ids de tablas ni SQL.
+-5. El ABM propio se hace solo sobre Supabase; los usuarios externos se guardan como `usuario_ref` + cache de nombre/área.
+-
+-## Estructura de carpetas del backend (server/)
+-
+-```
+-server/
+-├── package.json          # type:module, node>=20, express/helmet/cors/zod/dotenv
+-├── .env.example          # sin valores reales; .env en .gitignore
+-├── Dockerfile            # node:20-alpine, USER node, EXPOSE 4000
+-├── docker-compose.yml    # restart unless-stopped, env_file, extra_hosts p/ LAN
+-├── scripts/
+-│   └── testMetabase.js   # npm run test:metabase → conexión + columnas REALES
+-└── src/
+-    ├── config.js         # valida variables obligatorias al arrancar (throw si faltan)
+-    ├── index.js          # helmet + CORS restringido + express.json(limit) + errorHandler
+-    ├── clients/
+-    │   └── metabaseClient.js   # x-api-key, AbortController, tabla(), sql(), metadata()
+-    ├── queries/
+-    │   └── saiTest.js          # TODAS las consultas a la DB externa viven acá
+-    ├── services/
+-    │   └── usuariosService.js  # caché TTL 5min + toPublicUser() (proyección segura)
+-    ├── routes/
+-    │   └── usuariosRoutes.js   # GET /usuarios?q=, POST /usuarios/refresh (zod)
+-    └── middleware/
+-        └── errorHandler.js     # ZodError→400, MetabaseError→502, sin loguear PII/keys
+-```
+-
+-## Los 5 puntos críticos (lecciones aprendidas)
+-
+-### 1. Formato correcto de /api/dataset (error 400 clásico)
+-En Metabase v0.55.x el body DEBE llevar `database` en el nivel superior, junto a `type` y `query`:
+-```js
+-// ✅ Correcto — sin esto: 400 "Se requiere `database` para todas las consultas cuyo tipo no sea internal"
+-{ database: DB_ID, type: 'query', query: { 'source-table': tableId, limit, offset } }
+-
+-// ❌ Incorrecto (database dentro de query):
+-{ type: 'query', query: { database: DB_ID, 'source-table': ... } }
+-```
+-Para native: `{ database: DB_ID, type: 'native', native: { query, 'template-tags': {} }, parameters }`.
+-
+-### 2. Límite de 2000 filas y paginación
+-`/api/dataset` devuelve máximo 2000 filas. Estrategia configurable:
+-- Default: paginación por `offset`/`limit` hasta recibir una página < pageSize (corte de seguridad a 100k filas).
+-- Alternativa: pregunta guardada vía `POST /api/card/{id}/query/json` (una sola request), activable con `METABASE_CARD_ID`.
+-
+-### 3. No inventar columnas: descubrirlas
+-Antes de mapear nada, correr `test:metabase` que combina:
+-- `tabla(id)` → claves reales de la primer fila, y
+-- `GET /api/database/:id/metadata` → nombre/tipo/PK de cada campo y **motor SQL detectado** (postgres/sqlserver/mysql...).
+-Normalizar claves a minúsculas (`lowerCaseKeys`) porque ciertos motores devuelven mayúsculas.
+-
+-### 4. Proyección segura (toPublicUser)
+-Devolver SOLO campos necesarios (id, nombre, área, estado). Excluir explícitamente columnas sensibles que aparecen en tablas legadas (`contrasenia`, `servicekey_path`, `identityrecord`, vencimientos). Búsqueda `?q=` hecha EN MEMORIA sobre la caché — nunca se arma SQL con texto del usuario.
+-
+-**Ejemplo real verificado (UsuariosAccesos, source-table 1406):**
+-```js
+-// Columnas reales: usuariosaccesoid(PK), nombre, descripcion, tipo, perfil,
+-// ubicacionid, identityrecord*, contrasenia*, vencimiento*, gestionid,
+-// contraseniavencimiento*, contraseniaperiodo*, servicekey_path*, ultimoacceso, activo
+-// (*) sensibles → excluidas de toda proyección.
+-function toPublicUser(row) {
+-  const val = k => (row[k] != null ? String(row[k]).trim() : null);
+-  return {
+-    id: val('usuariosaccesoid'),
+-    nombre: val('nombre') || val('descripcion'),
+-    area: val('perfil') || val('ubicacionid'),
+-    estado: val('activo'),
+-  };
+-}
+-```
+-Ver `references/usuarios-service-example.js` para el servicio completo (caché TTL + dedupe + búsqueda).
+-
+-### 5. Timeout y errores claros
+-Todo fetch con `AbortController` (default 15s). Errores tipados `MetabaseError` con status; 401/403 ⇒ API key inválida o grupo sin permisos de lectura; el middleware traduce MetabaseError→502 sin filtrar headers/payloads.
+-
+-## Lado Supabase (ABM)
+-
+-### Esquema mínimo por tabla
+-```sql
+-create table equipment_movements (
+-  id uuid primary key default gen_random_uuid(),
+-  user_id uuid not null references auth.users(id),      -- dueño (RLS)
+-  equipment_id uuid not null references equipments(id),
+-  usuario_ref text not null,                            -- id externo (Metabase), NO FK
+-  usuario_nombre text,                                  -- cache p/ historial offline
+-  usuario_area text,                                    -- cache
+-  tipo text check (tipo in ('asignacion','devolucion','traslado','baja')),
+-  fecha timestamptz not null default now(),
+-  observaciones text,
+-  registrado_por text,
+-  created_at timestamptz default now()
+-);
+--- RLS idéntica al resto del proyecto: policy (user_id = auth.uid())
+-```
+-
+-### Patrón ABM: primero Supabase, después el estado
+-En el contexto de React (AppContext), cada operación devuelve `Promise<{ success, error? }>`:
+-- **Alta**: crear objeto SIN id (no uuidv4 local: un update sobre id inexistente no inserta nada), llamar `sync*ToSupabase` (hace create y asigna `entidad.id = data.id`), y recién si `success` agregar al estado con el id real.
+-- **Modificación**: combinar registro actual + Partial, enviar objeto completo, actualizar estado solo si sale bien.
+-- **Baja**: `delete*FromSupabase(id)` y quitar del estado solo si sale bien.
+-- Componentes: `await` al ABM, cerrar modal solo si `success`, mostrar error inline si falla, botón `disabled={saving}`.
+-- Normalizar TODAS las funciones de sync a `{ success: boolean; error?: string }` con el mensaje de Supabase incluido.
+-
+-### Coherencia de estado derivado
+-Al registrar movimiento: `asignacion → assigned`, `devolucion → available`, `baja → retired` sobre `equipments.status`. Si hace falta atomicidad, usar RPC (`security definer function`) en lugar de dos llamadas desde el cliente.
+-
+-## Seguridad (checklist)
+-- [ ] `.env` en `.gitignore` (raíz Y server/); `.env.example` sin valores reales.
+-- [ ] API key de un grupo Metabase con permisos SOLO de consulta sobre la DB.
+-- [ ] helmet + CORS limitado a `ALLOWED_ORIGINS` explícito.
+-- [ ] Nunca loguear API keys ni datos personales completos (solo mensajes técnicos).
+-- [ ] PostgreSQL siempre parametrizado; SQL nativo hacia Metabase sin entradas libres.
+-- [ ] Config validada al arrancar (throw con nombre de variable faltante).
+-- [ ] Opcional producción: validar JWT de Supabase en los endpoints del backend (Bearer → `supabase.auth.getUser(token)`).
+-
+-## Frontend (Vite)
+-- Proxy en desarrollo: `server.proxy['/api/metabase'] → http://localhost:4000` (el backend NO usa puerto 3000, lo ocupa Vite).
+-- Servicio `metabaseUsers.ts` consume solo `/api/metabase/...`; si el backend no responde, aviso claro + seguir con datos cacheados del lado Supabase.
+-
+-## Verificación mínima antes de integrar
+-1. `npm run test:metabase` desde una máquina de la red interna → debe imprimir filas, columnas reales y motor.
+-2. `curl localhost:4000/health` → ok.
+-3. `curl 'localhost:4000/api/metabase/usuarios?q=juan'` → solo campos proyectados.
+-4. Alta de prueba → confirmar en Supabase que el `user_id` es el del usuario logueado (no el UUID default `00000000-...`).
+-
+-## Referencias
+-- `references/metabase-client.js` — cliente completo corregido (formato dataset + paginación + card).
+-- `references/supabase-abm-pattern.ts` — extracto del patrón ABM {success,error} listo para copiar.
+-
+-## Código de referencia en este skill (`references/`)
+-
+-Todos los archivos son copias verificadas del código **funcionando** en Dashbord-Equipos (rama main, backend `server/` probado contra Metabase v0.55.3 real):
+-
+-| Archivo | Origen en el proyecto | Qué contiene |
+-|---|---|---|
+-| `metabase-client.js` | `server/src/clients/metabaseClient.js` | Cliente completo corregido: x-api-key, AbortController, formato correcto de /api/dataset (`database` al nivel superior), paginación offset, card query, `databaseEngine()` |
+-| `queries-example.js` | `server/src/queries/saiTest.js` | Queries SAI_TEST: `usuariosAccesos()` + `columnasUsuariosAccesos()` vía metadata |
+-| `usuarios-service-example.js` | `server/src/services/usuariosService.js` | Caché TTL + dedupe + proyección segura sobre columnas REALES de UsuariosAccesos (excluye contrasenia/servicekey_path/identityrecord/vencimientos) |
+-| `test-metabase-script.js` | `server/scripts/testMetabase.js` | Prueba de conexión sin datos personales (motor, filas, columnas) |
+-| `supabase-abm-pattern.ts` | extracto de `src/context/AppContext.tsx` + `src/services/supabaseSync.ts` | Patrón ABM {success,error?}, alta sin uuid local, modal solo cierra si success |
+-
+-Uso en proyectos nuevos: copiá el archivo de referencia a la ruta equivalente y ajustá nombres de tabla/columnas tras correr el test de descubrimiento (nunca antes).
+diff --git a/.env.example b/.env.example
+index fe42d7a..bbe8e62 100644
+--- a/.env.example
++++ b/.env.example
+@@ -4,4 +4,14 @@ VITE_SUPABASE_ANON_KEY=tu-anon-key-publica
+ # Proxy interno de Metabase (SAI_TEST, solo lectura). Default si se omite:
+ # https://ipa.donnet.com.ar/api — NO poner la API key acá ni con prefijo VITE_.
+ VITE_METABASE_PROXY_URL=https://ipa.donnet.com.ar/api
++
++# --- Variables del SERVIDOR (funciones api/* de Vercel). Sin prefijo VITE_ ---
++# Estas SOLO viven en Vercel > Settings > Environment Variables (y en .env local
++# para `vercel dev`). Nunca se comitean valores reales.
++IPA_API_URL=
++IPA_API_KEY=
++IPA_DB_ID=
++IPA_USUARIOS_TABLE_ID=
++SUPABASE_URL=
++SUPABASE_ANON_KEY=
+ VITE_METABASE_TIMEOUT_MS=15000
+diff --git a/CAMBIOS_V2.9.5.md b/CAMBIOS_V2.9.5.md
+deleted file mode 100644
+index 765513f..0000000
+--- a/CAMBIOS_V2.9.5.md
++++ /dev/null
+@@ -1,270 +0,0 @@
+-# 📝 Cambios Realizados - Versión 2.9.5
+-
+-## 🎯 Resumen de Modificaciones
+-
+-Se realizaron tres cambios específicos solicitados por el usuario para mejorar la experiencia y eliminar duplicaciones.
+-
+----
+-
+-## ✅ Cambio 1: Texto en Login
+-
+-### Ubicación
+-**Archivo:** `src/components/Login.tsx`  
+-**Línea:** 146
+-
+-### Antes
+-```tsx
+-<p className="text-blue-200 text-xs">
+-  Desarrollado por <span className="font-semibold text-white">Pablo Eloy Donnet</span>
+-</p>
+-```
+-
+-### Después
+-```tsx
+-<p className="text-blue-200 text-xs">
+-  Desarrollado por <span className="font-semibold text-white">&nbsp;&nbsp;&nbsp;&nbsp;&gt;vlf_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;VLFranceschini Dev</span>
+-</p>
+-```
+-
+-### Resultado Visual
+-```
+-Desarrollado por    >vlf_     VLFranceschini Dev
+-```
+-
+-**Nota:** Se usaron entidades HTML (`&nbsp;`) para preservar los espacios exactos solicitados por el usuario.
+-
+----
+-
+-## ✅ Cambio 2: Eliminar Toggle Duplicado
+-
+-### Problema
+-El toggle de modo claro/oscuro aparecía en dos lugares:
+-1. **Layout.tsx** (línea 127) - En el header principal
+-2. **Dashboard.tsx** (línea 161) - En el Hero Header
+-
+-### Solución
+-Se eliminó el toggle del Dashboard.tsx, manteniendo solo el del Layout.tsx.
+-
+-### Archivos Modificados
+-**Archivo:** `src/components/Dashboard.tsx`
+-
+-#### Cambios Realizados:
+-1. **Eliminado import** (línea 9):
+-```tsx
+-// ANTES
+-import ThemeToggle from './ThemeToggle';
+-import LowStockAlerts from './LowStockAlerts';
+-
+-// DESPUÉS
+-import LowStockAlerts from './LowStockAlerts';
+-```
+-
+-2. **Eliminado componente** (línea 161):
+-```tsx
+-// ANTES
+-<div className="flex items-center gap-3">
+-  <ThemeToggle />
+-  <div className="bg-white/80 ...">
+-    <p className="text-xs ...">Fecha</p>
+-    ...
+-  </div>
+-  ...
+-</div>
+-
+-// DESPUÉS
+-<div className="flex items-center gap-3">
+-  <div className="bg-white/80 ...">
+-    <p className="text-xs ...">Fecha</p>
+-    ...
+-  </div>
+-  ...
+-</div>
+-```
+-
+-### Resultado
+-✅ Toggle de modo claro/oscuro ahora aparece **una sola vez** en el header principal (Layout.tsx)
+-
+----
+-
+-## ✅ Cambio 3: Nombre del Dashboard
+-
+-### Problema
+-El título "Dashboard" aparecía en dos lugares con textos diferentes:
+-1. **Línea 154:** "Bienvenido al Dashboard Control"
+-2. **Línea 360:** "¡Bienvenido al Dashboard Control de Equipamientos!"
+-
+-### Solución
+-Se unificó el nombre a **"Dashboard de Equipamiento"** en ambos lugares.
+-
+-### Archivos Modificados
+-**Archivo:** `src/components/Dashboard.tsx`
+-
+-#### Cambio 1 - Hero Header (línea 154):
+-```tsx
+-// ANTES
+-<h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1">
+-  Bienvenido al Dashboard Control
+-</h1>
+-<p className="text-gray-600 dark:text-slate-400 text-sm lg:text-base">
+-  de Equipamientos - Gestión integral de recursos e inventario
+-</p>
+-
+-// DESPUÉS
+-<h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1">
+-  Dashboard de Equipamiento
+-</h1>
+-<p className="text-gray-600 dark:text-slate-400 text-sm lg:text-base">
+-  Gestión integral de recursos e inventario
+-</p>
+-```
+-
+-#### Cambio 2 - Welcome State (línea 360):
+-```tsx
+-// ANTES
+-<h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+-  ¡Bienvenido al Dashboard Control de Equipamientos!
+-</h3>
+-
+-// DESPUÉS
+-<h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+-  ¡Bienvenido al Dashboard de Equipamiento!
+-</h3>
+-```
+-
+-### Resultado
+-✅ Nombre unificado: **"Dashboard de Equipamiento"**  
+-✅ Sin duplicaciones  
+-✅ Texto más limpio y conciso
+-
+----
+-
+-## 📊 Estadísticas del Build
+-
+-```
+-✓ 2070 módulos transformados
+-✓ CSS: 70.95 kB (gzip: 10.89 kB)
+-✓ JS: 1,480.35 kB (gzip: 412.53 kB)
+-✓ Tiempo de build: 13.77s
+-✓ Sin errores de compilación
+-```
+-
+----
+-
+-## 🎨 Impacto Visual
+-
+-### Login
+-```
+-┌─────────────────────────────────────────┐
+-│                                         │
+-│         [Icono de Impresora]            │
+-│                                         │
+-│      Dashboard Control                  │
+-│      de Equipamientos                   │
+-│                                         │
+-│    ┌───────────────────────────┐       │
+-│    │  Iniciar Sesión           │       │
+-│    │                           │       │
+-│    │  Email: [___________]     │       │
+-│    │  Contraseña: [_________]  │       │
+-│    │                           │       │
+-│    │  [    Ingresar    ]       │       │
+-│    └───────────────────────────┘       │
+-│                                         │
+-│         [Logo >vlf_]                    │
+-│                                         │
+-│  Desarrollado por    >vlf_              │
+-│                   VLFranceschini Dev    │
+-│                                         │
+-│  © 2024 VLF dev - Para Sistemas PEDSA  │
+-└─────────────────────────────────────────┘
+-```
+-
+-### Dashboard (Header)
+-```
+-┌─────────────────────────────────────────────────────────┐
+-│  🌙 [Toggle]    📅 Fecha    🕐 Hora                     │
+-├─────────────────────────────────────────────────────────┤
+-│                                                          │
+-│  🛡️ PANEL DE CONTROL                                   │
+-│                                                          │
+-│  Dashboard de Equipamiento                              │
+-│  Gestión integral de recursos e inventario              │
+-│                                                          │
+-└─────────────────────────────────────────────────────────┘
+-```
+-
+-### Dashboard (Welcome State - cuando no hay datos)
+-```
+-┌─────────────────────────────────────────────────────────┐
+-│                                                          │
+-│  ⚡ Sistema inicializado                                │
+-│                                                          │
+-│  ¡Bienvenido al Dashboard de Equipamiento!              │
+-│                                                          │
+-│  Comienza registrando tus recursos para gestionar       │
+-│  tu infraestructura de forma eficiente                  │
+-│                                                          │
+-│  [Equipamientos] [Colaboradores] [Proveedores]          │
+-│  [Comprobantes] [Impresoras]                            │
+-│                                                          │
+-└─────────────────────────────────────────────────────────┘
+-```
+-
+----
+-
+-## 🔍 Verificación de Cambios
+-
+-### ✅ Cambio 1: Texto en Login
+-- [x] Texto cambiado correctamente
+-- [x] Espacios preservados con `&nbsp;`
+-- [x] Formato visual mantenido
+-- [x] No afecta otras funcionalidades
+-
+-### ✅ Cambio 2: Toggle Duplicado
+-- [x] Toggle eliminado del Dashboard
+-- [x] Toggle mantenido en Layout
+-- [x] Import eliminado para limpieza de código
+-- [x] Solo un toggle visible en la aplicación
+-
+-### ✅ Cambio 3: Nombre del Dashboard
+-- [x] Título unificado en Hero Header
+-- [x] Título unificado en Welcome State
+-- [x] Sin duplicaciones
+-- [x] Texto más conciso y claro
+-
+----
+-
+-## 📝 Archivos Modificados
+-
+-1. **`src/components/Login.tsx`**
+-   - Línea 146: Texto de créditos actualizado
+-
+-2. **`src/components/Dashboard.tsx`**
+-   - Línea 9: Import de ThemeToggle eliminado
+-   - Línea 154: Título del Hero Header actualizado
+-   - Línea 161: Componente ThemeToggle eliminado
+-   - Línea 360: Título del Welcome State actualizado
+-
+----
+-
+-## 🚀 Próximos Pasos
+-
+-Los cambios están listos para:
+-1. ✅ Commit a Git
+-2. ✅ Push al repositorio
+-3. ✅ Despliegue a producción
+-
+----
+-
+-## 📞 Soporte
+-
+-**Desarrollado por:** VLFranceschini Dev - >vlf_  
+-**Versión:** 2.9.5  
+-**Fecha:** 2024  
+-**Cliente:** Sistemas PEDSA
+-
+----
+-
+-## 📄 Licencia
+-
+-Todos los derechos reservados - VLF dev para Sistemas PEDSA
+diff --git a/CORRECCIONES_IDENTIDAD.md b/CORRECCIONES_IDENTIDAD.md
+deleted file mode 100644
+index 9beddaf..0000000
+--- a/CORRECCIONES_IDENTIDAD.md
++++ /dev/null
+@@ -1,222 +0,0 @@
+-# 📝 Registro de Correcciones - Dashboard Control de Equipamientos
+-
+-## 🎯 Objetivo
+-
+-Actualizar la identidad del sistema y los créditos de desarrollo según las especificaciones del cliente.
+-
+----
+-
+-## ✅ Cambios Realizados
+-
+-### 1. Nombre del Sistema
+-
+-**Antes:** "Sistema de Control de Tóner"  
+-**Ahora:** "Dashboard Control de Equipamientos"
+-
+-### 2. Créditos de Desarrollo
+-
+-**Antes:** "Desarrollado por VLF dev para Sistemas PEDSA"  
+-**Ahora:** "Desarrollado por VLF dev para Sistemas PEDSA"
+-
+-### 3. Versión Actualizada
+-
+-**Antes:** 2.0.0 / 2.8.0  
+-**Ahora:** 2.9.0
+-
+----
+-
+-## 📁 Archivos Modificados
+-
+-### 1. `index.html`
+-- ✅ Título de la página actualizado
+-- ✅ Meta información corregida
+-
+-```html
+-<title>Dashboard Control de Equipamientos</title>
+-```
+-
+-### 2. `package.json`
+-- ✅ Nombre del paquete actualizado
+-- ✅ Versión actualizada a 2.9.0
+-
+-```json
+-{
+-  "name": "dashboard-control-equipamientos",
+-  "version": "2.9.0"
+-}
+-```
+-
+-### 3. `src/components/Layout.tsx`
+-- ✅ Nombre en el sidebar actualizado
+-- ✅ Subtítulo corregido
+-
+-```tsx
+-<h1 className="font-bold text-base">Dashboard Control</h1>
+-<p className="text-xs">de Equipamientos</p>
+-```
+-
+-### 4. `src/components/Login.tsx`
+-- ✅ Título de la pantalla de login actualizado
+-- ✅ Subtítulo corregido
+-- ✅ Footer con créditos actualizados
+-
+-```tsx
+-<h1 className="text-3xl font-bold">Dashboard Control</h1>
+-<p className="text-blue-200 text-sm">de Equipamientos</p>
+-
+-<p className="text-center">
+-  © 2024 Dashboard Control de Equipamientos - 
+-  Desarrollado por <span className="font-semibold">VFL</span> para 
+-  <span className="font-semibold">VLF dev para Sistemas PEDSA</span>
+-</p>
+-```
+-
+-### 5. `src/components/Dashboard.tsx`
+-- ✅ Mensaje de bienvenida actualizado
+-- ✅ Descripción del sistema corregida
+-- ✅ Estado de bienvenida actualizado
+-- ✅ Footer con créditos actualizados
+-- ✅ Versión actualizada a 2.9.0
+-
+-```tsx
+-<h1 className="text-2xl lg:text-3xl font-bold">
+-  Bienvenido al Dashboard Control
+-</h1>
+-<p className="text-gray-600 dark:text-slate-400">
+-  de Equipamientos - Gestión integral de recursos e inventario
+-</p>
+-
+-<h3 className="text-sm font-bold">
+-  Desarrollado por VLF dev para Sistemas PEDSA
+-</h3>
+-
+-<p className="text-xs font-bold">2.9.0</p>
+-```
+-
+-### 6. `README.md`
+-- ✅ Título del proyecto actualizado
+-- ✅ Descripción corregida
+-- ✅ Créditos actualizados
+-- ✅ Versión actualizada
+-- ✅ Licencia actualizada
+-
+-```markdown
+-# Dashboard Control de Equipamientos
+-
+-Sistema integral de gestión de equipamientos, impresión y monitoreo remoto 
+-desarrollado por **VLF dev** para **Sistemas PEDSA**.
+-
+-## 📝 Créditos
+-
+-**Desarrollado por:** VFL  
+-**Para:** Sistemas PEDSA  
+-**Versión:** 2.9.0  
+-**Año:** 2024
+-
+-## 📄 Licencia
+-
+-Todos los derechos reservados - VLF dev / Sistemas PEDSA
+-```
+-
+----
+-
+-## 🎨 Identidad Visual
+-
+-### Nombre Completo
+-**Dashboard Control de Equipamientos**
+-
+-### Nombre Corto
+-**Dashboard Control**
+-
+-### Desarrollador
+-**VFL**
+-
+-### Cliente
+-**Sistemas PEDSA**
+-
+-### Versión Actual
+-**2.9.0**
+-
+----
+-
+-## 📊 Estadísticas del Build
+-
+-```
+-✓ 2020 módulos transformados
+-✓ CSS: 69.46 kB (gzip: 10.65 kB)
+-✓ JS: 1,216.48 kB (gzip: 345.28 kB)
+-✓ Tiempo de build: 12.37s
+-✓ Compilación exitosa sin errores
+-```
+-
+----
+-
+-## ✅ Verificación
+-
+-### Pantalla de Login
+-- ✅ Título: "Dashboard Control"
+-- ✅ Subtítulo: "de Equipamientos"
+-- ✅ Footer: "© 2024 Dashboard Control de Equipamientos - Desarrollado por VLF dev para Sistemas PEDSA"
+-
+-### Sidebar
+-- ✅ Nombre: "Dashboard Control"
+-- ✅ Subtítulo: "de Equipamientos"
+-
+-### Dashboard
+-- ✅ Mensaje de bienvenida: "Bienvenido al Dashboard Control"
+-- ✅ Descripción: "de Equipamientos - Gestión integral de recursos e inventario"
+-- ✅ Footer: "Desarrollado por VLF dev para Sistemas PEDSA"
+-- ✅ Versión: "2.9.0"
+-
+-### Navegador
+-- ✅ Pestaña: "Dashboard Control de Equipamientos"
+-
+-### Documentación
+-- ✅ README.md actualizado
+-- ✅ Créditos correctos
+-- ✅ Versión actualizada
+-
+----
+-
+-## 📝 Notas Adicionales
+-
+-### Consistencia
+-Todos los archivos del sistema ahora muestran consistentemente:
+-- El nombre correcto del sistema
+-- Los créditos de desarrollo apropiados
+-- La versión actualizada
+-
+-### Profesionalismo
+-La identidad del sistema refleja:
+-- Claridad en el propósito (Dashboard Control de Equipamientos)
+-- Reconocimiento al desarrollador (VFL)
+-- Atribución al cliente (Area Sistemas PEDSA)
+-
+-### Mantenimiento
+-Los cambios están documentados en:
+-- Este archivo (CORRECCIONES_IDENTIDAD.md)
+-- README.md actualizado
+-- package.json con nueva versión
+-
+----
+-
+-## 🚀 Próximos Pasos
+-
+-1. ✅ Verificar que todos los cambios sean visibles en la aplicación
+-2. ✅ Confirmar que la compilación sea exitosa
+-3. ✅ Actualizar documentación adicional si es necesario
+-4. ✅ Considerar crear un changelog para futuras versiones
+-
+----
+-
+-## 📞 Contacto
+-
+-**Desarrollador:** VFL  
+-**Cliente:** Area Sistemas PEDSA  
+-**Proyecto:** Dashboard Control de Equipamientos  
+-**Versión:** 2.9.0  
+-**Fecha de Actualización:** 2024
+-
+----
+-
+-**Estado:** ✅ **COMPLETADO Y VERIFICADO**
+diff --git a/MEJORAS_IMPLEMENTADAS.md b/MEJORAS_IMPLEMENTADAS.md
+deleted file mode 100644
+index ba2792f..0000000
+--- a/MEJORAS_IMPLEMENTADAS.md
++++ /dev/null
+@@ -1,409 +0,0 @@
+-# Sistema de Control de Tóner - Documentación de Mejoras
+-
+-## 🎯 Resumen de Implementaciones
+-
+-Se han implementado dos mejoras principales en el sistema:
+-
+-1. **Tema Claro/Oscuro** - Sistema completo de temas con persistencia
+-2. **Importación CSV/Excel** - Componente modular para importar datos en todos los módulos
+-
+----
+-
+-## 🌓 1. Sistema de Temas Claro/Oscuro
+-
+-### ✅ Implementación Completa
+-
+-**Archivos creados/modificados:**
+-- `src/context/ThemeContext.tsx` - Contexto global de temas
+-- `src/components/Dashboard.tsx` - Toggle de tema integrado
+-- `src/index.css` - Estilos para modo oscuro
+-
+-**Características:**
+-- ✅ Toggle en Dashboard (esquina superior derecha)
+-- ✅ Persistencia en localStorage
+-- ✅ Transiciones suaves
+-- ✅ Todos los componentes adaptados
+-- ✅ Accesibilidad WCAG AA
+-
+-**Uso:**
+-```typescript
+-import { useTheme } from '../context/ThemeContext';
+-
+-const { theme, toggleTheme } = useTheme();
+-```
+-
+-**Documentación completa:** Ver `TEMA_CLARO_OSCURO.md`
+-
+----
+-
+-## 📥 2. Sistema de Importación CSV/Excel
+-
+-### ✅ Componente Modular: ImportModal
+-
+-**Archivos creados:**
+-- `src/components/ImportModal.tsx` - Componente reutilizable
+-- `src/utils/csvImporter.ts` - Importador CSV
+-- `src/utils/excelImporter.ts` - Importador Excel
+-- `src/utils/docxImporter.ts` - Importador Word
+-- `src/utils/pdfImporter.ts` - Importador PDF
+-
+-**Características:**
+-- ✅ Soporte multi-formato (CSV, Excel, Word, PDF)
+-- ✅ Validación de datos
+-- ✅ Mapeo automático de columnas
+-- ✅ Plantillas descargables
+-- ✅ Reporte de errores detallado
+-- ✅ Diseño responsive
+-- ✅ Modo oscuro compatible
+-
+-### 📊 Módulos con Importación Integrada
+-
+-#### ✅ Equipamientos (Completado)
+-
+-**Archivo:** `src/components/Equipments.tsx`
+-
+-**Funcionalidad:**
+-- Botón "Importar" junto a "Nuevo Equipo"
+-- Modal de importación con validación
+-- Plantillas CSV/Excel descargables
+-- Mapeo automático de columnas
+-
+-**Columnas soportadas:**
+-- nombre, tipo, marca, modelo, serial, codigo, categoria
+-
+-**Validación:**
+-- Nombre obligatorio
+-- Marca obligatoria
+-
+-**Ejemplo de uso:**
+-```typescript
+-<ImportModal
+-  isOpen={showImport}
+-  onClose={() => setShowImport(false)}
+-  onImport={handleImport}
+-  title="Equipos"
+-  templateHeaders={['nombre', 'tipo', 'marca', 'modelo', 'serial', 'codigo', 'categoria']}
+-  mapping={{
+-    'nombre': 'name',
+-    'tipo': 'type',
+-    'marca': 'brand',
+-    // ... más mapeos
+-  }}
+-  validator={(row) => {
+-    if (!row.name) return 'Nombre es obligatorio';
+-    if (!row.brand) return 'Marca es obligatoria';
+-    return null;
+-  }}
+-/>
+-```
+-
+-### 🔧 Cómo Integrar en Otros Módulos
+-
+-**Documentación completa:** Ver `IMPORTACION_GUIA.md`
+-
+-**Pasos rápidos:**
+-
+-1. **Importar componente:**
+-```typescript
+-import ImportModal from './ImportModal';
+-import { Upload } from 'lucide-react';
+-```
+-
+-2. **Agregar estado:**
+-```typescript
+-const [showImport, setShowImport] = useState(false);
+-```
+-
+-3. **Crear función de importación:**
+-```typescript
+-const handleImport = (importedData: any[]) => {
+-  importedData.forEach(item => {
+-    addCollaborator({
+-      ...item,
+-      id: uuidv4(),
+-      // ... valores por defecto
+-    } as Collaborator);
+-  });
+-  setShowImport(false);
+-};
+-```
+-
+-4. **Agregar botón:**
+-```typescript
+-<button onClick={() => setShowImport(true)}>
+-  <Upload size={16} /> Importar
+-</button>
+-```
+-
+-5. **Agregar modal:**
+-```typescript
+-<ImportModal
+-  isOpen={showImport}
+-  onClose={() => setShowImport(false)}
+-  onImport={handleImport}
+-  title="Colaboradores"
+-  templateHeaders={['nombre', 'apellido', 'dni', 'email']}
+-  mapping={{ 'nombre': 'name', 'apellido': 'lastName' }}
+-  validator={(row) => !row.name ? 'Nombre obligatorio' : null}
+-/>
+-```
+-
+----
+-
+-## 📋 Módulos Pendientes de Integración
+-
+-Los siguientes módulos pueden integrar el componente ImportModal:
+-
+-### 1. Colaboradores
+-**Archivo:** `src/components/Collaborators.tsx`
+-
+-**Columnas sugeridas:**
+-- nombre, apellido, dni, email, telefono, departamento, cargo
+-
+-**Validación:**
+-- Nombre obligatorio
+-- Apellido obligatorio
+-
+-### 2. Proveedores
+-**Archivo:** `src/components/Suppliers.tsx`
+-
+-**Columnas sugeridas:**
+-- nombre, cuit, contacto, email, telefono, direccion, categoria
+-
+-**Validación:**
+-- Nombre obligatorio
+-
+-### 3. Impresoras
+-**Archivo:** `src/components/Printers.tsx`
+-
+-**Columnas sugeridas:**
+-- nombre, modelo, ubicacion, departamento, toner, estado
+-
+-**Validación:**
+-- Nombre obligatorio
+-- Modelo obligatorio
+-
+-### 4. Inventario de Tóner
+-**Archivo:** `src/components/Inventory.tsx`
+-
+-**Columnas sugeridas:**
+-- modelo, marca, color, stock, minStock, maxStock, precio, proveedor
+-
+-**Validación:**
+-- Modelo obligatorio
+-- Marca obligatoria
+-- Color obligatorio
+-
+-### 5. Comprobantes
+-**Archivo:** `src/components/Vouchers.tsx`
+-
+-**Columnas sugeridas:**
+-- numero, tipo, proveedor, fecha, monto, moneda, descripcion, estado
+-
+-**Validación:**
+-- Número obligatorio
+-- Proveedor obligatorio
+-
+----
+-
+-## 🎨 Diseño y UX
+-
+-### Paleta de Colores
+-
+-**Modo Claro:**
+-- Fondo: `#ffffff`
+-- Texto: `#111827`
+-- Acento: `#3b82f6`
+-- Éxito: `#10b981`
+-- Error: `#ef4444`
+-
+-**Modo Oscuro:**
+-- Fondo: `#1a1a1a`
+-- Texto: `#f1f1f1`
+-- Acento: `#60a5fa`
+-- Éxito: `#34d399`
+-- Error: `#f87171`
+-
+-### Componentes Reutilizables
+-
+-**ImportModal:**
+-- Modal de importación con validación
+-- Soporte para CSV, Excel, Word, PDF
+-- Descarga de plantillas
+-- Reporte de errores
+-
+-**ThemeContext:**
+-- Gestión global de temas
+-- Persistencia en localStorage
+-- Toggle fácil
+-
+----
+-
+-## 📊 Estadísticas del Proyecto
+-
+-**Archivos totales:** 32+  
+-**Líneas de código:** ~7,000+  
+-**Componentes:** 15+  
+-**Módulos:** 9  
+-
+-**Nuevas funcionalidades:**
+-- ✅ Sistema de temas (1 contexto, 1 toggle)
+-- ✅ Importación CSV/Excel (1 componente reutilizable)
+-- ✅ Importación Word/PDF (2 utilidades adicionales)
+-- ✅ Integración en Equipamientos (completado)
+-
+----
+-
+-## 🚀 Próximos Pasos
+-
+-### Prioridad Alta
+-
+-1. **Integrar ImportModal en todos los módulos:**
+-   - Colaboradores
+-   - Proveedores
+-   - Impresoras
+-   - Inventario
+-   - Comprobantes
+-
+-2. **Mejorar validaciones:**
+-   - Validaciones más estrictas
+-   - Mensajes de error más descriptivos
+-   - Validación de formatos (email, teléfono, etc.)
+-
+-3. **Optimizar rendimiento:**
+-   - Lazy loading de componentes
+-   - Code splitting
+-   - Optimización de imágenes
+-
+-### Prioridad Media
+-
+-4. **Exportación de datos:**
+-   - Exportar a CSV/Excel
+-   - Exportar a PDF
+-   - Exportar reportes completos
+-
+-5. **Mejoras de UX:**
+-   - Drag & drop para archivos
+-   - Preview de datos antes de importar
+-   - Edición en línea
+-
+-6. **Integración con MeshCentral:**
+-   - Sincronización automática
+-   - Importación de dispositivos
+-   - Monitoreo en tiempo real
+-
+-### Prioridad Baja
+-
+-7. **Funcionalidades avanzadas:**
+-   - Dashboard personalizado
+-   - Reportes avanzados
+-   - Automatización de tareas
+-
+-8. **Seguridad:**
+-   - Autenticación de dos factores
+-   - Logs de auditoría
+-   - Backup automático
+-
+----
+-
+-## 📚 Documentación
+-
+-**Archivos de documentación:**
+-- `README.md` - Documentación principal
+-- `SKILL_DOCUMENT.md` - Habilidades y capacidades
+-- `IMPORTACION_GUIA.md` - Guía de integración de importación
+-- `TEMA_CLARO_OSCURO.md` - Guía del sistema de temas
+-- `MEJORAS_IMPLEMENTADAS.md` - Este documento
+-
+----
+-
+-## 🔧 Configuración del Proyecto
+-
+-### Dependencias Principales
+-
+-```json
+-{
+-  "react": "^18.2.0",
+-  "typescript": "^5.2.2",
+-  "tailwindcss": "^3.3.0",
+-  "lucide-react": "^0.294.0",
+-  "xlsx": "^0.18.5",
+-  "mammoth": "^1.6.0",
+-  "pdfjs-dist": "^3.11.174",
+-  "recharts": "^2.10.0",
+-  "date-fns": "^2.30.0",
+-  "uuid": "^9.0.1"
+-}
+-```
+-
+-### Scripts Disponibles
+-
+-```bash
+-npm run dev        # Servidor de desarrollo
+-npm run build      # Compilar para producción
+-npm run preview    # Vista previa de producción
+-```
+-
+----
+-
+-## ✅ Checklist de Calidad
+-
+-### Código
+-- [x] TypeScript estricto
+-- [x] Componentes modulares
+-- [x] Código limpio y comentado
+-- [x] Sin errores de compilación
+-- [x] Optimizado para producción
+-
+-### UX/UI
+-- [x] Diseño responsive
+-- [x] Modo claro/oscuro
+-- [x] Accesibilidad WCAG AA
+-- [x] Transiciones suaves
+-- [x] Mensajes de error claros
+-
+-### Funcionalidad
+-- [x] Importación CSV/Excel
+-- [x] Validación de datos
+-- [x] Plantillas descargables
+-- [x] Reporte de errores
+-- [x] Persistencia de preferencias
+-
+-### Documentación
+-- [x] README completo
+-- [x] Guías de integración
+-- [x] Ejemplos de uso
+-- [x] Comentarios en código
+-- [x] Documentación de API
+-
+----
+-
+-## 📞 Soporte y Contacto
+-
+-**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA  
+-**Versión:** 2.0.0  
+-**Última actualización:** 2024
+-
+-**Para soporte técnico:**
+-- Revisar documentación en `docs/`
+-- Consultar ejemplos en componentes
+-- Contactar al equipo de desarrollo
+-
+----
+-
+-## 🎉 Conclusión
+-
+-Se han implementado exitosamente dos mejoras fundamentales:
+-
+-1. **Sistema de temas claro/oscuro** - Mejora la experiencia del usuario y reduce la fatiga visual
+-2. **Importación CSV/Excel** - Facilita la carga masiva de datos y ahorra tiempo
+-
+-Ambas mejoras son modulares, reutilizables y siguen las mejores prácticas de desarrollo. El sistema está listo para ser utilizado en producción y puede escalarse fácilmente para agregar más funcionalidades.
+-
+-**Estado del proyecto:** ✅ Completado y funcional
+-
+----
+-
+-**Desarrollado por:** Area Sistemas PEDSA  
+-**Versión:** 2.0.0  
+-**Año:** 2024
+diff --git a/README.md b/README.md
+index ea1144a..d13096e 100644
+--- a/README.md
++++ b/README.md
+@@ -16,10 +16,11 @@ Sistema integral de gestión de equipamientos, impresión y monitoreo remoto des
+ - **🔄 Movimientos** - Registro de entregas, reposiciones, devoluciones y desechos
+ - **📈 Reportes** - Análisis y exportación de datos
+ - **📥 Importar Datos** - Importación masiva desde CSV, Excel, Word y PDF
++- **🔁 Asignaciones** - Búsqueda de usuarios en SAI_TEST (solo lectura) y registro de entrega/devolución de equipos en Supabase
+ 
+ ### Funcionalidades Destacadas
+ 
+-✅ **Autenticación Segura** - Login con email y contraseña  
++✅ **Autenticación Segura** - Login real con Supabase Auth (email y contraseña)  
+ ✅ **Diseño Responsive** - Interfaz adaptable a todos los dispositivos  
+ ✅ **Tema Oscuro/Claro** - Toggle con persistencia en localStorage  
+ ✅ **Estilo Figma** - UI moderna con gradientes, glassmorphism y animaciones  
+@@ -43,54 +44,88 @@ npm run dev
+ npm run build
+ ```
+ 
+-## 🛠️ Tecnologías
++## 🛠️ Stack
+ 
+-- **React 18** - Framework de UI
+-- **TypeScript** - Tipado estático
+-- **Vite** - Build tool y dev server
+-- **Tailwind CSS** - Framework CSS
+-- **Lucide React** - Iconos
+-- **Recharts** - Gráficos y visualizaciones
+-- **date-fns** - Manipulación de fechas
+-- **uuid** - Generación de IDs únicos
+-- **xlsx** - Importación/exportación de archivos Excel
+-- **mammoth** - Extracción de texto de archivos Word
+-- **pdfjs-dist** - Extracción de texto de archivos PDF
++- **React 18 + TypeScript** - Framework de UI con tipado estático
++- **Vite 6** - Build tool y dev server
++- **Tailwind CSS 4** - Framework CSS (tema claro/oscuro)
++- **Supabase** - Auth real (login por email/contraseña), Postgres con RLS y storage del ABM
++- **Vercel** - Hosting del frontend + funciones serverless (`api/`) para leer la fuente externa
++- **Metabase (SAI_TEST, solo lectura)** - Fuente de usuarios externos vía `ipa.donnet.com.ar`
++- **Lucide React** - Iconos · **Recharts** - Gráficos · **date-fns** - Fechas
++- **xlsx / mammoth / pdfjs-dist** - Importación desde Excel, Word y PDF
++
++## 🏗️ Arquitectura
++
++```
++navegador (React SPA en Vercel)
++   ├── HTTPS + anon key (RLS protege) ──► Supabase (Auth + Postgres: todo el ABM)
++   └── fetch('/api/usuarios') + Bearer token ──► función serverless Vercel
++                                                     │ x-api-key (solo ahí, sin prefijo VITE_)
++                                                     ▼
++                                        ipa.donnet.com.ar/api → Metabase SAI_TEST (SOLO LECTURA)
++```
++
++- La API key externa **nunca llega al navegador**; el backend interno (`server/`) fue eliminado.
++- SAI_TEST es de solo lectura: las asignaciones se registran en Supabase.
++- Patrón "primero Supabase, después estado": si la escritura falla, el estado de React no cambia.
++
++Detalle completo: [`docs/arquitectura.md`](docs/arquitectura.md).
+ 
+ ## 📁 Estructura del Proyecto
+ 
+ ```
+-src/
+-├── components/              # Componentes React
+-│   ├── Login.tsx           # Pantalla de login
+-│   ├── Layout.tsx          # Layout principal con sidebar
+-│   ├── Dashboard.tsx       # Panel de control con toggle de tema
+-│   ├── Equipments.tsx      # Gestión de equipamientos con importación
+-│   ├── Collaborators.tsx   # Gestión de colaboradores
+-│   ├── Suppliers.tsx       # Gestión de proveedores
+-│   ├── Vouchers.tsx        # Gestión de comprobantes
+-│   ├── Printers.tsx        # Gestión de impresoras
+-│   ├── Inventory.tsx       # Control de inventario
+-│   ├── Movements.tsx       # Registro de movimientos
+-│   ├── Reports.tsx         # Reportes y análisis
+-│   ├── ImportData.tsx      # Componente de importación general
+-│   └── ImportModal.tsx     # Modal reutilizable de importación
+-├── context/                # Contextos React
+-│   ├── AppContext.tsx      # Estado global de la aplicación
+-│   ├── AuthContext.tsx     # Estado de autenticación
+-│   └── ThemeContext.tsx    # Estado del tema (oscuro/claro)
+-├── utils/                  # Utilidades de importación
+-│   ├── csvImporter.ts      # Importación CSV
+-│   ├── excelImporter.ts    # Importación Excel
+-│   ├── docxImporter.ts     # Importación Word
+-│   └── pdfImporter.ts      # Importación PDF
+-├── types.ts               # Tipos TypeScript
+-├── data.ts               # Datos iniciales y constantes
+-├── App.tsx               # Componente principal
+-├── main.tsx              # Punto de entrada
+-└── index.css             # Estilos globales con soporte dark mode
++.
++├── api/                    # Funciones serverless de Vercel (lectura de usuarios externos)
++├── docs/                   # Documentación temática consolidada
++├── scripts/                # Helpers (setup auth, deploy Vercel, test de conexión)
++├── supabase/
++│   ├── schema.sql          # Esquema de referencia
++│   └── migrations/         # Migraciones idempotentes (AAAAMMDD_descripcion.sql)
++├── src/                    # Código de la aplicación
++│   ├── components/         # React: Login, Layout, Dashboard, Equipments, Collaborators,
++│   │                       # Suppliers, Vouchers, Printers, Inventory, Movements, Reports,
++│   │                       # ImportData, ImportModal, Asignaciones, monitoreo remoto
++│   ├── context/            # AppContext (estado = copia de Supabase), AuthContext, ThemeContext
++│   ├── services/           # supabase.ts, supabaseSync.ts (ABM), authService.ts,
++│   │                       # metabaseProxy.ts (llama a /api/usuarios), Mesh Central, etc.
++│   ├── utils/              # Importadores CSV/Excel/Word/PDF, compatibilidad de tóner
++│   ├── types.ts            # Tipos TypeScript
++│   ├── data.ts             # Constantes del sistema
++│   ├── App.tsx / main.tsx  # Entry points
++│   └── index.css           # Estilos globales + dark mode
++└── CHANGELOG.md            # Historial de versiones
+ ```
+ 
++## 🏃 Correr en local
++
++```bash
++npm install
++cp .env.example .env        # completar con TU proyecto Supabase (sin valores reales en el repo)
++npm run dev                 # Vite en http://localhost:3000 (host 0.0.0.0, strictPort)
++npx vercel dev              # si además necesitás las funciones api/* locales
++npm run typecheck           # chequeo de tipos
++npm run build               # producción → dist/
++```
++
++## ⚙️ Variables de entorno
++
++Solo los nombres — los valores reales van en `.env` local y en
++Vercel → Settings → Environment Variables (nunca se comitean):
++
++| Variable | Dónde | Descripción |
++|---|---|---|
++| `VITE_SUPABASE_URL` | frontend | URL del proyecto Supabase |
++| `VITE_SUPABASE_ANON_KEY` | frontend | anon key (pública; RLS protege los datos) |
++| `IPA_API_URL` | función serverless | Base de la API externa (Metabase SAI_TEST, solo lectura) |
++| `IPA_API_KEY` | función serverless | x-api-key de un grupo con permisos de solo consulta |
++| `IPA_DB_ID` | función serverless | ID numérico de la base destino (SAI_TEST) |
++| `IPA_USUARIOS_TABLE_ID` | función serverless | source-table de UsuariosAccesos |
++| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | función serverless | Validación de sesión (Bearer token) |
++
++**Regla:** ninguna variable secreta puede llevar prefijo `VITE_` (se compila dentro del bundle).
++Ver [`docs/seguridad.md`](docs/seguridad.md).
++
+ ## 🎨 Diseño UI/UX
+ 
+ El sistema utiliza un diseño moderno estilo Figma con:
+@@ -131,7 +166,7 @@ El sistema soporta importación masiva desde múltiples formatos:
+ 5. El sistema valida y muestra errores si los hay
+ 6. Los datos válidos se importan automáticamente
+ 
+-Ver `IMPORTACION_GUIA.md` para más detalles sobre cómo integrar en otros módulos.
++Ver [`docs/importacion.md`](docs/importacion.md) para más detalles sobre cómo integrar en otros módulos.
+ 
+ ## 🌓 Tema Claro/Oscuro
+ 
+@@ -149,7 +184,7 @@ El sistema incluye un sistema completo de temas:
+ - El tema se guarda automáticamente
+ - Se restaura al recargar la página
+ 
+-Ver `TEMA_CLARO_OSCURO.md` para más detalles técnicos.
++Ver [`docs/temas.md`](docs/temas.md) para más detalles técnicos.
+ 
+ ## 📊 Módulos Detallados
+ 
+@@ -190,56 +225,61 @@ Ver `TEMA_CLARO_OSCURO.md` para más detalles técnicos.
+ 
+ ## 🔒 Seguridad
+ 
+-- ✅ Credenciales no visibles en la pantalla de login
+-- ✅ Mensajes de error genéricos
+-- ✅ Sesión persistente con localStorage
+-- ✅ Atributos autoComplete para mejor UX
+-- ✅ Botón de cerrar sesión visible
+-
+-## 📚 Documentación Adicional
+-
+-El proyecto incluye documentación completa:
+-
+-- **README.md** - Este archivo (documentación principal)
+-- **SKILL_DOCUMENT.md** - Habilidades y capacidades del sistema
+-- **IMPORTACION_GUIA.md** - Guía completa de integración de importación
+-- **TEMA_CLARO_OSCURO.md** - Guía técnica del sistema de temas
+-- **MEJORAS_IMPLEMENTADAS.md** - Resumen de todas las mejoras
++- ✅ Login real con Supabase Auth (sin usuarios ni contraseñas definidos en el código)
++- ✅ API key de la fuente externa solo en funciones serverless de Vercel (nunca en el bundle)
++- ✅ RLS por usuario (`auth.uid() = user_id`) en todas las tablas del ABM
++- ✅ SAI_TEST es de solo lectura: nada se escribe en la base externa
++- ✅ Mensajes de error genéricos en login; sesión gestionada por JWT de Supabase
++- Detalle y checklist: [`docs/seguridad.md`](docs/seguridad.md).
++
++## 📚 Documentación
++
++Toda la documentación temática vive en [`docs/`](docs/):
++
++| Documento | Tema |
++|---|---|
++| [docs/arquitectura.md](docs/arquitectura.md) | Arquitectura actual, historia del backend eliminado, auth |
++| [docs/supabase.md](docs/supabase.md) | Setup del proyecto, esquema, RLS, patrón ABM |
++| [docs/importacion.md](docs/importacion.md) | Importación CSV/Excel/Word/PDF |
++| [docs/temas.md](docs/temas.md) | Sistema de tema claro/oscuro |
++| [docs/dispositivos.md](docs/dispositivos.md) | Mapeo y monitoreo de dispositivos (Mesh Central) |
++| [docs/modulos.md](docs/modulos.md) | Módulos funcionales del sistema |
++| [docs/seguridad.md](docs/seguridad.md) | Reglas de seguridad y checklist |
++| [docs/identidad-visual.md](docs/identidad-visual.md) | Nombre, logo y créditos |
++| [CHANGELOG.md](CHANGELOG.md) | Historial de versiones |
++
++Los documentos históricos sueltos que quedaron en `docs/` conservan contexto de versiones
++anteriores; los temas vigentes están consolidados en los ocho documentos de la tabla.
++
++## 🗂️ Usuarios externos (SAI_TEST) e integración
++
++Flujo: navegador → `/api/usuarios` (función serverless de Vercel, valida sesión Supabase) →
++Metabase SAI_TEST vía HTTPS, con `x-api-key` guardada solo en la función. El backend interno
++`server/` fue eliminado del repositorio.
++
++- Tabla leída: `UsuariosAccesos` (proyección segura: id, login, nombre completo, perfil, ubicación, tipo, activo).
++- Nunca se exponen `contrasenia`, `servicekey_path`, `identityrecord` ni vencimientos.
++- Las asignaciones se registran en Supabase (`equipment_movements` + RPC atómica
++  `registrar_equipment_movement`); ver `supabase/migrations/`.
++- Si la función no responde, la app muestra un aviso y sigue operando con lo guardado en Supabase.
++- Skill con el patrón completo: `.claude/skills/metabase-integracion/SKILL.md`.
++
++### Scripts auxiliares
++- `./scripts/setup-supabase-auth.sh` — alta de usuarios en Supabase Auth.
++- `./scripts/deploy-vercel.sh [--preview]` — build + deploy a Vercel (requiere `VERCEL_TOKEN`).
++- `./scripts/test-proxy-metabase.sh [url]` — prueba health/usuarios/búsqueda de la API externa.
+ 
+ ## 📝 Créditos
+ 
+-**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA  
+-**Para:** Area Sistemas PEDSA  
+-**Versión:** 2.9.0  
+-**Año:** 2024
++**Desarrollado por:** Pablo Eloy Donnet - VLF dev para Sistemas PEDSA
++**Para:** Area Sistemas PEDSA
++**Versión:** 2.9.5
++**Año:** 2026
+ 
+ ## 📄 Licencia
+ 
+-Todos los derechos reservados - VFL / Area Sistemas PEDSA
++Todos los derechos reservados - VLF dev / Area Sistemas PEDSA
+ 
+ ---
+ 
+-Para más información o soporte, contacta a VFL o al Area Sistemas PEDSA.
+-
+-## Integración Metabase (SAI_TEST) vía proxy interno
+-
+-Flujo: navegador (Vercel) → https://ipa.donnet.com.ar/api → Metabase (10.0.0.8:3000, solo lectura).
+-El backend propio `server/` fue eliminado; el proxy interno ya expone:
+-- `GET  {proxy}/health`
+-- `GET  {proxy}/usuarios?q=`  (tabla UsuariosAccesos; campos: id, nombre, area, perfil, ubicacionid, estado)
+-- `POST {proxy}/usuarios/refresh`
+-
+-Config: `VITE_METABASE_PROXY_URL` (default ipa.donnet.com.ar/api). La API key de Metabase NUNCA está en el frontend.
+-
+-### Asignación de equipos a usuarios
+-- Página "Asignaciones" (sidebar): buscador de usuarios (Metabase, incremental con debounce),
+-  formulario de movimiento (equipo + usuario + tipo asignacion/devolucion/traslado/baja + observaciones)
+-  e historial desde Supabase.
+-- Tabla nueva `equipment_movements` + RPC atómica `registrar_equipment_movement` (inserta movimiento y
+-  actualiza `equipments.status`: asignacion/traslado→assigned, devolucion→available, baja→retired).
+-  Migración: `sql/equipment_movements.sql` (ejecutar en Supabase SQL Editor). También agregada a `supabase-schema.sql`.
+-- Si el proxy no responde, se muestra un aviso y el historial cacheado en Supabase sigue disponible.
+-
+-### Scripts
+-- `./scripts/deploy-vercel.sh [--preview]` — build + deploy a Vercel (requiere VERCEL_TOKEN).
+-- `./scripts/test-proxy-metabase.sh [url]` — prueba health/usuarios/búsqueda/refresh del proxy (correr desde la red interna).
++Para más información o soporte, contacta a VLF dev o al Area Sistemas PEDSA.
+diff --git a/server/.env.example b/server/.env.example
+deleted file mode 100644
+index bcd10c7..0000000
+--- a/server/.env.example
++++ /dev/null
+@@ -1,24 +0,0 @@
+-# Servidor HTTP (NUNCA usar puerto 3000: Vite lo ocupa en desarrollo)
+-PORT=4000
+-
+-# --- Metabase (SOLO lectura; API key sin prefijo VITE, nunca llega al navegador) ---
+-METABASE_URL=http://10.0.0.8:3000
+-METABASE_API_KEY=pegá_acá_tu_api_key_actual
+-METABASE_DB_ID=5
+-METABASE_TIMEOUT_MS=15000
+-
+-# Tabla de usuarios en SAI_TEST (source-table id observado en Metabase)
+-SAI_USUARIOS_TABLE_ID=1406
+-
+-# Paginación de /api/dataset (límite duro de Metabase: 2000 filas por request)
+-METABASE_PAGE_SIZE=2000
+-
+-# Camino alternativo opcional: pregunta guardada en Metabase para leer más de 2000 filas
+-# (POST /api/card/{id}/query/json). Dejar vacío para usar paginación por offset.
+-METABASE_CARD_ID=
+-
+-# CORS: origen(es) permitidos separados por coma (URL del frontend)
+-ALLOWED_ORIGINS=http://localhost:3000
+-
+-# TTL de la caché de usuarios (ms). Default: 5 minutos.
+-USERS_CACHE_TTL_MS=300000
+\ No newline at end of file
+diff --git a/server/.gitignore b/server/.gitignore
+deleted file mode 100644
+index e71c599..0000000
+--- a/server/.gitignore
++++ /dev/null
+@@ -1,3 +0,0 @@
+-.env
+-node_modules/
+-*.log
+\ No newline at end of file
+diff --git a/server/Dockerfile b/server/Dockerfile
+deleted file mode 100644
+index 5bc471e..0000000
+--- a/server/Dockerfile
++++ /dev/null
+@@ -1,13 +0,0 @@
+-FROM node:20-alpine
+-
+-WORKDIR /app
+-
+-COPY package*.json ./
+-RUN npm ci --only=production
+-
+-COPY src ./src
+-COPY scripts ./scripts
+-
+-EXPOSE 4000
+-
+-CMD ["node", "src/index.js"]
+diff --git a/server/docker-compose.yml b/server/docker-compose.yml
+deleted file mode 100644
+index 57fb7a1..0000000
+--- a/server/docker-compose.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-version: '3.8'
+-
+-services:
+-  metabase-proxy:
+-    build: .
+-    ports:
+-      - "4000:4000"
+-    environment:
+-      - NODE_ENV=production
+-    env_file:
+-      - .env
+-    restart: unless-stopped
+-    networks:
+-      - internal-net
+-
+-networks:
+-  internal-net:
+-    driver: bridge
+\ No newline at end of file
+diff --git a/server/package-lock.json b/server/package-lock.json
+deleted file mode 100644
+index 34b7dd5..0000000
+--- a/server/package-lock.json
++++ /dev/null
+@@ -1,895 +0,0 @@
+-{
+-  "name": "dashbord-equipos-metabase-server",
+-  "version": "0.1.0",
+-  "lockfileVersion": 3,
+-  "requires": true,
+-  "packages": {
+-    "": {
+-      "name": "dashbord-equipos-metabase-server",
+-      "version": "0.1.0",
+-      "dependencies": {
+-        "cors": "^2.8.5",
+-        "dotenv": "^16.4.5",
+-        "express": "^4.19.2",
+-        "helmet": "^7.1.0",
+-        "zod": "^3.23.8"
+-      },
+-      "engines": {
+-        "node": ">=20"
+-      }
+-    },
+-    "node_modules/accepts": {
+-      "version": "1.3.8",
+-      "resolved": "https://registry.npmjs.org/accepts/-/accepts-1.3.8.tgz",
+-      "integrity": "sha512-PYAthTa2m2VKxuvSD3DPC/Gy+U+sOA1LAuT8mkmRuvw+NACSaeXEQ+NHcVF7rONl6qcaxV3Uuemwawk+7+SJLw==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "mime-types": "~2.1.34",
+-        "negotiator": "0.6.3"
+-      },
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/array-flatten": {
+-      "version": "1.1.1",
+-      "resolved": "https://registry.npmjs.org/array-flatten/-/array-flatten-1.1.1.tgz",
+-      "integrity": "sha512-PCVAQswWemu6UdxsDFFX/+gVeYqKAod3D3UVm91jHwynguOwAvYPhx8nNlM++NqRcK6CxxpUafjmhIdKiHibqg==",
+-      "license": "MIT"
+-    },
+-    "node_modules/body-parser": {
+-      "version": "1.20.8",
+-      "resolved": "https://registry.npmjs.org/body-parser/-/body-parser-1.20.8.tgz",
+-      "integrity": "sha512-JNcyFQ64OiijEkPzUBTCe+hyPXUD/3LEldGQ6iF5LR1w00mx9o7xtDWHXBY2iItjdCFGoilOLNQbH943ut7pHA==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "bytes": "~3.1.2",
+-        "content-type": "~1.0.5",
+-        "debug": "2.6.9",
+-        "depd": "2.0.0",
+-        "destroy": "~1.2.0",
+-        "http-errors": "~2.0.1",
+-        "iconv-lite": "~0.4.24",
+-        "on-finished": "~2.4.1",
+-        "qs": "~6.16.0",
+-        "raw-body": "~2.5.3",
+-        "type-is": "~1.6.18",
+-        "unpipe": "~1.0.0"
+-      },
+-      "engines": {
+-        "node": ">= 0.8",
+-        "npm": "1.2.8000 || >= 1.4.16"
+-      }
+-    },
+-    "node_modules/bytes": {
+-      "version": "3.1.2",
+-      "resolved": "https://registry.npmjs.org/bytes/-/bytes-3.1.2.tgz",
+-      "integrity": "sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.8"
+-      }
+-    },
+-    "node_modules/call-bind-apply-helpers": {
+-      "version": "1.0.2",
+-      "resolved": "https://registry.npmjs.org/call-bind-apply-helpers/-/call-bind-apply-helpers-1.0.2.tgz",
+-      "integrity": "sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "es-errors": "^1.3.0",
+-        "function-bind": "^1.1.2"
+-      },
+-      "engines": {
+-        "node": ">= 0.4"
+-      }
+-    },
+-    "node_modules/call-bound": {
+-      "version": "1.0.4",
+-      "resolved": "https://registry.npmjs.org/call-bound/-/call-bound-1.0.4.tgz",
+-      "integrity": "sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "call-bind-apply-helpers": "^1.0.2",
+-        "get-intrinsic": "^1.3.0"
+-      },
+-      "engines": {
+-        "node": ">= 0.4"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/ljharb"
+-      }
+-    },
+-    "node_modules/content-disposition": {
+-      "version": "0.5.4",
+-      "resolved": "https://registry.npmjs.org/content-disposition/-/content-disposition-0.5.4.tgz",
+-      "integrity": "sha512-FveZTNuGw04cxlAiWbzi6zTAL/lhehaWbTtgluJh4/E95DqMwTmha3KZN1aAWA8cFIhHzMZUvLevkw5Rqk+tSQ==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "safe-buffer": "5.2.1"
+-      },
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/content-type": {
+-      "version": "1.0.5",
+-      "resolved": "https://registry.npmjs.org/content-type/-/content-type-1.0.5.tgz",
+-      "integrity": "sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/cookie": {
+-      "version": "0.7.2",
+-      "resolved": "https://registry.npmjs.org/cookie/-/cookie-0.7.2.tgz",
+-      "integrity": "sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/cookie-signature": {
+-      "version": "1.0.7",
+-      "resolved": "https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.0.7.tgz",
+-      "integrity": "sha512-NXdYc3dLr47pBkpUCHtKSwIOQXLVn8dZEuywboCOJY/osA0wFSLlSawr3KN8qXJEyX66FcONTH8EIlVuK0yyFA==",
+-      "license": "MIT"
+-    },
+-    "node_modules/cors": {
+-      "version": "2.8.6",
+-      "resolved": "https://registry.npmjs.org/cors/-/cors-2.8.6.tgz",
+-      "integrity": "sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "object-assign": "^4",
+-        "vary": "^1"
+-      },
+-      "engines": {
+-        "node": ">= 0.10"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/express"
+-      }
+-    },
+-    "node_modules/debug": {
+-      "version": "2.6.9",
+-      "resolved": "https://registry.npmjs.org/debug/-/debug-2.6.9.tgz",
+-      "integrity": "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "ms": "2.0.0"
+-      }
+-    },
+-    "node_modules/depd": {
+-      "version": "2.0.0",
+-      "resolved": "https://registry.npmjs.org/depd/-/depd-2.0.0.tgz",
+-      "integrity": "sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.8"
+-      }
+-    },
+-    "node_modules/destroy": {
+-      "version": "1.2.0",
+-      "resolved": "https://registry.npmjs.org/destroy/-/destroy-1.2.0.tgz",
+-      "integrity": "sha512-2sJGJTaXIIaR1w4iJSNoN0hnMY7Gpc/n8D4qSCJw8QqFWXf7cuAgnEHxBpweaVcPevC2l3KpjYCx3NypQQgaJg==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.8",
+-        "npm": "1.2.8000 || >= 1.4.16"
+-      }
+-    },
+-    "node_modules/dotenv": {
+-      "version": "16.6.1",
+-      "resolved": "https://registry.npmjs.org/dotenv/-/dotenv-16.6.1.tgz",
+-      "integrity": "sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==",
+-      "license": "BSD-2-Clause",
+-      "engines": {
+-        "node": ">=12"
+-      },
+-      "funding": {
+-        "url": "https://dotenvx.com"
+-      }
+-    },
+-    "node_modules/dunder-proto": {
+-      "version": "1.0.1",
+-      "resolved": "https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz",
+-      "integrity": "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "call-bind-apply-helpers": "^1.0.1",
+-        "es-errors": "^1.3.0",
+-        "gopd": "^1.2.0"
+-      },
+-      "engines": {
+-        "node": ">= 0.4"
+-      }
+-    },
+-    "node_modules/ee-first": {
+-      "version": "1.1.1",
+-      "resolved": "https://registry.npmjs.org/ee-first/-/ee-first-1.1.1.tgz",
+-      "integrity": "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==",
+-      "license": "MIT"
+-    },
+-    "node_modules/encodeurl": {
+-      "version": "2.0.0",
+-      "resolved": "https://registry.npmjs.org/encodeurl/-/encodeurl-2.0.0.tgz",
+-      "integrity": "sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.8"
+-      }
+-    },
+-    "node_modules/es-define-property": {
+-      "version": "1.0.1",
+-      "resolved": "https://registry.npmjs.org/es-define-property/-/es-define-property-1.0.1.tgz",
+-      "integrity": "sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.4"
+-      }
+-    },
+-    "node_modules/es-errors": {
+-      "version": "1.3.0",
+-      "resolved": "https://registry.npmjs.org/es-errors/-/es-errors-1.3.0.tgz",
+-      "integrity": "sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.4"
+-      }
+-    },
+-    "node_modules/es-object-atoms": {
+-      "version": "1.1.2",
+-      "resolved": "https://registry.npmjs.org/es-object-atoms/-/es-object-atoms-1.1.2.tgz",
+-      "integrity": "sha512-HWcBoN6NileqtSydK2FqHbS/LoDd2pqrnQHLyJzBj4kOp/ky2MWMN694xOfkK8/SnUsW2DH7EfyVlydKCsm1Zw==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "es-errors": "^1.3.0"
+-      },
+-      "engines": {
+-        "node": ">= 0.4"
+-      }
+-    },
+-    "node_modules/escape-html": {
+-      "version": "1.0.3",
+-      "resolved": "https://registry.npmjs.org/escape-html/-/escape-html-1.0.3.tgz",
+-      "integrity": "sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow==",
+-      "license": "MIT"
+-    },
+-    "node_modules/etag": {
+-      "version": "1.8.1",
+-      "resolved": "https://registry.npmjs.org/etag/-/etag-1.8.1.tgz",
+-      "integrity": "sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/express": {
+-      "version": "4.22.3",
+-      "resolved": "https://registry.npmjs.org/express/-/express-4.22.3.tgz",
+-      "integrity": "sha512-Bdcs4+3qlpVlx2NRn6fgX2Ue2/gGRaPeawebgclM0ERSCqDpA+owF1fdPwjJUTAJWMTuAaxjDf+hzb0/4eKvvw==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "accepts": "~1.3.8",
+-        "array-flatten": "1.1.1",
+-        "body-parser": "~1.20.5",
+-        "content-disposition": "~0.5.4",
+-        "content-type": "~1.0.4",
+-        "cookie": "~0.7.1",
+-        "cookie-signature": "~1.0.6",
+-        "debug": "2.6.9",
+-        "depd": "2.0.0",
+-        "encodeurl": "~2.0.0",
+-        "escape-html": "~1.0.3",
+-        "etag": "~1.8.1",
+-        "finalhandler": "~1.3.1",
+-        "fresh": "~0.5.2",
+-        "http-errors": "~2.0.0",
+-        "merge-descriptors": "1.0.3",
+-        "methods": "~1.1.2",
+-        "on-finished": "~2.4.1",
+-        "parseurl": "~1.3.3",
+-        "path-to-regexp": "~0.1.13",
+-        "proxy-addr": "~2.0.7",
+-        "qs": "~6.16.0",
+-        "range-parser": "~1.2.1",
+-        "safe-buffer": "5.2.1",
+-        "send": "~0.19.0",
+-        "serve-static": "~1.16.2",
+-        "setprototypeof": "1.2.0",
+-        "statuses": "~2.0.1",
+-        "type-is": "~1.6.18",
+-        "utils-merge": "1.0.1",
+-        "vary": "~1.1.2"
+-      },
+-      "engines": {
+-        "node": ">= 0.10.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/express"
+-      }
+-    },
+-    "node_modules/finalhandler": {
+-      "version": "1.3.2",
+-      "resolved": "https://registry.npmjs.org/finalhandler/-/finalhandler-1.3.2.tgz",
+-      "integrity": "sha512-aA4RyPcd3badbdABGDuTXCMTtOneUCAYH/gxoYRTZlIJdF0YPWuGqiAsIrhNnnqdXGswYk6dGujem4w80UJFhg==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "debug": "2.6.9",
+-        "encodeurl": "~2.0.0",
+-        "escape-html": "~1.0.3",
+-        "on-finished": "~2.4.1",
+-        "parseurl": "~1.3.3",
+-        "statuses": "~2.0.2",
+-        "unpipe": "~1.0.0"
+-      },
+-      "engines": {
+-        "node": ">= 0.8"
+-      }
+-    },
+-    "node_modules/forwarded": {
+-      "version": "0.2.0",
+-      "resolved": "https://registry.npmjs.org/forwarded/-/forwarded-0.2.0.tgz",
+-      "integrity": "sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/fresh": {
+-      "version": "0.5.2",
+-      "resolved": "https://registry.npmjs.org/fresh/-/fresh-0.5.2.tgz",
+-      "integrity": "sha512-zJ2mQYM18rEFOudeV4GShTGIQ7RbzA7ozbU9I/XBpm7kqgMywgmylMwXHxZJmkVoYkna9d2pVXVXPdYTP9ej8Q==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/function-bind": {
+-      "version": "1.1.2",
+-      "resolved": "https://registry.npmjs.org/function-bind/-/function-bind-1.1.2.tgz",
+-      "integrity": "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==",
+-      "license": "MIT",
+-      "funding": {
+-        "url": "https://github.com/sponsors/ljharb"
+-      }
+-    },
+-    "node_modules/get-intrinsic": {
+-      "version": "1.3.0",
+-      "resolved": "https://registry.npmjs.org/get-intrinsic/-/get-intrinsic-1.3.0.tgz",
+-      "integrity": "sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "call-bind-apply-helpers": "^1.0.2",
+-        "es-define-property": "^1.0.1",
+-        "es-errors": "^1.3.0",
+-        "es-object-atoms": "^1.1.1",
+-        "function-bind": "^1.1.2",
+-        "get-proto": "^1.0.1",
+-        "gopd": "^1.2.0",
+-        "has-symbols": "^1.1.0",
+-        "hasown": "^2.0.2",
+-        "math-intrinsics": "^1.1.0"
+-      },
+-      "engines": {
+-        "node": ">= 0.4"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/ljharb"
+-      }
+-    },
+-    "node_modules/get-proto": {
+-      "version": "1.0.1",
+-      "resolved": "https://registry.npmjs.org/get-proto/-/get-proto-1.0.1.tgz",
+-      "integrity": "sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "dunder-proto": "^1.0.1",
+-        "es-object-atoms": "^1.0.0"
+-      },
+-      "engines": {
+-        "node": ">= 0.4"
+-      }
+-    },
+-    "node_modules/gopd": {
+-      "version": "1.2.0",
+-      "resolved": "https://registry.npmjs.org/gopd/-/gopd-1.2.0.tgz",
+-      "integrity": "sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.4"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/ljharb"
+-      }
+-    },
+-    "node_modules/has-symbols": {
+-      "version": "1.1.0",
+-      "resolved": "https://registry.npmjs.org/has-symbols/-/has-symbols-1.1.0.tgz",
+-      "integrity": "sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.4"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/ljharb"
+-      }
+-    },
+-    "node_modules/hasown": {
+-      "version": "2.0.4",
+-      "resolved": "https://registry.npmjs.org/hasown/-/hasown-2.0.4.tgz",
+-      "integrity": "sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "function-bind": "^1.1.2"
+-      },
+-      "engines": {
+-        "node": ">= 0.4"
+-      }
+-    },
+-    "node_modules/helmet": {
+-      "version": "7.2.0",
+-      "resolved": "https://registry.npmjs.org/helmet/-/helmet-7.2.0.tgz",
+-      "integrity": "sha512-ZRiwvN089JfMXokizgqEPXsl2Guk094yExfoDXR0cBYWxtBbaSww/w+vT4WEJsBW2iTUi1GgZ6swmoug3Oy4Xw==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">=16.0.0"
+-      }
+-    },
+-    "node_modules/http-errors": {
+-      "version": "2.0.1",
+-      "resolved": "https://registry.npmjs.org/http-errors/-/http-errors-2.0.1.tgz",
+-      "integrity": "sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "depd": "~2.0.0",
+-        "inherits": "~2.0.4",
+-        "setprototypeof": "~1.2.0",
+-        "statuses": "~2.0.2",
+-        "toidentifier": "~1.0.1"
+-      },
+-      "engines": {
+-        "node": ">= 0.8"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/express"
+-      }
+-    },
+-    "node_modules/iconv-lite": {
+-      "version": "0.4.24",
+-      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.24.tgz",
+-      "integrity": "sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "safer-buffer": ">= 2.1.2 < 3"
+-      },
+-      "engines": {
+-        "node": ">=0.10.0"
+-      }
+-    },
+-    "node_modules/inherits": {
+-      "version": "2.0.4",
+-      "resolved": "https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz",
+-      "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==",
+-      "license": "ISC"
+-    },
+-    "node_modules/ipaddr.js": {
+-      "version": "1.9.1",
+-      "resolved": "https://registry.npmjs.org/ipaddr.js/-/ipaddr.js-1.9.1.tgz",
+-      "integrity": "sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.10"
+-      }
+-    },
+-    "node_modules/math-intrinsics": {
+-      "version": "1.1.0",
+-      "resolved": "https://registry.npmjs.org/math-intrinsics/-/math-intrinsics-1.1.0.tgz",
+-      "integrity": "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.4"
+-      }
+-    },
+-    "node_modules/media-typer": {
+-      "version": "0.3.0",
+-      "resolved": "https://registry.npmjs.org/media-typer/-/media-typer-0.3.0.tgz",
+-      "integrity": "sha512-dq+qelQ9akHpcOl/gUVRTxVIOkAJ1wR3QAvb4RsVjS8oVoFjDGTc679wJYmUmknUF5HwMLOgb5O+a3KxfWapPQ==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/merge-descriptors": {
+-      "version": "1.0.3",
+-      "resolved": "https://registry.npmjs.org/merge-descriptors/-/merge-descriptors-1.0.3.tgz",
+-      "integrity": "sha512-gaNvAS7TZ897/rVaZ0nMtAyxNyi/pdbjbAwUpFQpN70GqnVfOiXpeUUMKRBmzXaSQ8DdTX4/0ms62r2K+hE6mQ==",
+-      "license": "MIT",
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "node_modules/methods": {
+-      "version": "1.1.2",
+-      "resolved": "https://registry.npmjs.org/methods/-/methods-1.1.2.tgz",
+-      "integrity": "sha512-iclAHeNqNm68zFtnZ0e+1L2yUIdvzNoauKU4WBA3VvH/vPFieF7qfRlwUZU+DA9P9bPXIS90ulxoUoCH23sV2w==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/mime": {
+-      "version": "1.6.0",
+-      "resolved": "https://registry.npmjs.org/mime/-/mime-1.6.0.tgz",
+-      "integrity": "sha512-x0Vn8spI+wuJ1O6S7gnbaQg8Pxh4NNHb7KSINmEWKiPE4RKOplvijn+NkmYmmRgP68mc70j2EbeTFRsrswaQeg==",
+-      "license": "MIT",
+-      "bin": {
+-        "mime": "cli.js"
+-      },
+-      "engines": {
+-        "node": ">=4"
+-      }
+-    },
+-    "node_modules/mime-db": {
+-      "version": "1.52.0",
+-      "resolved": "https://registry.npmjs.org/mime-db/-/mime-db-1.52.0.tgz",
+-      "integrity": "sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/mime-types": {
+-      "version": "2.1.35",
+-      "resolved": "https://registry.npmjs.org/mime-types/-/mime-types-2.1.35.tgz",
+-      "integrity": "sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "mime-db": "1.52.0"
+-      },
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/ms": {
+-      "version": "2.0.0",
+-      "resolved": "https://registry.npmjs.org/ms/-/ms-2.0.0.tgz",
+-      "integrity": "sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A==",
+-      "license": "MIT"
+-    },
+-    "node_modules/negotiator": {
+-      "version": "0.6.3",
+-      "resolved": "https://registry.npmjs.org/negotiator/-/negotiator-0.6.3.tgz",
+-      "integrity": "sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/object-assign": {
+-      "version": "4.1.1",
+-      "resolved": "https://registry.npmjs.org/object-assign/-/object-assign-4.1.1.tgz",
+-      "integrity": "sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">=0.10.0"
+-      }
+-    },
+-    "node_modules/object-inspect": {
+-      "version": "1.13.4",
+-      "resolved": "https://registry.npmjs.org/object-inspect/-/object-inspect-1.13.4.tgz",
+-      "integrity": "sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.4"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/ljharb"
+-      }
+-    },
+-    "node_modules/on-finished": {
+-      "version": "2.4.1",
+-      "resolved": "https://registry.npmjs.org/on-finished/-/on-finished-2.4.1.tgz",
+-      "integrity": "sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "ee-first": "1.1.1"
+-      },
+-      "engines": {
+-        "node": ">= 0.8"
+-      }
+-    },
+-    "node_modules/parseurl": {
+-      "version": "1.3.3",
+-      "resolved": "https://registry.npmjs.org/parseurl/-/parseurl-1.3.3.tgz",
+-      "integrity": "sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.8"
+-      }
+-    },
+-    "node_modules/path-to-regexp": {
+-      "version": "0.1.13",
+-      "resolved": "https://registry.npmjs.org/path-to-regexp/-/path-to-regexp-0.1.13.tgz",
+-      "integrity": "sha512-A/AGNMFN3c8bOlvV9RreMdrv7jsmF9XIfDeCd87+I8RNg6s78BhJxMu69NEMHBSJFxKidViTEdruRwEk/WIKqA==",
+-      "license": "MIT"
+-    },
+-    "node_modules/proxy-addr": {
+-      "version": "2.0.8",
+-      "resolved": "https://registry.npmjs.org/proxy-addr/-/proxy-addr-2.0.8.tgz",
+-      "integrity": "sha512-5nnx0yGyVUcY6t9RnWcARWtwT9F1D8O9rt08htPvnd49W1IgZtmLkhu9WfMzQj1cFxjHIO6connUNVW5k7AVyQ==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "forwarded": "0.2.0",
+-        "ipaddr.js": "1.9.1"
+-      },
+-      "engines": {
+-        "node": ">= 0.10"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/express"
+-      }
+-    },
+-    "node_modules/qs": {
+-      "version": "6.16.1",
+-      "resolved": "https://registry.npmjs.org/qs/-/qs-6.16.1.tgz",
+-      "integrity": "sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg==",
+-      "license": "BSD-3-Clause",
+-      "dependencies": {
+-        "es-define-property": "^1.0.1",
+-        "side-channel": "^1.1.1"
+-      },
+-      "engines": {
+-        "node": ">=0.6"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/ljharb"
+-      }
+-    },
+-    "node_modules/range-parser": {
+-      "version": "1.2.1",
+-      "resolved": "https://registry.npmjs.org/range-parser/-/range-parser-1.2.1.tgz",
+-      "integrity": "sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/raw-body": {
+-      "version": "2.5.3",
+-      "resolved": "https://registry.npmjs.org/raw-body/-/raw-body-2.5.3.tgz",
+-      "integrity": "sha512-s4VSOf6yN0rvbRZGxs8Om5CWj6seneMwK3oDb4lWDH0UPhWcxwOWw5+qk24bxq87szX1ydrwylIOp2uG1ojUpA==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "bytes": "~3.1.2",
+-        "http-errors": "~2.0.1",
+-        "iconv-lite": "~0.4.24",
+-        "unpipe": "~1.0.0"
+-      },
+-      "engines": {
+-        "node": ">= 0.8"
+-      }
+-    },
+-    "node_modules/safe-buffer": {
+-      "version": "5.2.1",
+-      "resolved": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz",
+-      "integrity": "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==",
+-      "funding": [
+-        {
+-          "type": "github",
+-          "url": "https://github.com/sponsors/feross"
+-        },
+-        {
+-          "type": "patreon",
+-          "url": "https://www.patreon.com/feross"
+-        },
+-        {
+-          "type": "consulting",
+-          "url": "https://feross.org/support"
+-        }
+-      ],
+-      "license": "MIT"
+-    },
+-    "node_modules/safer-buffer": {
+-      "version": "2.1.2",
+-      "resolved": "https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz",
+-      "integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==",
+-      "license": "MIT"
+-    },
+-    "node_modules/send": {
+-      "version": "0.19.2",
+-      "resolved": "https://registry.npmjs.org/send/-/send-0.19.2.tgz",
+-      "integrity": "sha512-VMbMxbDeehAxpOtWJXlcUS5E8iXh6QmN+BkRX1GARS3wRaXEEgzCcB10gTQazO42tpNIya8xIyNx8fll1OFPrg==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "debug": "2.6.9",
+-        "depd": "2.0.0",
+-        "destroy": "1.2.0",
+-        "encodeurl": "~2.0.0",
+-        "escape-html": "~1.0.3",
+-        "etag": "~1.8.1",
+-        "fresh": "~0.5.2",
+-        "http-errors": "~2.0.1",
+-        "mime": "1.6.0",
+-        "ms": "2.1.3",
+-        "on-finished": "~2.4.1",
+-        "range-parser": "~1.2.1",
+-        "statuses": "~2.0.2"
+-      },
+-      "engines": {
+-        "node": ">= 0.8.0"
+-      }
+-    },
+-    "node_modules/send/node_modules/ms": {
+-      "version": "2.1.3",
+-      "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+-      "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
+-      "license": "MIT"
+-    },
+-    "node_modules/serve-static": {
+-      "version": "1.16.3",
+-      "resolved": "https://registry.npmjs.org/serve-static/-/serve-static-1.16.3.tgz",
+-      "integrity": "sha512-x0RTqQel6g5SY7Lg6ZreMmsOzncHFU7nhnRWkKgWuMTu5NN0DR5oruckMqRvacAN9d5w6ARnRBXl9xhDCgfMeA==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "encodeurl": "~2.0.0",
+-        "escape-html": "~1.0.3",
+-        "parseurl": "~1.3.3",
+-        "send": "~0.19.1"
+-      },
+-      "engines": {
+-        "node": ">= 0.8.0"
+-      }
+-    },
+-    "node_modules/setprototypeof": {
+-      "version": "1.2.0",
+-      "resolved": "https://registry.npmjs.org/setprototypeof/-/setprototypeof-1.2.0.tgz",
+-      "integrity": "sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==",
+-      "license": "ISC"
+-    },
+-    "node_modules/side-channel": {
+-      "version": "1.1.1",
+-      "resolved": "https://registry.npmjs.org/side-channel/-/side-channel-1.1.1.tgz",
+-      "integrity": "sha512-6x6dK6zJdpTzF4sQeNYxwtvBzf6Eg4GtlesS94HOvTudUeyK2WXAaIfmDgsyslYrRBeFIlsi54AYsFGUuhmvrQ==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "es-errors": "^1.3.0",
+-        "object-inspect": "^1.13.4",
+-        "side-channel-list": "^1.0.1",
+-        "side-channel-map": "^1.0.1",
+-        "side-channel-weakmap": "^1.0.2"
+-      },
+-      "engines": {
+-        "node": ">= 0.4"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/ljharb"
+-      }
+-    },
+-    "node_modules/side-channel-list": {
+-      "version": "1.0.1",
+-      "resolved": "https://registry.npmjs.org/side-channel-list/-/side-channel-list-1.0.1.tgz",
+-      "integrity": "sha512-mjn/0bi/oUURjc5Xl7IaWi/OJJJumuoJFQJfDDyO46+hBWsfaVM65TBHq2eoZBhzl9EchxOijpkbRC8SVBQU0w==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "es-errors": "^1.3.0",
+-        "object-inspect": "^1.13.4"
+-      },
+-      "engines": {
+-        "node": ">= 0.4"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/ljharb"
+-      }
+-    },
+-    "node_modules/side-channel-map": {
+-      "version": "1.0.1",
+-      "resolved": "https://registry.npmjs.org/side-channel-map/-/side-channel-map-1.0.1.tgz",
+-      "integrity": "sha512-VCjCNfgMsby3tTdo02nbjtM/ewra6jPHmpThenkTYh8pG9ucZ/1P8So4u4FGBek/BjpOVsDCMoLA/iuBKIFXRA==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "call-bound": "^1.0.2",
+-        "es-errors": "^1.3.0",
+-        "get-intrinsic": "^1.2.5",
+-        "object-inspect": "^1.13.3"
+-      },
+-      "engines": {
+-        "node": ">= 0.4"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/ljharb"
+-      }
+-    },
+-    "node_modules/side-channel-weakmap": {
+-      "version": "1.0.2",
+-      "resolved": "https://registry.npmjs.org/side-channel-weakmap/-/side-channel-weakmap-1.0.2.tgz",
+-      "integrity": "sha512-WPS/HvHQTYnHisLo9McqBHOJk2FkHO/tlpvldyrnem4aeQp4hai3gythswg6p01oSoTl58rcpiFAjF2br2Ak2A==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "call-bound": "^1.0.2",
+-        "es-errors": "^1.3.0",
+-        "get-intrinsic": "^1.2.5",
+-        "object-inspect": "^1.13.3",
+-        "side-channel-map": "^1.0.1"
+-      },
+-      "engines": {
+-        "node": ">= 0.4"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/ljharb"
+-      }
+-    },
+-    "node_modules/statuses": {
+-      "version": "2.0.2",
+-      "resolved": "https://registry.npmjs.org/statuses/-/statuses-2.0.2.tgz",
+-      "integrity": "sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.8"
+-      }
+-    },
+-    "node_modules/toidentifier": {
+-      "version": "1.0.1",
+-      "resolved": "https://registry.npmjs.org/toidentifier/-/toidentifier-1.0.1.tgz",
+-      "integrity": "sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">=0.6"
+-      }
+-    },
+-    "node_modules/type-is": {
+-      "version": "1.6.18",
+-      "resolved": "https://registry.npmjs.org/type-is/-/type-is-1.6.18.tgz",
+-      "integrity": "sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "media-typer": "0.3.0",
+-        "mime-types": "~2.1.24"
+-      },
+-      "engines": {
+-        "node": ">= 0.6"
+-      }
+-    },
+-    "node_modules/unpipe": {
+-      "version": "1.0.0",
+-      "resolved": "https://registry.npmjs.org/unpipe/-/unpipe-1.0.0.tgz",
+-      "integrity": "sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.8"
+-      }
+-    },
+-    "node_modules/utils-merge": {
+-      "version": "1.0.1",
+-      "resolved": "https://registry.npmjs.org/utils-merge/-/utils-merge-1.0.1.tgz",
+-      "integrity": "sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.4.0"
+-      }
+-    },
+-    "node_modules/vary": {
+-      "version": "1.1.2",
+-      "resolved": "https://registry.npmjs.org/vary/-/vary-1.1.2.tgz",
+-      "integrity": "sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.8"
+-      }
+-    },
+-    "node_modules/zod": {
+-      "version": "3.25.76",
+-      "resolved": "https://registry.npmjs.org/zod/-/zod-3.25.76.tgz",
+-      "integrity": "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==",
+-      "license": "MIT",
+-      "funding": {
+-        "url": "https://github.com/sponsors/colinhacks"
+-      }
+-    }
+-  }
+-}
+diff --git a/server/package.json b/server/package.json
+deleted file mode 100644
+index af0d83a..0000000
+--- a/server/package.json
++++ /dev/null
+@@ -1,19 +0,0 @@
+-{
+-  "name": "dashbord-equipos-metabase-server",
+-  "version": "0.1.0",
+-  "description": "Backend intermedio Dashbord-Equipos: Metabase (solo lectura) + PostgreSQL propio",
+-  "type": "module",
+-  "engines": { "node": ">=20" },
+-  "scripts": {
+-    "dev": "node --watch src/index.js",
+-    "start": "node src/index.js",
+-    "test:metabase": "node scripts/testMetabase.js"
+-  },
+-  "dependencies": {
+-    "cors": "^2.8.5",
+-    "dotenv": "^16.4.5",
+-    "express": "^4.19.2",
+-    "helmet": "^7.1.0",
+-    "zod": "^3.23.8"
+-  }
+-}
+\ No newline at end of file
+diff --git a/server/scripts/testMetabase.js b/server/scripts/testMetabase.js
+deleted file mode 100644
+index 81ea1ce..0000000
+--- a/server/scripts/testMetabase.js
++++ /dev/null
+@@ -1,49 +0,0 @@
+-#!/usr/bin/env node
+-/**
+- * Script de prueba de conexión a Metabase.
+- * Ejecutar: npm run test:metabase
+- * Requiere acceso a la red interna (10.0.0.8:3000).
+- */
+-
+-import { detectarColumnasUsuariosAccesos } from '../src/queries/saiTest.js';
+-import { config } from '../src/config.js';
+-
+-console.log('🧪 Probando conexión a Metabase...\n');
+-console.log('Configuración:');
+-console.log(`  URL: ${config.metabase.url}`);
+-console.log(`  DB ID: ${config.metabase.dbId}`);
+-console.log(`  Tabla usuarios: ${config.metabase.usuariosTableId}`);
+-console.log(`  Timeout: ${config.metabase.timeoutMs}ms\n`);
+-
+-try {
+-  const result = await detectarColumnasUsuariosAccesos();
+-  
+-  console.log('✅ Conexión exitosa!\n');
+-  console.log(`Total de usuarios encontrados: ${result.totalRows}\n`);
+-  
+-  if (result.columns.length > 0) {
+-    console.log('📋 Columnas detectadas en UsuariosAccesos:');
+-    console.table(result.columns.map(col => ({ columna: col })));
+-    
+-    console.log('\n🔍 Muestra anonimizada de la primera fila:');
+-    console.log(JSON.stringify(result.sampleRow, null, 2));
+-    
+-    console.log('\n⚠️ IMPORTANTE: Confirmá cuáles de estas columnas corresponden a:');
+-    console.log('   - Identificador único del usuario');
+-    console.log('   - Nombre completo');
+-    console.log('   - Área/Departamento');
+-    console.log('   - Estado (activo/inactivo)');
+-    console.log('\nLuego ajustá usersService.js para mapear correctamente esos campos.');
+-  } else {
+-    console.log('⚠️ No se pudieron detectar columnas (tabla vacía o error).');
+-  }
+-  
+-} catch (err) {
+-  console.error('❌ Error de conexión:', err.message);
+-  console.error('\nTroubleshooting:');
+-  console.error('  1. Verificar que estés en la red interna (acceso a 10.0.0.8)');
+-  console.error('  2. Confirmar que METABASE_API_KEY sea válida');
+-  console.error('  3. Chequear que el grupo de la API key tenga permisos de lectura sobre SAI_TEST');
+-  console.error('  4. Verificar que el source-table ID 1406 sea correcto');
+-  process.exit(1);
+-}
+\ No newline at end of file
+diff --git a/server/src/clients/metabaseClient.js b/server/src/clients/metabaseClient.js
+deleted file mode 100644
+index 79499aa..0000000
+--- a/server/src/clients/metabaseClient.js
++++ /dev/null
+@@ -1,144 +0,0 @@
+-import { config } from '../config.js';
+-
+-/**
+- * Cliente HTTP de Metabase (v0.55.x) con autenticación por x-api-key.
+- * SOLO LECTURA: este cliente únicamente consulta /api/dataset,
+- * /api/database/:id/metadata y /api/card/:id/query/json.
+- * La API key NUNCA sale del backend ni se loguea.
+- */
+-class MetabaseError extends Error {
+-  constructor(message, { status, body } = {}) {
+-    super(message);
+-    this.name = 'MetabaseError';
+-    this.status = status;
+-    this.body = body;
+-  }
+-}
+-
+-async function request(path, { method = 'GET', body, timeoutMs = config.metabase.timeoutMs } = {}) {
+-  const controller = new AbortController();
+-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+-  const url = `${config.metabase.url}${path}`;
+-
+-  let res;
+-  try {
+-    res = await fetch(url, {
+-      method,
+-      headers: {
+-        'x-api-key': config.metabase.apiKey,
+-        ...(body ? { 'Content-Type': 'application/json' } : {}),
+-      },
+-      body: body ? JSON.stringify(body) : undefined,
+-      signal: controller.signal,
+-    });
+-  } catch (err) {
+-    clearTimeout(timer);
+-    if (err.name === 'AbortError') {
+-      throw new MetabaseError(`Timeout de Metabase (${timeoutMs} ms) en ${path}`);
+-    }
+-    throw new MetabaseError(`No se pudo conectar a Metabase (${url}): ${err.message}`);
+-  } finally {
+-    clearTimeout(timer);
+-  }
+-
+-  let json;
+-  try {
+-    json = await res.json();
+-  } catch {
+-    throw new MetabaseError(`Respuesta no JSON de Metabase en ${path} (HTTP ${res.status})`, {
+-      status: res.status,
+-    });
+-  }
+-
+-  if (!res.ok) {
+-    const detail = json?.message || json?.error || `HTTP ${res.status}`;
+-    // 401/403 suele significar API key inválida o grupo sin permisos de lectura sobre SAI_TEST.
+-    throw new MetabaseError(`Metabase respondió ${res.status}: ${detail}`, { status: res.status, body: json });
+-  }
+-  if (json && json.error) {
+-    throw new MetabaseError(`Error de Metabase en ${path}: ${json.error}`, { status: res.status, body: json });
+-  }
+-  return json;
+-}
+-
+-/** Combina data.cols + data.rows en un array de objetos. */
+-export function datasetToObjects(data) {
+-  const cols = (data?.cols || []).map(c => c.name);
+-  const rows = data?.rows || [];
+-  return rows.map(row => {
+-    const obj = {};
+-    cols.forEach((col, i) => { obj[col] = row[i]; });
+-    return obj;
+-  });
+-}
+-
+-/** Normaliza nombres de columna a minúsculas (el motor de SAI_TEST puede devolver mayúsculas). */
+-function lowerCaseKeys(objects) {
+-  return objects.map(obj => {
+-    const out = {};
+-    for (const [k, v] of Object.entries(obj)) out[k.toLowerCase()] = v;
+-    return out;
+-  });
+-}
+-
+-/** POST /api/dataset con una pregunta de tipo "query" sobre una source-table.
+- *  CORRECCIÓN: el body debe llevar "database" en el nivel superior del query,
+- *  además de type y source-table (si no, Metabase responde 400). */
+-async function runQuery({ 'source-table': sourceTable, limit, offset }) {
+-  const innerQuery = { 'source-table': sourceTable };
+-  if (limit != null) innerQuery.limit = limit;
+-  if (offset != null) innerQuery.offset = offset;
+-
+-  const json = await request('/api/dataset', {
+-    method: 'POST',
+-    body: {
+-      database: config.metabase.dbId,
+-      type: 'query',
+-      query: innerQuery,
+-    },
+-  });
+-  return datasetToObjects(json.data);
+-}
+-
+-/** POST /api/dataset con SQL nativo. NO interpolar entradas libres del usuario. */
+-export async function sql(consulta, params = []) {
+-  const json = await request('/api/dataset', {
+-    method: 'POST',
+-    body: {
+-      database: config.metabase.dbId,
+-      type: 'native',
+-      native: { query: consulta, 'template-tags': {} },
+-      parameters: params,
+-    },
+-  });
+-  return lowerCaseKeys(datasetToObjects(json.data));
+-}
+-
+-/** Lee una tabla completa. Estrategia según configuración:
+- *  - METABASE_CARD_ID definido → pregunta guardada (una sola request, sin límite de 2000).
+- *  - sino → paginación por offset hasta devolver < pageSize filas. */
+-export async function tabla(tableId) {
+-  if (config.metabase.cardId) {
+-    const json = await request(`/api/card/${config.metabase.cardId}/query/json`, { method: 'POST', body: {} });
+-    return lowerCaseKeys(datasetToObjects(json.data ?? json));
+-  }
+-
+-  const all = [];
+-  const pageSize = config.metabase.pageSize;
+-  let offset = 0;
+-  for (;;) {
+-    const page = await runQuery({ 'source-table': tableId, limit: pageSize, offset });
+-    all.push(...lowerCaseKeys(page));
+-    if (page.length < pageSize) break;
+-    offset += pageSize;
+-    if (offset > 100000) throw new MetabaseError('Paginación excedió 100000 filas: revisar la consulta.');
+-  }
+-  return all;
+-}
+-
+-/** GET /api/database/:id/metadata: estructura real de SAI_TEST (para descubrir columnas). */
+-export async function databaseMetadata(dbId = config.metabase.dbId) {
+-  return request(`/api/database/${dbId}/metadata`);
+-}
+-
+-export { MetabaseError };
+\ No newline at end of file
+diff --git a/server/src/config.js b/server/src/config.js
+deleted file mode 100644
+index 95b0067..0000000
+--- a/server/src/config.js
++++ /dev/null
+@@ -1,29 +0,0 @@
+-import 'dotenv/config';
+-
+-function required(name) {
+-  const value = process.env[name];
+-  if (!value || !value.trim()) {
+-    throw new Error(
+-      `Variable de entorno obligatoria faltante: ${name}. Copiá server/.env.example a server/.env y completala.`
+-    );
+-  }
+-  return value.trim();
+-}
+-
+-export const config = {
+-  port: parseInt(process.env.PORT || '4000', 10),
+-  metabase: {
+-    url: required('METABASE_URL').replace(/\/+$/, ''),
+-    apiKey: required('METABASE_API_KEY'),
+-    dbId: parseInt(process.env.METABASE_DB_ID || '5', 10),
+-    timeoutMs: parseInt(process.env.METABASE_TIMEOUT_MS || '15000', 10),
+-    pageSize: Math.min(parseInt(process.env.METABASE_PAGE_SIZE || '2000', 10), 2000),
+-    cardId: (process.env.METABASE_CARD_ID || '').trim() || null,
+-    usuariosTableId: parseInt(process.env.SAI_USUARIOS_TABLE_ID || '1406', 10),
+-  },
+-  allowedOrigins: (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
+-    .split(',')
+-    .map(s => s.trim())
+-    .filter(Boolean),
+-  usersCacheTtlMs: parseInt(process.env.USERS_CACHE_TTL_MS || '300000', 10),
+-};
+\ No newline at end of file
+diff --git a/server/src/index.js b/server/src/index.js
+deleted file mode 100644
+index 5f5306d..0000000
+--- a/server/src/index.js
++++ /dev/null
+@@ -1,39 +0,0 @@
+-import express from 'express';
+-import helmet from 'helmet';
+-import cors from 'cors';
+-import { config } from './config.js';
+-import metabaseRoutes from './routes/metabaseRoutes.js';
+-import { errorHandler } from './middleware/errorHandler.js';
+-
+-const app = express();
+-
+-// Seguridad
+-app.use(helmet());
+-app.use(cors({
+-  origin: config.allowedOrigins,
+-  methods: ['GET', 'POST'],
+-  credentials: true,
+-}));
+-
+-// Parsing
+-app.use(express.json());
+-
+-// Health check
+-app.get('/health', (req, res) => {
+-  res.json({ status: 'ok', service: 'dashbord-equipos-metabase-proxy' });
+-});
+-
+-// Rutas API
+-app.use('/api/metabase', metabaseRoutes);
+-
+-// Middleware de errores (siempre al final)
+-app.use(errorHandler);
+-
+-// Iniciar servidor
+-app.listen(config.port, () => {
+-  console.log(`✅ Backend Metabase corriendo en http://localhost:${config.port}`);
+-  console.log(`   Metabase URL: ${config.metabase.url}`);
+-  console.log(`   DB ID: ${config.metabase.dbId}`);
+-  console.log(`   Tabla usuarios: ${config.metabase.usuariosTableId}`);
+-  console.log(`   CORS permitido: ${config.allowedOrigins.join(', ')}`);
+-});
+\ No newline at end of file
+diff --git a/server/src/middleware/errorHandler.js b/server/src/middleware/errorHandler.js
+deleted file mode 100644
+index 2cf93a9..0000000
+--- a/server/src/middleware/errorHandler.js
++++ /dev/null
+@@ -1,34 +0,0 @@
+-/**
+- * Middleware central de manejo de errores.
+- * Captura errores de Metabase, validación Zod y otros.
+- */
+-
+-export function errorHandler(err, req, res, next) {
+-  console.error('[ERROR]', err.message);
+-  
+-  // Errores de Metabase (conexión, auth, timeout)
+-  if (err.name === 'MetabaseError') {
+-    return res.status(502).json({
+-      success: false,
+-      error: 'Error de conexión con Metabase',
+-      details: err.message,
+-      hint: 'Verificar que el backend tenga acceso a la red interna y las credenciales sean correctas.',
+-    });
+-  }
+-  
+-  // Errores de validación Zod
+-  if (err.name === 'ZodError') {
+-    return res.status(400).json({
+-      success: false,
+-      error: 'Datos de entrada inválidos',
+-      details: err.errors,
+-    });
+-  }
+-  
+-  // Error genérico
+-  res.status(500).json({
+-    success: false,
+-    error: 'Error interno del servidor',
+-    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+-  });
+-}
+\ No newline at end of file
+diff --git a/server/src/queries/saiTest.js b/server/src/queries/saiTest.js
+deleted file mode 100644
+index 05dce74..0000000
+--- a/server/src/queries/saiTest.js
++++ /dev/null
+@@ -1,33 +0,0 @@
+-import { tabla } from '../clients/metabaseClient.js';
+-import { config } from '../config.js';
+-
+-/**
+- * Queries a la base SAI_TEST vía Metabase (SOLO lectura).
+- * Para agregar una nueva consulta: crear una función acá que use tabla() o sql().
+- * Ninguna otra capa necesita modificarse.
+- */
+-
+-/** Devuelve todos los registros de UsuariosAccesos (paginado automáticamente). */
+-export async function usuariosAccesos() {
+-  return tabla(config.metabase.usuariosTableId);
+-}
+-
+-/**
+- * Detecta las columnas reales de la tabla UsersAccesos consultando 1 fila.
+- * Se usa en test:metabase para confirmar nombres antes de escribir código.
+- */
+-export async function detectarColumnasUsuariosAccesos() {
+-  const rows = await usuariosAccesos();
+-  if (rows.length === 0) return { columns: [], sampleRow: null, totalRows: 0 };
+-  
+-  // Retornar solo nombres de columnas y una muestra anonimizada
+-  const columns = Object.keys(rows[0]);
+-  const sampleRow = columns.reduce((acc, col) => {
+-    acc[col] = typeof rows[0][col] === 'string' && rows[0][col].length > 2 
+-      ? `${rows[0][col].substring(0, 2)}...${rows[0][col].slice(-2)}` 
+-      : '[REDACTED]';
+-    return acc;
+-  }, {});
+-  
+-  return { columns, sampleRow, totalRows: rows.length };
+-}
+\ No newline at end of file
+diff --git a/server/src/routes/metabaseRoutes.js b/server/src/routes/metabaseRoutes.js
+deleted file mode 100644
+index 9e56673..0000000
+--- a/server/src/routes/metabaseRoutes.js
++++ /dev/null
+@@ -1,42 +0,0 @@
+-import { Router } from 'express';
+-import { z } from 'zod';
+-import { getUsers, refreshUsers, getCacheStatus } from '../services/usersService.js';
+-
+-const router = Router();
+-
+-// Parámetros aceptados en GET /usuarios
+-const usuariosQuerySchema = z.object({
+-  q: z.string().trim().max(120).optional().default(''),
+-  soloActivos: z
+-    .enum(['true', 'false'])
+-    .optional()
+-    .default('false')
+-    .transform(v => v === 'true'),
+-});
+-
+-// GET /api/metabase/usuarios?q=texto&soloActivos=true
+-router.get('/usuarios', async (req, res, next) => {
+-  try {
+-    const { q, soloActivos } = usuariosQuerySchema.parse(req.query);
+-    const usuarios = await getUsers(q, { soloActivos });
+-    res.json({ success: true, count: usuarios.length, data: usuarios });
+-  } catch (err) {
+-    next(err);
+-  }
+-});
+-
+-// POST /api/metabase/usuarios/refresh
+-router.post('/usuarios/refresh', async (_req, res, next) => {
+-  try {
+-    const users = await refreshUsers();
+-    res.json({
+-      success: true,
+-      message: `Cache actualizado: ${users.length} usuarios`,
+-      cache: getCacheStatus(),
+-    });
+-  } catch (err) {
+-    next(err);
+-  }
+-});
+-
+-export default router;
+\ No newline at end of file
+diff --git a/server/src/services/usersService.js b/server/src/services/usersService.js
+deleted file mode 100644
+index ef56a86..0000000
+--- a/server/src/services/usersService.js
++++ /dev/null
+@@ -1,141 +0,0 @@
+-import { usuariosAccesos } from '../queries/saiTest.js';
+-import { config } from '../config.js';
+-
+-/**
+- * Servicio de usuarios desde Metabase (SAI_TEST/UsuariosAccesos).
+- * Cachea la lista completa en memoria con TTL configurable.
+- * Las búsquedas se hacen sobre el cache, nunca generan SQL con texto libre.
+- *
+- * Columnas REALES confirmadas por npm run test:metabase:
+- *   usuariosaccesoid | nombre | descripcion | tipo | perfil | ubicacionid |
+- *   identityrecord | contrasenia | vencimiento | gestionid |
+- *   contraseniavencimiento | contraseniaperiodo | servicekey_path |
+- *   ultimoacceso | activo
+- *
+- * Significado verificado con los datos:
+- *   nombre      → usuario de sistema (login), ej. "MSQUINA"
+- *   descripcion → nombre completo de la persona, ej. "Marianela Quiña"
+- *   perfil      → código numérico de perfil
+- *   ubicacionid → código numérico de ubicación/sucursal
+- *
+- * SEGURIDAD: solo se exponen id, usuario, nombre completo, perfil, ubicación, tipo y estado.
+- * Se excluyen SIEMPRE: contrasenia, servicekey_path, identityrecord, vencimientos.
+- */
+-
+-let cache = {
+-  data: null,
+-  timestamp: 0,
+-};
+-
+-function isCacheValid() {
+-  return cache.data && (Date.now() - cache.timestamp) < config.usersCacheTtlMs;
+-}
+-
+-/** Convierte valores vacíos o "null" de Metabase en cadena vacía. */
+-function texto(valor) {
+-  const s = String(valor ?? '').trim();
+-  return s === 'null' ? '' : s;
+-}
+-
+-/** Interpreta el campo activo (puede venir como boolean, número o texto). */
+-function esActivo(valor) {
+-  if (valor === true || valor === 1) return true;
+-  if (valor === false || valor === 0) return false;
+-  const s = texto(valor).toLowerCase();
+-  return s === 'true' || s === '1' || s === 's' || s === 'si' || s === 'activo';
+-}
+-
+-/**
+- * Detecta registros sin nombre completo real (por ejemplo "[Descripción Usuario ...]").
+- * No se excluyen: se marcan para que el frontend decida cómo mostrarlos.
+- */
+-function sinDescripcion(descripcion) {
+-  return !descripcion || descripcion.startsWith('[');
+-}
+-
+-/** Normaliza un registro crudo de UsuariosAccesos a los campos seguros. */
+-function toUsuario(u) {
+-  const id = texto(u.usuariosaccesoid);
+-  if (!id) return null; // sin id no es referenciable
+-
+-  const usuario = texto(u.nombre);
+-  const descripcion = texto(u.descripcion);
+-  const activo = esActivo(u.activo);
+-
+-  return {
+-    id,                                   // se guarda como usuario_ref en Supabase
+-    usuario,                              // login: "MSQUINA"
+-    nombreCompleto: sinDescripcion(descripcion) ? usuario : descripcion,
+-    perfilId: texto(u.perfil),
+-    ubicacionId: texto(u.ubicacionid),
+-    tipo: texto(u.tipo),
+-    activo,
+-    estado: activo ? 'activo' : 'inactivo',
+-    sinDescripcion: sinDescripcion(descripcion),
+-  };
+-}
+-
+-/** Normaliza texto para búsquedas: minúsculas y sin tildes. */
+-function normalizar(s) {
+-  return String(s).toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+-}
+-
+-/** Carga usuarios desde Metabase y actualiza el cache. */
+-async function loadUsers() {
+-  console.log('[usersService] Consultando Metabase...');
+-  const rawUsers = await usuariosAccesos();
+-
+-  const normalized = rawUsers
+-    .map(toUsuario)
+-    .filter(Boolean)
+-    .sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+-
+-  cache = { data: normalized, timestamp: Date.now() };
+-  console.log(`[usersService] Cache actualizado: ${normalized.length} usuarios`);
+-  return normalized;
+-}
+-
+-/**
+- * Obtiene la lista de usuarios (usa cache si es válido). Búsqueda en memoria.
+- * @param {string} query - texto a buscar en id, usuario o nombre completo
+- * @param {{ soloActivos?: boolean }} opciones
+- */
+-export async function getUsers(query = '', { soloActivos = false } = {}) {
+-  if (!isCacheValid()) {
+-    await loadUsers();
+-  }
+-
+-  let users = cache.data;
+-  if (soloActivos) users = users.filter(u => u.activo);
+-  if (!query) return users;
+-
+-  const q = normalizar(query);
+-  return users.filter(u =>
+-    normalizar(u.id).includes(q) ||
+-    normalizar(u.usuario).includes(q) ||
+-    normalizar(u.nombreCompleto).includes(q)
+-  );
+-}
+-
+-/** Busca un usuario por id (para validar usuario_ref al registrar un movimiento). */
+-export async function getUserById(id) {
+-  if (!isCacheValid()) {
+-    await loadUsers();
+-  }
+-  return cache.data.find(u => u.id === String(id)) || null;
+-}
+-
+-/** Fuerza recarga desde Metabase (ignora TTL). */
+-export async function refreshUsers() {
+-  return loadUsers();
+-}
+-
+-/** Estado del cache para diagnóstico (sin datos personales). */
+-export function getCacheStatus() {
+-  return {
+-    valid: isCacheValid(),
+-    count: cache.data?.length || 0,
+-    activos: cache.data?.filter(u => u.activo).length || 0,
+-    ageSeconds: cache.data ? Math.floor((Date.now() - cache.timestamp) / 1000) : null,
+-  };
+-}
+\ No newline at end of file
+-- 
+2.39.5
+
