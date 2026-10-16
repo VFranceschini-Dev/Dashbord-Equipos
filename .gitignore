@@ -1,4 +1,1 @@
-.env
-.env.local
-.env.*
-*.log
+node_modules/
