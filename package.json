@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:ipa": "node --env-file=.env.local scripts/test-ipa.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

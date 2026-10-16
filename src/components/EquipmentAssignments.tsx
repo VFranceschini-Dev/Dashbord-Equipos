@@ -19,7 +19,7 @@ export default function EquipmentAssignments() {
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [loadingHist, setLoadingHist] = useState(true);
 
-  // Buscador de usuarios (proxy ipa.donnet.com.ar/api → Metabase SAI_TEST)
+  // Buscador de usuarios (función /api/usuarios → Metabase SAI_TEST, solo lectura)
   const [query, setQuery] = useState('');
   const [usuarios, setUsuarios] = useState<MetabaseUsuario[]>([]);
   const [selectedUser, setSelectedUser] = useState<MetabaseUsuario | null>(null);
@@ -42,7 +42,7 @@ export default function EquipmentAssignments() {
       .finally(() => setLoadingHist(false));
   }, []);
 
-  // Búsqueda incremental con debounce (nunca arma SQL con el texto: filtra en la caché del proxy)
+  // Búsqueda incremental con debounce (nunca arma SQL con el texto: la función filtra en su caché)
   useEffect(() => {
     window.clearTimeout(debounceRef.current);
     if (!query.trim()) { setUsuarios([]); return; }
@@ -55,8 +55,10 @@ export default function EquipmentAssignments() {
       } catch (err) {
         setUsuarios([]);
         setProxyError(
-          err instanceof ProxyError
-            ? 'No hay conexión con el servidor interno (ipa.donnet.com.ar). El historial guardado sigue disponible.'
+          err instanceof ProxyError && err.status === 401
+            ? 'Sesión expirada: volvé a iniciar sesión.'
+            : err instanceof ProxyError
+            ? 'No hay conexión con /api/usuarios (SAI_TEST, solo lectura). El historial guardado sigue disponible.'
             : 'Error inesperado al buscar usuarios.'
         );
       } finally {

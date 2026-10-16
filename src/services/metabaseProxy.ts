@@ -1,23 +1,40 @@
 /**
- * Cliente del proxy interno ipa.donnet.com.ar/api (Metabase SAI_TEST, SOLO LECTURA).
- * La app alojada en Vercel NUNCA habla con Metabase directamente: siempre pasa
- * por este proxy, que vive en la red interna y guarda la API key.
+ * metabaseProxy.ts — Cliente del endpoint propio /api/usuarios (función de Vercel).
  *
- * Configuración:
- *   VITE_METABASE_PROXY_URL  → base del proxy (default https://ipa.donnet.com.ar/api)
- *   VITE_METABASE_TIMEOUT_MS → timeout de las llamadas (default 15000)
+ * El navegador NUNCA habla con ipa.donnet.com.ar: la lectura de SAI_TEST
+ * (UsuariosAccesos, SOLO LECTURA) pasa por la función serverless del mismo
+ * dominio, que es la única que conoce la API key de Metabase.
+ *
+ * Exportaciones estables (usadas por EquipmentAssignments.tsx):
+ *   getUsuarios, ProxyError, MetabaseUsuario, refreshUsuarios, checkProxy
  */
 
-const PROXY_BASE = (import.meta.env.VITE_METABASE_PROXY_URL || 'https://ipa.donnet.com.ar/api').replace(/\/+$/, '');
-const TIMEOUT_MS = parseInt(import.meta.env.VITE_METABASE_TIMEOUT_MS || '15000', 10);
+import { supabase } from './supabase';
+
+const TIMEOUT_MS = 20000; // timeout del lado del navegador (la función corta a los 15 s)
 
 export interface MetabaseUsuario {
-  id: string;        // usuariosaccesoid (identificador en UsuariosAccesos)
-  nombre: string;    // login/código del usuario
-  area: string;      // descripción del acceso/área
-  perfil: string;
-  ubicacionid: string;
-  estado: string;    // activo | inactivo
+  id: string;             // usuariosaccesoid
+  usuario: string;        // login (nombre)
+  nombreCompleto: string; // descripcion
+  perfilId: string;       // perfil
+  ubicacionId: string;    // ubicacionid
+  tipo: string;           // mayúsculas ('U' = persona)
+  activo: boolean;
+  // --- Alias de compatibilidad (no romper EquipmentAssignments.tsx) ---
+  nombre: string;         // = nombreCompleto
+  area: string;           // = usuario (login)
+  estado: 'activo' | 'inactivo';
+}
+
+interface RawUsuario {
+  id: string;
+  usuario: string;
+  nombreCompleto: string;
+  perfilId: string;
+  ubicacionId: string;
+  tipo: string;
+  activo: boolean;
 }
 
 export class ProxyError extends Error {
@@ -29,19 +46,36 @@ export class ProxyError extends Error {
   }
 }
 
-async function fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+function withCompat(u: RawUsuario): MetabaseUsuario {
+  return {
+    ...u,
+    nombre: u.nombreCompleto,
+    area: u.usuario,
+    estado: u.activo ? 'activo' : 'inactivo',
+  };
+}
+
+async function authedFetch(pathAndQuery: string, init: RequestInit = {}): Promise<any> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new ProxyError('Sesión no válida: volvé a iniciar sesión.', 401);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(`${PROXY_BASE}${path}`, {
+    res = await fetch(`/api/usuarios${pathAndQuery}`, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(init.headers || {}),
+      },
       signal: controller.signal,
     });
   } catch (err) {
-    if ((err as Error).name === 'AbortError') throw new ProxyError(`Timeout del proxy (${TIMEOUT_MS} ms)`);
-    throw new ProxyError(`No se pudo conectar al proxy (${PROXY_BASE}): ${(err as Error).message}`);
+    if ((err as Error).name === 'AbortError') throw new ProxyError(`Timeout de /api/usuarios (${TIMEOUT_MS} ms)`);
+    throw new ProxyError(`No se pudo conectar a /api/usuarios: ${(err as Error).message}`);
   } finally {
     clearTimeout(timer);
   }
@@ -50,35 +84,47 @@ async function fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     json = await res.json();
   } catch {
-    throw new ProxyError(`Respuesta no JSON del proxy (HTTP ${res.status})`, res.status);
+    throw new ProxyError(`Respuesta no JSON de /api/usuarios (HTTP ${res.status})`, res.status);
   }
-  if (!res.ok || json?.error) {
-    throw new ProxyError(json?.message || json?.error || `El proxy respondió HTTP ${res.status}`, res.status);
+  if (!res.ok || json?.success === false) {
+    throw new ProxyError(json?.error || `/api/usuarios respondió HTTP ${res.status}`, res.status);
   }
-  return json as T;
+  return json;
 }
 
-/** Lista/busca usuarios de UsuariosAccesos vía el proxy (?q= sobre la caché del backend). */
-export async function getUsuarios(q = ''): Promise<MetabaseUsuario[]> {
-  const url = `/usuarios${q ? `?q=${encodeURIComponent(q)}` : ''}`;
-  const json = await fetchJson<{ success: boolean; count: number; data: MetabaseUsuario[] }>(url);
-  return json.data || [];
+export interface GetUsuariosOptions {
+  soloActivos?: boolean;  // default true
+  soloPersonas?: boolean; // tipo 'U'
+  limit?: number;         // 1..500, default 50
+  refresh?: boolean;      // ignora la caché del servidor
 }
 
-/** Fuerza recarga de la caché de usuarios en el proxy. */
+/** Lista/busca usuarios de UsuariosAccesos vía /api/usuarios (mismo dominio). */
+export async function getUsuarios(q = '', options: GetUsuariosOptions = {}): Promise<MetabaseUsuario[]> {
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  params.set('soloActivos', String(options.soloActivos ?? true));
+  if (options.soloPersonas) params.set('soloPersonas', 'true');
+  if (options.limit !== undefined) params.set('limit', String(options.limit));
+  if (options.refresh) params.set('refresh', 'true');
+
+  const qs = params.toString();
+  const json = await authedFetch(qs ? `?${qs}` : '');
+  const rows: RawUsuario[] = json.data || [];
+  return rows.map(withCompat);
+}
+
+/** Fuerza recarga de la caché de usuarios en la función serverless. */
 export async function refreshUsuarios(): Promise<{ count: number }> {
-  const json = await fetchJson<{ success: boolean; message: string; cache?: { count: number } }>(
-    '/usuarios/refresh',
-    { method: 'POST' }
-  );
-  return { count: json.cache?.count ?? 0 };
+  const users = await getUsuarios('', { soloActivos: false, limit: 500, refresh: true });
+  return { count: users.length };
 }
 
-/** Healthcheck del proxy (para mostrar aviso si la red interna no responde). */
+/** Healthcheck del endpoint propio (para mostrar aviso si la función no responde). */
 export async function checkProxy(): Promise<boolean> {
   try {
-    await fetchJson('/health');
-    return true;
+    const json = await authedFetch('?limit=1');
+    return json?.success === true;
   } catch {
     return false;
   }
