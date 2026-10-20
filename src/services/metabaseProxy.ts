@@ -1,12 +1,15 @@
 /**
- * Cliente de /api/usuarios (función serverless de Vercel, mismo dominio).
+ * Cliente del proxy local de Vercel (función serverless, mismo dominio).
  *
- * La app en el navegador NUNCA habla con ipa.donnet.com.ar ni conoce la API key
- * de Metabase: todo pasa por /api/usuarios, que valida la sesión de Supabase y
- * consulta SAI_TEST en modo SOLO LECTURA.
+ * El navegador NUNCA habla con el servidor interno ni conoce la API key:
+ * todo pasa por /api/users, que valida la sesión de Supabase y consulta
+ * SAI_TEST (Metabase) en modo SOLO LECTURA.
  */
 
 import { supabase } from './supabase';
+
+// Endpoint único del proxy serverless (misma función para ambas rutas históricas).
+export const USERS_PROXY_ENDPOINT = '/api/users';
 
 export interface MetabaseUsuario {
   id: string;             // usuariosaccesoid
@@ -52,7 +55,7 @@ async function fetchUsuariosApi(
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== '') qs.set(k, String(v));
   }
-  const url = `/api/usuarios${qs.toString() ? `?${qs.toString()}` : ''}`;
+  const url = `${USERS_PROXY_ENDPOINT}${qs.toString() ? `?${qs.toString()}` : ''}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
@@ -66,7 +69,7 @@ async function fetchUsuariosApi(
     });
   } catch (err) {
     if ((err as Error).name === 'AbortError') throw new ProxyError('Tiempo de espera agotado al buscar usuarios.');
-    throw new ProxyError(`No se pudo conectar con /api/usuarios: ${(err as Error).message}`);
+    throw new ProxyError(`No se pudo conectar con el proxy /api/users: ${(err as Error).message}`);
   } finally {
     clearTimeout(timer);
   }
@@ -94,7 +97,7 @@ async function fetchUsuariosApi(
 }
 
 /**
- * Lista/busca usuarios de UsuariosAccesos vía /api/usuarios.
+ * Lista/busca usuarios de UsuariosAccesos vía /api/users (proxy serverless).
  * El filtro q se aplica en memoria sobre la caché del servidor (sin tildes ni
  * mayúsculas); nunca se arma SQL con el texto. Por defecto solo activos.
  */
@@ -117,7 +120,7 @@ export async function refreshUsuarios(): Promise<{ count: number }> {
   return { count: json.total ?? json.count ?? 0 };
 }
 
-/** Healthcheck del puente /api/usuarios (sesión + variables del servidor). */
+/** Healthcheck del puente /api/users (sesión + variables del servidor). */
 export async function checkProxy(): Promise<boolean> {
   try {
     await fetchUsuariosApi({ limit: 1 });

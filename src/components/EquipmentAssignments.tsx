@@ -19,7 +19,9 @@ export default function EquipmentAssignments() {
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [loadingHist, setLoadingHist] = useState(true);
 
-  // Buscador de usuarios (proxy ipa.donnet.com.ar/api → Metabase SAI_TEST)
+  // Buscador de usuarios: consume el proxy local /api/users (función serverless
+  // de Vercel, mismo dominio). El navegador NUNCA habla con ipa.donnet.com.ar;
+  // la key de Metabase vive solo en la función y ella consulta SAI_TEST (solo lectura).
   const [query, setQuery] = useState('');
   const [usuarios, setUsuarios] = useState<MetabaseUsuario[]>([]);
   const [selectedUser, setSelectedUser] = useState<MetabaseUsuario | null>(null);
@@ -56,7 +58,7 @@ export default function EquipmentAssignments() {
         setUsuarios([]);
         setProxyError(
           err instanceof ProxyError
-            ? 'No hay conexión con el servidor interno (ipa.donnet.com.ar). El historial guardado sigue disponible.'
+            ? 'El proxy /api/users no pudo conectar con el servidor interno (Metabase/SAI_TEST). Verificá las variables de entorno de la función en Vercel. El historial guardado sigue disponible.'
             : 'Error inesperado al buscar usuarios.'
         );
       } finally {

@@ -179,5 +179,11 @@ export async function GET(request: Request): Promise<Response> {
   });
 
   const page = filtered.slice(0, limit);
-  return json({ success: true, total: filtered.length, count: page.length, data: page });
+  // Formato compatible con el cliente metabaseProxy.ts (usa nombreCompleto/estado).
+  const data = page.map((u) => ({
+    ...u,
+    nombreCompleto: u.nombre,          // alias: nombre completo
+    estado: u.activo ? 'activo' : 'inactivo',
+  }));
+  return json({ success: true, total: filtered.length, count: data.length, data });
 }
