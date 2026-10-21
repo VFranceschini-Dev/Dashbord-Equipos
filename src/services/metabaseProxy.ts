@@ -1,23 +1,23 @@
 /**
- * Cliente de /api/usuarios (función serverless de Vercel, mismo dominio).
+ * Cliente del proxy local de Vercel (función serverless, mismo dominio).
  *
- * La app en el navegador NUNCA habla con ipa.donnet.com.ar ni conoce la API key
- * de Metabase: todo pasa por /api/usuarios, que valida la sesión de Supabase y
- * consulta SAI_TEST en modo SOLO LECTURA.
+ * El navegador NUNCA habla con los servidores internos ni conoce credenciales:
+ * todo pasa por /api/usuarios, que valida la sesión y combina dos fuentes de
+ * usuarios en el servidor (solo lectura). La respuesta trae únicamente
+ * { id, nombre, usuario } — sin origen, base ni tabla visibles.
  */
 
 import { supabase } from './supabase';
 
+// Endpoint único del proxy serverless.
+export const USERS_PROXY_ENDPOINT = '/api/usuarios';
+
 export interface MetabaseUsuario {
-  id: string;             // usuariosaccesoid
-  usuario: string;        // login/código (campo "nombre" en UsuariosAccesos)
-  nombreCompleto: string; // descripción del acceso
-  perfilId: string;       // perfil
-  ubicacionId: string;    // ubicacionid
-  tipo: string;           // 'U' | ... (mayúsculas)
-  activo: boolean;        // activo como boolean
-  // Alias de compatibilidad para EquipmentAssignments.tsx:
-  nombre: string;         // = nombreCompleto
+  id: string;             // identificador opaco (no revela la fuente)
+  nombre: string;         // nombre completo
+  usuario: string;        // login/código
+  // Campos derivados en el cliente (compatibilidad con EquipmentAssignments.tsx):
+  nombreCompleto: string; // = nombre
   area: string;           // = usuario (login)
   estado: 'activo' | 'inactivo';
 }
@@ -35,7 +35,7 @@ interface ApiUsuariosResponse {
   success: boolean;
   total?: number;
   count?: number;
-  data?: MetabaseUsuario[];
+  data?: Array<{ id: string; nombre: string; usuario: string }>;
   error?: string;
   message?: string;
 }
@@ -52,7 +52,7 @@ async function fetchUsuariosApi(
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== '') qs.set(k, String(v));
   }
-  const url = `/api/usuarios${qs.toString() ? `?${qs.toString()}` : ''}`;
+  const url = `${USERS_PROXY_ENDPOINT}${qs.toString() ? `?${qs.toString()}` : ''}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
@@ -66,7 +66,7 @@ async function fetchUsuariosApi(
     });
   } catch (err) {
     if ((err as Error).name === 'AbortError') throw new ProxyError('Tiempo de espera agotado al buscar usuarios.');
-    throw new ProxyError(`No se pudo conectar con /api/usuarios: ${(err as Error).message}`);
+    throw new ProxyError('No se pudo conectar con el servidor de usuarios.');
   } finally {
     clearTimeout(timer);
   }
@@ -75,28 +75,38 @@ async function fetchUsuariosApi(
   try {
     json = await res.json();
   } catch {
-    throw new ProxyError(`Respuesta no JSON del servidor (HTTP ${res.status})`, res.status);
+    throw new ProxyError('Respuesta inválida del servidor.', res.status);
   }
   if (!res.ok || !json.success) {
-    throw new ProxyError(json.error || json.message || `El servidor respondió HTTP ${res.status}`, res.status);
+    // Mensaje genérico: no reenviamos detalles internos al usuario.
+    throw new ProxyError('No se pudo cargar la lista de usuarios.', res.status);
   }
 
-  // Asegurar los alias de compatibilidad aunque el backend solo devuelva los 7 campos.
+  // Derivar los campos que usa la UI a partir de { id, nombre, usuario }.
   if (json.data) {
-    json.data = json.data.map((u: any) => ({
+    json.data = json.data.map((u) => ({
       ...u,
-      nombre: u.nombre ?? u.nombreCompleto ?? '',
-      area: u.area ?? u.usuario ?? '',
-      estado: u.estado ?? (u.activo ? 'activo' : 'inactivo'),
-    }));
+      nombre: u.nombre ?? u.usuario ?? '',
+    })) as ApiUsuariosResponse['data'];
   }
   return json;
 }
 
+function toUsuario(u: { id: string; nombre: string; usuario: string }): MetabaseUsuario {
+  return {
+    id: u.id,
+    nombre: u.nombre,
+    usuario: u.usuario,
+    nombreCompleto: u.nombre,
+    area: u.usuario,
+    estado: 'activo', // el backend ya filtró inactivos cuando soloActivos=true
+  };
+}
+
 /**
- * Lista/busca usuarios de UsuariosAccesos vía /api/usuarios.
- * El filtro q se aplica en memoria sobre la caché del servidor (sin tildes ni
- * mayúsculas); nunca se arma SQL con el texto. Por defecto solo activos.
+ * Lista/busca usuarios combinando las dos fuentes del servidor vía /api/usuarios.
+ * El filtro q se aplica en memoria en el backend (sin tildes ni mayúsculas);
+ * nunca se arma SQL con el texto. Por defecto solo activos.
  */
 export async function getUsuarios(
   q = '',
@@ -108,7 +118,7 @@ export async function getUsuarios(
     soloPersonas: opts?.soloPersonas ?? undefined,
     limit: opts?.limit ?? undefined,
   });
-  return json.data || [];
+  return (json.data || []).map(toUsuario);
 }
 
 /** Fuerza recarga de la caché de usuarios en la función serverless (TTL 5 min). */
@@ -117,7 +127,7 @@ export async function refreshUsuarios(): Promise<{ count: number }> {
   return { count: json.total ?? json.count ?? 0 };
 }
 
-/** Healthcheck del puente /api/usuarios (sesión + variables del servidor). */
+/** Healthcheck del puente /api/users (sesión + variables del servidor). */
 export async function checkProxy(): Promise<boolean> {
   try {
     await fetchUsuariosApi({ limit: 1 });

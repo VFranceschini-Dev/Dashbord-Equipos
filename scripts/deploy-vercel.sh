@@ -3,9 +3,9 @@
 # deploy-vercel.sh — publica Dashbord-Equipos en Vercel
 # https://dashbord-equipos.vercel.app/
 #
-# La app NO necesita backend propio: los usuarios de SAI_TEST se
-# leen vía el proxy interno https://ipa.donnet.com.ar/api (Metabase,
-# solo lectura) y el ABM va directo a Supabase.
+# La app NO necesita backend propio: los usuarios se leen vía la función
+# serverless /api/usuarios (que consulta en el servidor, solo lectura) y el
+# ABM va directo a las tablas propias.
 #
 # Uso:
 #   VERCEL_TOKEN=xxx ./scripts/deploy-vercel.sh            # producción

@@ -71,7 +71,7 @@ async function main() {
       ok(`Consulta OK. Total de filas en UsuariosAccesos: ${row_count}`);
       console.log(`   Columnas: ${cols.join(', ')}`);
 
-      // 4) Verificación de las 7 columnas usadas por /api/usuarios
+      // 4) Verificación de las 7 columnas usadas por la fuente primaria (solo servidor)
       const faltantes = COLUMNAS_REQUERIDAS.filter((c) => !cols.includes(c));
       if (faltantes.length === 0) ok('Las 7 columnas usadas están presentes.');
       else fail(`Faltan columnas esperadas: ${faltantes.join(', ')}`);
