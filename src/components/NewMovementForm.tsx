@@ -1,9 +1,10 @@
 // src/components/NewMovementForm.tsx
 // Formulario "Nuevo Movimiento".
-// - Usuarios: fetch local a /api/users (función serverless de Vercel; la key de
-//   Metabase NUNCA toca el navegador). Se revalida con el token de Supabase.
-// - Tóners e Impresoras: tablas propias de Supabase (RLS aplica por user_id).
-// - Alta: insert en toner_movements vía movementsService + ajuste de stock.
+// - Usuarios: fetch al proxy serverless del mismo dominio (/api/usuarios). El
+//   backend combina las fuentes y devuelve solo { id, nombre, usuario }; el
+//   navegador no conoce el origen de los datos ni credenciales.
+// - Tóners e Impresoras: tablas propias (RLS aplica por user_id).
+// - Alta: insert en toner_movimientos vía movementsService + ajuste de stock.
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, tonersService, printersService, movementsService } from '../services/supabase';
@@ -54,7 +55,7 @@ export default function NewMovementForm({ onRegistered }: { onRegistered?: () =>
     });
   }, []);
 
-  // Carga inicial: usuarios (proxy Metabase) + tóners + impresoras (Supabase)
+  // Carga inicial: usuarios (proxy serverless) + tóners + impresoras (tablas propias)
   useEffect(() => {
     let cancelled = false;
     async function loadAll() {
@@ -64,16 +65,17 @@ export default function NewMovementForm({ onRegistered }: { onRegistered?: () =>
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
 
-      // 1) Usuarios desde la función serverless (mismo dominio, solo lectura)
+      // 1) Usuarios desde la función serverless (mismo dominio, solo lectura).
+      //    Respuesta: { success, total, count, data: [{ id, nombre, usuario }] }
       try {
-        const res = await fetch('/api/users?soloActivos=true&soloPersonas=true&limit=500', {
+        const res = await fetch('/api/usuarios?soloActivos=true&soloPersonas=true&limit=500', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (!cancelled) setUsuarios(json.data ?? []);
       } catch {
-        if (!cancelled) setError('No se pudieron cargar los usuarios (proxy /api/users).');
+        if (!cancelled) setError('No se pudo cargar la lista de usuarios.');
       }
 
       // 2) Tóners y 3) Impresoras desde Supabase (requiere sesión)
@@ -110,7 +112,7 @@ export default function NewMovementForm({ onRegistered }: { onRegistered?: () =>
 
     if (!userId) { setError('Tu sesión expiró. Volvé a iniciar sesión.'); return; }
     if (!tonerId) { setError('Seleccioná un tóner.'); return; }
-    if (!usuarioId) { setError('Seleccioná un usuario (SAI_TEST).'); return; }
+    if (!usuarioId) { setError('Seleccioná un usuario.'); return; }
     if (!Number.isInteger(cantidad) || cantidad <= 0) { setError('La cantidad debe ser un entero mayor que 0.'); return; }
     if (!fecha) { setError('Indicá una fecha válida.'); return; }
     const aumentaStock = tipoMovimiento === 'return' || tipoMovimiento === 'restock';
@@ -203,7 +205,7 @@ export default function NewMovementForm({ onRegistered }: { onRegistered?: () =>
             onChange={(e) => updateField(setCantidad)(parseInt(e.target.value || '0', 10))} />
         </div>
         <div>
-          <label className={labelCls}>Usuario (SAI_TEST) *</label>
+          <label className={labelCls}>Usuario *</label>
           <select className={inputCls} value={usuarioId}
             onChange={(e) => updateField(setUsuarioId)(e.target.value)} disabled={loadingListas}>
             <option value="">— Buscar/seleccionar —</option>

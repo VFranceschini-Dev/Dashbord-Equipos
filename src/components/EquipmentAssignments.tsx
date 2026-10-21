@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { syncEquipmentMovementToSupabase, syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
-import { getUsuarios, ProxyError, type MetabaseUsuario } from '../services/metabaseProxy';
+import { getUsuarios, type MetabaseUsuario } from '../services/metabaseProxy';
 import { Equipment, EquipmentMovement } from '../types';
 import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History } from 'lucide-react';
 
@@ -19,7 +19,9 @@ export default function EquipmentAssignments() {
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [loadingHist, setLoadingHist] = useState(true);
 
-  // Buscador de usuarios (proxy ipa.donnet.com.ar/api → Metabase SAI_TEST)
+  // Buscador de usuarios: consume el proxy local /api/usuarios (función serverless
+  // de Vercel, mismo dominio). La combinación de fuentes ocurre solo en el backend;
+  // la UI recibe { id, nombre, usuario } sin información del origen de los datos.
   const [query, setQuery] = useState('');
   const [usuarios, setUsuarios] = useState<MetabaseUsuario[]>([]);
   const [selectedUser, setSelectedUser] = useState<MetabaseUsuario | null>(null);
@@ -52,13 +54,9 @@ export default function EquipmentAssignments() {
         const res = await getUsuarios(query.trim());
         setUsuarios(res);
         setProxyError(null);
-      } catch (err) {
+      } catch {
         setUsuarios([]);
-        setProxyError(
-          err instanceof ProxyError
-            ? 'No hay conexión con el servidor interno (ipa.donnet.com.ar). El historial guardado sigue disponible.'
-            : 'Error inesperado al buscar usuarios.'
-        );
+        setProxyError('No se pudo cargar la lista de usuarios. El historial guardado sigue disponible.');
       } finally {
         setSearching(false);
       }
@@ -110,7 +108,7 @@ export default function EquipmentAssignments() {
         <div className="p-2 bg-blue-50 rounded-lg"><Monitor size={22} className="text-blue-600" /></div>
         <div>
           <h2 className="text-xl font-bold text-gray-800">Asignación de Equipos</h2>
-          <p className="text-xs text-gray-500">Usuarios leídos de SAI_TEST/UsuariosAccesos (solo lectura) · Movimientos guardados en Supabase</p>
+          <p className="text-xs text-gray-500">Búsqueda de usuarios en directorio corporativo · Historial compartido</p>
         </div>
       </div>
 
@@ -126,7 +124,7 @@ export default function EquipmentAssignments() {
         <h3 className="font-semibold text-gray-800 flex items-center gap-2"><ArrowLeftRight size={16} /> Registrar movimiento</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Usuario (SAI_TEST) *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Usuario *</label>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
