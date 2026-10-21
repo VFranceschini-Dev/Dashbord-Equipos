@@ -593,17 +593,17 @@ const moduleLabels: Record<string, string> = {
  * "tabla sin datos" (no hay error) de "la consulta falló" (hay error).
  */
 // Mensaje en español según el código de error de Postgres/Supabase.
-function describeLoadError(label: string, table: string, error: unknown): string {
+function describeLoadError(label: string, error: unknown): string {
   const code = (error as { code?: string } | null)?.code;
   const message = (error as { message?: string } | null)?.message ?? String(error);
   // 42P01 undefined_table / PGRST205 Could not find the table in schema cache
   if (code === '42P01' || /could not find the table|relation .* does not exist|schema cache/i.test(message)) {
-    return `La tabla ${table} todavía no existe en la base de datos`;
+    return `Los datos de ${label} todavía no están disponibles en el servidor`;
   }
   if (/row-level security|permission denied/i.test(message)) {
-    return `No tenés permisos para leer ${label} (políticas RLS)`;
+    return `No tenés permisos para leer ${label}`;
   }
-  return `No se pudieron cargar los ${label} desde Supabase`;
+  return `No se pudieron cargar los ${label}. Intentá de nuevo más tarde`;
 }
 
 const moduleTables: Record<string, string> = {
@@ -615,15 +615,16 @@ const moduleTables: Record<string, string> = {
   collaborators: 'collaborators',
   vouchers: 'vouchers',
 };
+void moduleTables; // nombres internos de tablas: solo diagnóstico técnico, nunca texto visible
 
 async function loadModule<T>(name: string, fn: () => Promise<T[]>): Promise<ModuleLoad<T[]>> {
   try {
     const data = await fn();
     return { data };
   } catch (error) {
-    console.error(`Error al cargar ${moduleLabels[name] || name} desde Supabase:`, error);
+    console.error(`Error al cargar ${moduleLabels[name] || name}:`, error);
     const label = moduleLabels[name] || name;
-    return { data: [], error: describeLoadError(label, moduleTables[name] ?? name, error) };
+    return { data: [], error: describeLoadError(label, error) };
   }
 }
 
@@ -686,8 +687,8 @@ export async function syncAllFromSupabase(): Promise<{
   const okData = results.map((res, i): ModuleLoad<any[]> => {
     if (res.status === 'fulfilled') return res.value;
     // Redundancia defensiva: loadModule nunca rechaza, pero allSettled lo cubre igual.
-    console.error(`Error al cargar ${keys[i]} desde Supabase:`, res.reason);
-    if (i < 7) errors[keys[i] as ModuleKey] = `No se pudieron cargar los datos desde Supabase`;
+    console.error(`Error al cargar el módulo ${keys[i]}:`, res.reason);
+    if (i < 7) errors[keys[i] as ModuleKey] = 'No se pudieron cargar los datos. Intentá de nuevo más tarde';
     return { data: [] };
   });
   const [printers, toners, movements, equipments, suppliers, collaborators, vouchers, externalServers, syncedDevices] = okData;
@@ -842,7 +843,7 @@ export async function syncEquipmentMovementsFromSupabase(): Promise<EquipmentMov
   }));
 }
 
-/** Alta atómica: RPC inserta el movimiento y actualiza status del equipo en Supabase. */
+/** Alta atómica: la consulta remota inserta el movimiento y actualiza el status del equipo. */
 export async function syncEquipmentMovementToSupabase(params: {
   equipmentId: string;
   usuarioRef: string;

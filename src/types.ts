@@ -152,14 +152,14 @@ export interface SyncedDevice {
   localEquipmentId?: string;
 }
 
-// ===== Movimientos de EQUIPOS (hardware) a usuarios de SAI_TEST/UsuariosAccesos =====
+// ===== Movimientos de EQUIPOS (hardware) a usuarios =====
 export type EquipmentMovementType = 'asignacion' | 'devolucion' | 'traslado' | 'baja';
 
 export interface EquipmentMovement {
   id: string;
   userId: string;
   equipmentId: string;
-  usuarioRef: string;        // usuariosaccesoid (Metabase, solo lectura)
+  usuarioRef: string;        // id opaco del usuario al momento del movimiento
   usuarioNombre: string;     // cache del nombre al momento del movimiento
   usuarioArea: string;       // cache del área/descripción
   tipo: EquipmentMovementType;

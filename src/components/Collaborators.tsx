@@ -3,11 +3,16 @@ import { useApp } from '../context/AppContext';
 import ModuleSyncControls from './ModuleSyncControls';
 import { Collaborator } from '../types';
 import { DEPARTMENTS } from '../data';
+import { TEXTOS_USUARIOS } from '../constants/textos';
+import { existeUsuario, darDeAltaUsuario } from '../services/usuarios';
 import {
   Plus, Search, Edit2, Trash2, X, Users, Mail, Phone, Building, Briefcase, Calendar, CheckCircle, XCircle, Monitor, Upload, Loader2
 } from 'lucide-react';
 import ImportModal from './ImportModal';
 import { v4 as uuidv4 } from 'uuid';
+
+const TU = TEXTOS_USUARIOS.usuarios;
+const TA = TEXTOS_USUARIOS.asignaciones;
 
 export default function Collaborators() {
   const { collaborators, addCollaborator, updateCollaborator, deleteCollaborator, equipments, dataLoading} = useApp();
@@ -17,6 +22,8 @@ export default function Collaborators() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+  const [formMsg, setFormMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const emptyForm: Omit<Collaborator, 'id'> = {
     name: '', lastName: '', dni: '', email: '', phone: '',
@@ -49,17 +56,51 @@ export default function Collaborators() {
     setShowImport(false);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.name || !form.lastName) return;
-    if (editingId) updateCollaborator(editingId, form);
-    else addCollaborator(form);
-    resetForm();
+    if (editingId) {
+      updateCollaborator(editingId, form);
+      setFormMsg({ ok: true, text: TU.edicionOk });
+      resetForm();
+      return;
+    }
+    // Alta nueva: verificar primero si ya existe (en cualquier fuente) vía el endpoint propio.
+    setSavingUser(true);
+    setFormMsg(null);
+    const login = `${form.name}${form.lastName}`.toLowerCase();
+    const duplicadoLocal = collaborators.some(c =>
+      (c.name + ' ' + c.lastName).toLowerCase() === (form.name + ' ' + form.lastName).toLowerCase() ||
+      (form.email && c.email && c.email.toLowerCase() === form.email.toLowerCase()));
+    const existeRemoto = !duplicadoLocal && await existeUsuario({ usuario: login, correo: form.email });
+    setSavingUser(false);
+    if (duplicadoLocal || existeRemoto) {
+      setFormMsg({ ok: false, text: TA.yaRegistrado });
+      return;
+    }
+    const resultado = await darDeAltaUsuario({
+      nombre: form.name.trim(),
+      apellido: form.lastName.trim(),
+      usuario: login,
+      correo: form.email.trim(),
+      departamento: form.department,
+      estado: form.active ? 'activo' : 'inactivo',
+    });
+    if (resultado.ok) {
+      addCollaborator(form); // reflejar en la lista local sin recargar
+      setFormMsg({ ok: true, text: TU.altaOk });
+      resetForm();
+    } else if (resultado.code === 'duplicado') {
+      setFormMsg({ ok: false, text: TA.yaRegistrado });
+    } else {
+      setFormMsg({ ok: false, text: resultado.message });
+    }
   };
 
   const resetForm = () => {
     setForm(emptyForm);
     setShowForm(false);
     setEditingId(null);
+    setFormMsg(null);
   };
 
   const startEdit = (c: Collaborator) => {
@@ -76,7 +117,7 @@ export default function Collaborators() {
         <div className="flex gap-2 flex-wrap">
           <div className="relative">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Buscar usuario..." value={search} onChange={e => setSearch(e.target.value)}
+            <input type="text" placeholder={TU.buscarPlaceholder} value={search} onChange={e => setSearch(e.target.value)}
               className="pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-blue-400 outline-none text-sm w-64" />
           </div>
           <select value={filterDepartment} onChange={e => setFilterDepartment(e.target.value)}
@@ -92,14 +133,14 @@ export default function Collaborators() {
           </button>
           <button onClick={() => { resetForm(); setShowForm(true); }}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
-            <Plus size={16} /> Nuevo usuario
+            <Plus size={16} /> {TU.nuevo}
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-          <p className="text-xs text-gray-500">Total de usuarios</p>
+          <p className="text-xs text-gray-500">{TU.total}</p>
           <p className="text-2xl font-bold">{collaborators.length}</p>
         </div>
         <div className="bg-white rounded-xl p-4 border border-emerald-100 shadow-sm">
@@ -120,7 +161,7 @@ export default function Collaborators() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
-              <h3 className="font-semibold text-lg">{editingId ? 'Editar usuario' : 'Nuevo usuario'}</h3>
+              <h3 className="font-semibold text-lg">{editingId ? TU.editar : TU.nuevo}</h3>
               <button onClick={resetForm} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
             </div>
             <div className="p-5 space-y-4">
@@ -184,11 +225,18 @@ export default function Collaborators() {
                 <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm resize-none" />
               </div>
+              {formMsg && (
+                <div className={`rounded-lg px-3 py-2 text-sm ${formMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                  {formMsg.text}
+                </div>
+              )}
             </div>
             <div className="p-5 border-t border-gray-100 flex justify-end gap-2 sticky bottom-0 bg-white">
-              <button onClick={resetForm} className="px-4 py-2 rounded-lg border border-gray-200 text-sm">Cancelar</button>
-              <button onClick={handleSubmit} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 font-medium">
-                {editingId ? 'Guardar' : 'Agregar'}
+              <button onClick={resetForm} className="px-4 py-2 rounded-lg border border-gray-200 text-sm">{TU.cancelar}</button>
+              <button onClick={handleSubmit} disabled={savingUser}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 font-medium disabled:opacity-50 inline-flex items-center gap-2">
+                {savingUser && <Loader2 size={14} className="animate-spin" />}
+                {editingId ? TU.guardar : 'Agregar'}
               </button>
             </div>
           </div>
@@ -198,7 +246,7 @@ export default function Collaborators() {
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
-            <h3 className="font-semibold text-lg mb-2">¿Eliminar usuario?</h3>
+            <h3 className="font-semibold text-lg mb-2">{TU.eliminarTitulo}</h3>
             <p className="text-sm text-gray-500 mb-4">Esta acción no se puede deshacer.</p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 rounded-lg border border-gray-200 text-sm">Cancelar</button>
@@ -270,7 +318,7 @@ export default function Collaborators() {
 
         <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
           <Users size={48} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">No se encontraron usuarios</p>
+          <p className="text-gray-500">{TU.sinResultados}</p>
         </div>
         )
       )}
@@ -279,7 +327,7 @@ export default function Collaborators() {
         isOpen={showImport}
         onClose={() => setShowImport(false)}
         onImport={handleImport}
-        title="Usuarios"
+        title={TU.titulo}
         entityType="collaborators"
         templateHeaders={['nombre', 'apellido', 'dni', 'email', 'telefono', 'departamento', 'cargo']}
         mapping={{

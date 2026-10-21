@@ -117,9 +117,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         applyAllData(data);
       })
       .catch(error => {
-        console.error('Error al cargar datos desde Supabase:', error);
+        console.error('Error al cargar los datos:', error);
         if (seq === loadSeq.current) {
-          setModuleErrors({ printers: 'No se pudieron cargar los datos desde Supabase' });
+          setModuleErrors({ printers: 'No se pudieron cargar los datos. Intentá de nuevo más tarde' });
         }
       })
       .finally(() => {
@@ -165,7 +165,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error(`Error al actualizar el módulo ${module}:`, error);
       if (seq === loadSeq.current) {
-        setModuleErrors(prev => ({ ...prev, [module]: 'No se pudieron actualizar los datos desde Supabase' }));
+        setModuleErrors(prev => ({ ...prev, [module]: 'No se pudieron actualizar los datos. Intentá de nuevo más tarde' }));
       }
     } finally {
       if (seq === loadSeq.current) setDataLoading(prev => ({ ...prev, module: null }));
@@ -187,9 +187,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (seq !== loadSeq.current) return;
       applyAllData(data);
     } catch (error) {
-      console.error('Error al recargar datos desde Supabase:', error);
+      console.error('Error al recargar los datos:', error);
       if (seq === loadSeq.current) {
-        setModuleErrors({ printers: 'No se pudieron cargar los datos desde Supabase' });
+        setModuleErrors({ printers: 'No se pudieron cargar los datos. Intentá de nuevo más tarde' });
       }
     } finally {
       if (seq === loadSeq.current) setDataLoading(prev => ({ ...prev, global: false }));

@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { syncEquipmentMovementToSupabase, syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
-import { getUsuarios, ProxyError, type MetabaseUsuario } from '../services/metabaseProxy';
+import { buscarUsuarios, existeUsuario, darDeAltaUsuario, ProxyError, type UsuarioCompat, type AltaUsuarioInput } from '../services/usuarios';
+import { TEXTOS_USUARIOS } from '../constants/textos';
 import { Equipment, EquipmentMovement } from '../types';
-import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History } from 'lucide-react';
+import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History, UserPlus, X } from 'lucide-react';
+
+const T = TEXTOS_USUARIOS.asignaciones;
 
 const TIPOS: { value: EquipmentMovement['tipo']; label: string; color: string }[] = [
   { value: 'asignacion', label: 'Asignación', color: 'bg-blue-100 text-blue-700' },
@@ -19,13 +22,19 @@ export default function EquipmentAssignments() {
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [loadingHist, setLoadingHist] = useState(true);
 
-  // Buscador de usuarios (función /api/usuarios → Metabase SAI_TEST, solo lectura)
+  // Buscador de usuarios (único servicio: GET del endpoint propio)
   const [query, setQuery] = useState('');
-  const [usuarios, setUsuarios] = useState<MetabaseUsuario[]>([]);
-  const [selectedUser, setSelectedUser] = useState<MetabaseUsuario | null>(null);
+  const [usuarios, setUsuarios] = useState<UsuarioCompat[]>([]);
+  const [selectedUser, setSelectedUser] = useState<UsuarioCompat | null>(null);
   const [proxyError, setProxyError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<number | undefined>(undefined);
+
+  // Alta rápida de usuario no registrado desde "Registrar movimiento"
+  const [showAlta, setShowAlta] = useState(false);
+  const [altaForm, setAltaForm] = useState<AltaUsuarioInput>({ nombre: '', apellido: '', usuario: '', correo: '', departamento: '', estado: 'activo' });
+  const [altaSaving, setAltaSaving] = useState(false);
+  const [altaMsg, setAltaMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Formulario de movimiento
   const [equipmentId, setEquipmentId] = useState('');
@@ -34,32 +43,30 @@ export default function EquipmentAssignments() {
   const [saving, setSaving] = useState(false);
   const [formMsg, setFormMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // Historial: carga desde Supabase al montar
+  // Historial: carga al montar
   useEffect(() => {
     syncEquipmentMovementsFromSupabase()
       .then(setMovements)
-      .catch(err => setFormMsg({ ok: false, text: `No se pudo cargar el historial: ${err.message}` }))
+      .catch(() => setFormMsg({ ok: false, text: T.historialError }))
       .finally(() => setLoadingHist(false));
   }, []);
 
-  // Búsqueda incremental con debounce (nunca arma SQL con el texto: la función filtra en su caché)
+  // Búsqueda incremental con debounce (el backend filtra; nunca se arma una consulta con el texto)
   useEffect(() => {
     window.clearTimeout(debounceRef.current);
     if (!query.trim()) { setUsuarios([]); return; }
     debounceRef.current = window.setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await getUsuarios(query.trim());
+        const res = await buscarUsuarios(query.trim());
         setUsuarios(res);
         setProxyError(null);
       } catch (err) {
         setUsuarios([]);
         setProxyError(
           err instanceof ProxyError && err.status === 401
-            ? 'Sesión expirada: volvé a iniciar sesión.'
-            : err instanceof ProxyError
-            ? 'No hay conexión con /api/usuarios (SAI_TEST, solo lectura). El historial guardado sigue disponible.'
-            : 'Error inesperado al buscar usuarios.'
+            ? T.sesionExpirada
+            : T.errorCargaUsuarios
         );
       } finally {
         setSearching(false);
@@ -67,6 +74,44 @@ export default function EquipmentAssignments() {
     }, 350);
     return () => window.clearTimeout(debounceRef.current);
   }, [query]);
+
+  const abrirAlta = () => {
+    const partes = query.trim().split(/\s+/);
+    setAltaForm({
+      nombre: partes[0] || '',
+      apellido: partes.slice(1).join(' '),
+      usuario: query.trim(),
+      correo: '',
+      departamento: '',
+      estado: 'activo',
+    });
+    setAltaMsg(null);
+    setShowAlta(true);
+  };
+
+  const handleAltaGuardado = async () => {
+    setAltaSaving(true);
+    setAltaMsg(null);
+    // 1) Verificar si ya existe (alguna fuente)
+    if (await existeUsuario({ usuario: altaForm.usuario, correo: altaForm.correo })) {
+      setAltaSaving(false);
+      setAltaMsg({ ok: false, text: T.yaRegistrado });
+      return;
+    }
+    // 2) Alta
+    const resultado = await darDeAltaUsuario(altaForm);
+    setAltaSaving(false);
+    if (resultado.ok) {
+      const compat = { ...resultado.usuario, nombreCompleto: `${resultado.usuario.nombre} ${resultado.usuario.apellido}`.trim() || resultado.usuario.usuario, area: resultado.usuario.departamento || resultado.usuario.usuario };
+      setSelectedUser(compat);
+      setQuery('');
+      setUsuarios([]);
+      setShowAlta(false);
+      setFormMsg({ ok: true, text: T.guardadoExistente });
+    } else {
+      setAltaMsg({ ok: false, text: resultado.code === 'duplicado' ? T.yaRegistrado : resultado.message });
+    }
+  };
 
   const handleSubmit = async () => {
     setFormMsg(null);
@@ -78,7 +123,7 @@ export default function EquipmentAssignments() {
     const result = await syncEquipmentMovementToSupabase({
       equipmentId,
       usuarioRef: selectedUser.id,
-      usuarioNombre: selectedUser.nombre,
+      usuarioNombre: selectedUser.nombreCompleto,
       usuarioArea: selectedUser.area,
       tipo,
       observaciones: observaciones.trim() || undefined,
@@ -112,7 +157,7 @@ export default function EquipmentAssignments() {
         <div className="p-2 bg-blue-50 rounded-lg"><Monitor size={22} className="text-blue-600" /></div>
         <div>
           <h2 className="text-xl font-bold text-gray-800">Asignación de Equipos</h2>
-          <p className="text-xs text-gray-500">Usuarios leídos de SAI_TEST/UsuariosAccesos (solo lectura) · Movimientos guardados en Supabase</p>
+          <p className="text-xs text-gray-500">{T.subtitulo}</p>
         </div>
       </div>
 
@@ -128,13 +173,13 @@ export default function EquipmentAssignments() {
         <h3 className="font-semibold text-gray-800 flex items-center gap-2"><ArrowLeftRight size={16} /> Registrar movimiento</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Usuario (SAI_TEST) *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{T.etiquetaUsuario}</label>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar por nombre, área o código..."
-                value={selectedUser ? `${selectedUser.nombre} — ${selectedUser.area}` : query}
+                placeholder={T.placeholderBusqueda}
+                value={selectedUser ? `${selectedUser.nombreCompleto} — ${selectedUser.area}` : query}
                 onChange={e => { setSelectedUser(null); setQuery(e.target.value); }}
                 disabled={Boolean(selectedUser)}
                 className="w-full pl-9 pr-9 py-2 rounded-lg border border-gray-200 outline-none text-sm disabled:bg-gray-50"
@@ -152,7 +197,7 @@ export default function EquipmentAssignments() {
                       onClick={() => { setSelectedUser(u); setQuery(''); setUsuarios([]); }}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between"
                     >
-                      <span><span className="font-medium">{u.nombre}</span> <span className="text-gray-400">· {u.area}</span></span>
+                      <span><span className="font-medium">{u.nombreCompleto}</span> <span className="text-gray-400">· {u.area}</span></span>
                       <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${u.estado === 'activo' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{u.estado}</span>
                     </button>
                   </li>
@@ -160,7 +205,13 @@ export default function EquipmentAssignments() {
               </ul>
             )}
             {!selectedUser && query.trim().length >= 2 && !searching && usuarios.length === 0 && !proxyError && (
-              <p className="text-xs text-gray-400 mt-1">Sin resultados para “{query}”.</p>
+              <div className="mt-1 flex items-center gap-2">
+                <p className="text-xs text-gray-400">{T.sinResultados} (“{query}”).</p>
+                <button onClick={abrirAlta}
+                  className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+                  <UserPlus size={13} /> {T.altaButton}
+                </button>
+              </div>
             )}
           </div>
           <div>
@@ -197,6 +248,71 @@ export default function EquipmentAssignments() {
           )}
         </div>
       </div>
+
+      {/* Modal de alta rápida de usuario */}
+      {showAlta && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-semibold text-lg">{TEXTOS_USUARIOS.usuarios.nuevo}</h3>
+              <button onClick={() => setShowAlta(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                  <input type="text" value={altaForm.nombre} onChange={e => setAltaForm({ ...altaForm, nombre: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Apellido *</label>
+                  <input type="text" value={altaForm.apellido} onChange={e => setAltaForm({ ...altaForm, apellido: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Usuario (código) *</label>
+                <input type="text" value={altaForm.usuario} onChange={e => setAltaForm({ ...altaForm, usuario: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Correo</label>
+                <input type="email" value={altaForm.correo} onChange={e => setAltaForm({ ...altaForm, correo: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
+                  <input type="text" value={altaForm.departamento} onChange={e => setAltaForm({ ...altaForm, departamento: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                  <select value={altaForm.estado} onChange={e => setAltaForm({ ...altaForm, estado: e.target.value as AltaUsuarioInput['estado'] })}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm">
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                  </select>
+                </div>
+              </div>
+              {altaMsg && (
+                <p className={`text-sm ${altaMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{altaMsg.text}</p>
+              )}
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={() => setShowAlta(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50">
+                  {TEXTOS_USUARIOS.usuarios.cancelar}
+                </button>
+                <button onClick={handleAltaGuardado} disabled={altaSaving || !altaForm.nombre.trim() || !altaForm.apellido.trim() || !altaForm.usuario.trim()}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-60">
+                  {altaSaving && <Loader2 size={15} className="animate-spin" />}
+                  {TEXTOS_USUARIOS.usuarios.guardar}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Historial */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
