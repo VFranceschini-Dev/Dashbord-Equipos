@@ -239,7 +239,7 @@ export default function Equipments() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a Colaborador</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a usuario</label>
                   <select value={form.collaboratorId || ''} onChange={e => setForm({ ...form, collaboratorId: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm">
                     <option value="">Sin asignar</option>

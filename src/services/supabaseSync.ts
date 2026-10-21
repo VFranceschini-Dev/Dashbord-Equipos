@@ -330,14 +330,14 @@ export async function deleteSupplierFromSupabase(id: string): Promise<boolean> {
   return !error;
 }
 
-// ===== SINCRONIZACIÓN DE COLABORADORES =====
+// ===== SINCRONIZACIÓN DE USUARIOS =====
 export async function syncCollaboratorsFromSupabase(): Promise<Collaborator[]> {
   const userId = getCurrentUserId();
   const { data, error } = await collaboratorsService.getAll(userId);
 
   if (error) {
-    console.error('Error al obtener colaboradores de Supabase:', error);
-    throw new Error(`Error al obtener colaboradores de Supabase: ${error.message}`);
+    console.error('Error al obtener usuarios de Supabase:', error);
+    throw new Error(`Error al obtener usuarios de Supabase: ${error.message}`);
   }
 
   return (data || []).map(c => ({
@@ -582,7 +582,7 @@ const moduleLabels: Record<string, string> = {
   movements: 'movimientos',
   equipments: 'equipamientos',
   suppliers: 'proveedores',
-  collaborators: 'colaboradores',
+  collaborators: 'usuarios',
   vouchers: 'comprobantes',
 };
 
@@ -809,10 +809,10 @@ export async function syncCollaboratorsToSupabase(collaborators: Collaborator[])
       if (result) {
         success++;
       } else {
-        errors.push(`Error al sincronizar colaborador: ${collaborator.name} ${collaborator.lastName}`);
+        errors.push(`Error al sincronizar usuario: ${collaborator.name} ${collaborator.lastName}`);
       }
     } catch (error) {
-      errors.push(`Error al sincronizar colaborador ${collaborator.name}: ${error}`);
+      errors.push(`Error al sincronizar usuario ${collaborator.name}: ${error}`);
     }
   }
 

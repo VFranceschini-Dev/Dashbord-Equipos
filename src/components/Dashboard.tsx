@@ -30,7 +30,7 @@ export default function Dashboard() {
       page: 'equipments' as const,
     },
     {
-      title: 'Colaboradores',
+      title: 'Usuarios',
       value: collaborators.length,
       subtitle: `${collaborators.filter(c => c.active).length} activos`,
       icon: Users,
@@ -294,7 +294,7 @@ export default function Dashboard() {
             <div className="flex flex-wrap gap-2 justify-center">
               {[
                 { label: 'Equipamientos', icon: Monitor, color: 'blue' },
-                { label: 'Colaboradores', icon: Users, color: 'violet' },
+                { label: 'Usuarios', icon: Users, color: 'violet' },
                 { label: 'Proveedores', icon: Building2, color: 'emerald' },
                 { label: 'Comprobantes', icon: FileText, color: 'amber' },
                 { label: 'Impresoras', icon: Printer, color: 'purple' },
