@@ -22,7 +22,8 @@
  *   IPA_API_URL              default https://ipa.donnet.com.ar
  *   IPA_API_KEY (o METABASE_API_KEY)  obligatoria
  *   IPA_DB_ID                id de la base de usuarios en Metabase (default 5)
- *   IPA_USUARIOS_TABLE_ID    table_id de la tabla de accesos (default 1406)
+ *                            (la consulta es nativa T-SQL sobre UsuariosAccesos;
+ *                             ya no se usa table_id)
  *   SUPABASE_URL / SUPABASE_ANON_KEY   fallback: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
  *   SUPABASE_SERVICE_ROLE_KEY          opcional: lectura de la tabla de respaldo (solo servidor)
  *   USERS_FALLBACK_TABLE               opcional: nombre de la tabla de respaldo (solo servidor)
@@ -101,11 +102,22 @@ async function validarToken(token: string): Promise<boolean> {
   }
 }
 
-// ---------- fuente 1: Metabase (query builder JSON, nunca SQL con texto del usuario) ----------
+// ---------- fuente 1: Metabase (consulta nativa T-SQL, SOLO lectura) ----------
+// La base subyacente es SQL Server: se usa type:'native' con SELECT TOP /
+// ORDER BY ... OFFSET ... FETCH NEXT. Nunca se arma SQL con texto del usuario:
+// el único dato que entra en el SQL son números de offset/limit ya validados.
 
 const PAGE_SIZE = 2000;
 const MAX_ROWS = 50000; // corte de seguridad
 const TIMEOUT_MS = 15000;
+
+// Proyección segura: solo las 7 columnas necesarias de UsuariosAccesos.
+// Excluye explícitamente Contrasenia, ContraseniaVencimiento,
+// ContraseniaPeriodo y ServiceKey_Path (la columna binaria puede romper la
+// respuesta completa de /api/dataset si se proyecta).
+const COLUMNAS_REQUERIDAS = [
+  'usuariosaccesoid', 'nombre', 'descripcion', 'perfil', 'ubicacionid', 'tipo', 'activo',
+];
 
 class UpstreamError extends Error {
   kind: 'timeout' | 'auth' | 'other';
@@ -126,9 +138,15 @@ interface PrimaryRow {
   tipo: string;
 }
 
-async function consultarPaginaPrimaria(offset: number): Promise<{ cols: string[]; rows: unknown[][] }> {
+async function consultarPagina(offset: number): Promise<{ cols: string[]; rows: unknown[][] }> {
   const baseUrl = env.IPA_API_URL || 'https://ipa.donnet.com.ar';
   const apiKey = (env.IPA_API_KEY || env.METABASE_API_KEY) as string;
+  const dbId = Number(env.IPA_DB_ID || '5');
+  // Paginación estándar de SQL Server (T-SQL). offset/PAGE_SIZE son enteros ya
+  // normalizados acá — ningún texto del usuario llega al SQL.
+  const sql = `SELECT TOP ${PAGE_SIZE} ${COLUMNAS_REQUERIDAS.join(', ')} FROM UsuariosAccesos ` +
+    `ORDER BY usuariosaccesoid OFFSET ${offset} ROWS FETCH NEXT ${PAGE_SIZE} ROWS ONLY`;
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let res: Response;
@@ -136,11 +154,7 @@ async function consultarPaginaPrimaria(offset: number): Promise<{ cols: string[]
     res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/dataset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify({
-        database: Number(env.IPA_DB_ID || '5'),
-        type: 'query',
-        query: { 'source-table': Number(env.IPA_USUARIOS_TABLE_ID || '1406'), limit: PAGE_SIZE, offset },
-      }),
+      body: JSON.stringify({ database: dbId, type: 'native', native: { query: sql } }),
       signal: controller.signal,
     });
   } catch (err) {
@@ -159,7 +173,11 @@ async function consultarPaginaPrimaria(offset: number): Promise<{ cols: string[]
   } catch {
     throw new UpstreamError('other', 'Respuesta no JSON de la fuente primaria');
   }
-  if (json?.error) throw new UpstreamError('other', 'La fuente primaria devolvió un error en el cuerpo');
+  // Metabase puede responder HTTP 200 con status:'failed' (p. ej. una columna
+  // binaria que rompe la serialización): hay que validar ambos.
+  if (json?.error || json?.status === 'failed') {
+    throw new UpstreamError('other', 'La fuente primaria devolvió un error en el cuerpo');
+  }
 
   const cols: string[] = (json?.data?.cols ?? []).map((c: any) => String(c?.name ?? '').toLowerCase());
   const rows: unknown[][] = json?.data?.rows ?? [];
@@ -172,7 +190,7 @@ async function traerFuentePrimaria(): Promise<PrimaryRow[]> {
   let colsRef: string[] | null = null;
 
   while (true) {
-    const { cols, rows } = await consultarPaginaPrimaria(offset);
+    const { cols, rows } = await consultarPagina(offset);
     if (!colsRef) colsRef = cols;
 
     const idx = (name: string) => colsRef!.indexOf(name);
