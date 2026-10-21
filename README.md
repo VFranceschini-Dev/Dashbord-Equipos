@@ -262,12 +262,11 @@ Metabase SAI_TEST vía HTTPS, con `x-api-key` guardada solo en la función. El b
 - Las asignaciones se registran en Supabase (`equipment_movements` + RPC atómica
   `registrar_equipment_movement`); ver `supabase/migrations/`.
 - Si la función no responde, la app muestra un aviso y sigue operando con lo guardado en Supabase.
-- Skill con el patrón completo: `.claude/skills/metabase-integracion/SKILL.md`.
 
 ### Scripts auxiliares
 - `./scripts/setup-supabase-auth.sh` — alta de usuarios en Supabase Auth.
 - `./scripts/deploy-vercel.sh [--preview]` — build + deploy a Vercel (requiere `VERCEL_TOKEN`).
-- `./scripts/test-proxy-metabase.sh [url]` — prueba health/usuarios/búsqueda de la API externa.
+- `npm run test:ipa` — verifica desde la red interna la conexión con la fuente de datos (versión, API key, consulta y columnas), leyendo `.env.local`.
 
 ## 📝 Créditos
 
