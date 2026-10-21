@@ -32,9 +32,13 @@
 const env: Record<string, string | undefined> = ((globalThis as any).process?.env ?? {}) as Record<string, string | undefined>;
 
 export interface UsuarioPublico {
-  id: string;      // opaco, único por usuario (merge entre fuentes por login normalizado)
-  nombre: string;  // nombre completo
-  usuario: string; // login/código
+  id: string;           // opaco, único por usuario (merge entre fuentes por login normalizado)
+  nombre: string;       // nombre de pila
+  apellido: string;     // apellido(s)
+  usuario: string;      // login/código
+  correo: string;       // email ('' si la fuente no lo tiene)
+  departamento: string; // '' si la fuente no lo tiene
+  estado: 'activo' | 'inactivo';
 }
 
 // ---------- utilidades ----------
@@ -116,6 +120,8 @@ interface PrimaryRow {
   realId: string;
   login: string;
   fullName: string;
+  email: string;
+  department: string;
   activo: boolean;
   tipo: string;
 }
@@ -170,22 +176,26 @@ async function traerFuentePrimaria(): Promise<PrimaryRow[]> {
     if (!colsRef) colsRef = cols;
 
     const idx = (name: string) => colsRef!.indexOf(name);
-    const iId = idx('usuariosaccesoid');
-    const iNombre = idx('nombre');           // login/código
-    const iDesc = idx('descripcion');        // nombre completo
-    const iTipo = idx('tipo');
-    const iActivo = idx('activo');
+    const pick = (r: unknown[], name: string): string => {
+      const i = idx(name);
+      return i >= 0 ? String(r[i] ?? '').trim() : '';
+    };
 
     for (const r of rows) {
-      const login = String(r[iNombre] ?? '').trim();
-      let fullName = String(r[iDesc] ?? '').trim();
+      const login = pick(r, 'nombre');           // login/código
+      let fullName = pick(r, 'descripcion');     // nombre completo
       if (!fullName || fullName.startsWith('[')) fullName = login;
+      const perfil = pick(r, 'perfil');
+      const ubicacion = pick(r, 'ubicacionid');
       out.push({
-        realId: String(r[iId] ?? ''),
+        realId: pick(r, 'usuariosaccesoid'),
         login,
         fullName,
-        tipo: (iTipo >= 0 ? String(r[iTipo] ?? '') : '').toUpperCase(),
-        activo: iActivo >= 0 ? toBool(r[iActivo]) : false,
+        email: pick(r, 'email') || pick(r, 'correo'),
+        // departamento: primer dato descriptivo razonable de la fuente primaria
+        department: pick(r, 'departamento') || pick(r, 'area') || perfil || ubicacion,
+        tipo: pick(r, 'tipo').toUpperCase(),
+        activo: (() => { const i = idx('activo'); return i >= 0 ? toBool(r[i]) : false; })(),
       });
     }
 
@@ -203,6 +213,10 @@ interface FallbackRow {
   realId: string;
   login: string;
   fullName: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  department: string;
   activo: boolean;
 }
 
@@ -212,7 +226,7 @@ async function traerFuenteRespaldo(): Promise<FallbackRow[]> {
   const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
   if (!table || !serviceKey || !url) return []; // fuente opcional: sin config, no participa
 
-  const select = 'id,nombre,usuario,user_name,full_name,first_name,last_name,email,activo,estado,status';
+  const select = 'id,nombre,usuario,user_name,full_name,first_name,last_name,email,correo,departamento,department,activo,estado,status';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let res: Response;
@@ -242,11 +256,17 @@ async function traerFuenteRespaldo(): Promise<FallbackRow[]> {
     }
     return all.map((r: any) => {
       const login = String(r.usuario ?? r.user_name ?? r.email ?? '').trim();
-      const fullName = String(r.nombre ?? r.full_name ?? [r.first_name, r.last_name].filter(Boolean).join(' ') ?? login).trim() || login;
+      const firstName = String(r.first_name ?? '').trim();
+      const lastName = String(r.last_name ?? '').trim();
+      const fullName = String(r.nombre ?? r.full_name ?? [firstName, lastName].filter(Boolean).join(' ') ?? login).trim() || login;
       return {
         realId: String(r.id ?? login),
         login,
         fullName,
+        firstName,
+        lastName,
+        email: String(r.email ?? r.correo ?? '').trim(),
+        department: String(r.departamento ?? r.department ?? '').trim(),
         activo: r.activo === undefined && r.estado === undefined && r.status === undefined
           ? true
           : toBool(r.activo ?? r.estado ?? r.status),
@@ -265,11 +285,23 @@ async function traerFuenteRespaldo(): Promise<FallbackRow[]> {
 interface CachedUser {
   realId: string;
   id: string;        // opaco ya calculado
-  nombre: string;
+  nombre: string;    // nombre completo
+  firstName: string;
+  lastName: string;
   usuario: string;
+  email: string;
+  department: string;
   key: string;       // login normalizado para merge/filtro
   tipo: string;      // 'U' | ... (fuente primaria; '' en respaldo)
   activo: boolean;
+}
+
+// Dividir un nombre completo en nombre/apellido (para la fuente primaria, que
+// solo trae "descripcion"). No revela el origen: es un derivado puramente local.
+function splitName(full: string): { first: string; last: string } {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { first: parts[0] ?? '', last: '' };
+  return { first: parts[0], last: parts.slice(1).join(' ') };
 }
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -294,14 +326,15 @@ async function buildCache(): Promise<{ users: CachedUser[]; primaryFailed: boole
   for (const p of primaria) {
     const k = mergeKey(p.login);
     if (!k) continue;
-    byKey.set(k, { realId: p.realId, nombre: p.fullName, usuario: p.login, key: k, tipo: p.tipo, activo: p.activo });
+    const { first, last } = splitName(p.fullName);
+    byKey.set(k, { realId: p.realId, nombre: p.fullName, firstName: first, lastName: last, usuario: p.login, email: p.email, department: p.department, key: k, tipo: p.tipo, activo: p.activo });
     seenRealIds.add(`P:${p.realId}`);
   }
   for (const f of respaldo) {
     const k = mergeKey(f.login);
     if (!k || byKey.has(k)) continue;              // prevalece la primaria
     if (seenRealIds.has(`R:${f.realId}`)) continue; // no duplicar por id interno
-    byKey.set(k, { realId: f.realId, nombre: f.fullName, usuario: f.login, key: k, tipo: '', activo: f.activo });
+    byKey.set(k, { realId: f.realId, nombre: f.fullName, firstName: f.firstName, lastName: f.lastName, usuario: f.login, email: f.email, department: f.department, key: k, tipo: '', activo: f.activo });
     seenRealIds.add(`R:${f.realId}`);
   }
 
@@ -331,6 +364,96 @@ function getCache(force: boolean) {
 }
 
 // ---------- respuesta ----------
+
+interface NuevoUsuarioInput {
+  nombre: string;
+  apellido: string;
+  usuario: string;
+  correo: string;
+  departamento: string;
+  activo: boolean;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+function validateNuevoUsuario(body: any): { input?: NuevoUsuarioInput; error?: string } {
+  const get = (...keys: string[]) => keys.map((k) => String(body?.[k] ?? '').trim()).find((v) => v) ?? '';
+  const nombre = get('nombre', 'name', 'first_name');
+  const apellido = get('apellido', 'lastName', 'last_name');
+  const usuario = get('usuario', 'user_name', 'username');
+  const correo = get('correo', 'email').toLowerCase();
+  const departamento = get('departamento', 'department');
+  const estadoRaw = body?.estado ?? body?.active ?? true;
+  const activo = typeof estadoRaw === 'boolean' ? estadoRaw : toBool(estadoRaw);
+
+  if (!nombre || !apellido || !usuario || !correo) return { error: 'Faltan campos obligatorios' };
+  if (/\s/.test(usuario)) return { error: 'El usuario no puede tener espacios' };
+  if (!EMAIL_RE.test(correo)) return { error: 'El correo no tiene un formato válido' };
+  if ([nombre, apellido, usuario, correo, departamento].some((v) => v.length > 120)) return { error: 'Uno de los campos supera los 120 caracteres' };
+  return { input: { nombre, apellido, usuario, correo, departamento, activo } };
+}
+
+// Chequeo de existencia en ambas fuentes. Nunca escribe en la fuente primaria.
+async function existeEnAlgunaFuente(input: NuevoUsuarioInput): Promise<boolean> {
+  const k = mergeKey(input.usuario);
+  const correoK = norm(input.correo);
+  try {
+    const { users } = await buildCache(); // siempre fresco para evitar condiciones de carrera
+    return users.some((u) => u.key === k || (correoK && norm(u.email) === correoK));
+  } catch {
+    // No podemos confirmar: el filtro `on_conflict` del insert evita duplicados
+    // por login contra la tabla propia; ante la duda, no dejamos de crear.
+    return false;
+  }
+}
+
+// Inserta en la tabla propia de usuarios nuevos (solo servidor, service role).
+// Si se define USERS_NEW_CONFLICT_COLUMN (p. ej. "usuario"), el insert usa
+// on_conflict para que dos altas simultáneas no generen duplicados.
+async function insertarUsuarioNuevo(input: NuevoUsuarioInput, createdBy: string): Promise<{ ok: boolean; conflict?: boolean; error?: string }> {
+  const table = env.USERS_FALLBACK_TABLE;
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
+  if (!table || !serviceKey || !url) return { ok: false, error: 'El servidor no está configurado para guardar usuarios' };
+
+  const conflictCol = env.USERS_NEW_CONFLICT_COLUMN; // opcional: columna con unique constraint
+  const endpoint = `${url.replace(/\/+$/, '')}/rest/v1/${encodeURIComponent(table)}${conflictCol ? `?on_conflict=${encodeURIComponent(conflictCol)}` : ''}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+        Prefer: conflictCol ? 'return=minimal,resolution=merged' : 'return=minimal',
+      },
+      body: JSON.stringify([
+        {
+          nombre: `${input.nombre} ${input.apellido}`.trim(),
+          first_name: input.nombre,
+          last_name: input.apellido,
+          usuario: input.usuario,
+          email: input.correo,
+          departamento: input.departamento,
+          activo: input.activo,
+          created_by: createdBy,
+          created_at: new Date().toISOString(),
+        },
+      ]),
+    });
+    if (res.status === 409) return { ok: false, conflict: true };
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    return { ok: true };
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') return { ok: false, error: 'timeout' };
+    return { ok: false, error: (err as Error)?.message ?? 'error' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -389,14 +512,28 @@ export async function GET(request: Request): Promise<Response> {
   if (soloPersonas) filtered = filtered.filter((u) => u.tipo === 'U' || u.tipo === ''); // el respaldo no tiene tipo: se incluye
   const q = norm(qRaw);
   if (q) {
+    // Filtro por nombre, apellido, usuario o correo (nunca por id).
     filtered = filtered.filter(
-      (u) => u.key.includes(q.replace(/\s+/g, '')) || norm(u.nombre).includes(q) || norm(u.id).includes(q),
+      (u) =>
+        u.key.includes(q.replace(/\s+/g, '')) ||
+        norm(u.nombre).includes(q) ||
+        norm(u.apellido).includes(q) ||
+        norm(`${u.nombre} ${u.apellido}`).includes(q) ||
+        norm(u.email).includes(q),
     );
   }
 
   const total = filtered.length;
-  // Exactamente { id, nombre, usuario }: sin origen, sin campos internos.
-  const data: UsuarioPublico[] = filtered.slice(0, limit).map((u) => ({ id: u.id, nombre: u.nombre, usuario: u.usuario }));
+  // Campos estrictamente necesarios para el formulario: sin origen, sin campos internos.
+  const data: UsuarioPublico[] = filtered.slice(0, limit).map((u) => ({
+    id: u.id,
+    nombre: u.firstName || u.nombre,
+    apellido: u.lastName,
+    usuario: u.usuario,
+    correo: u.email,
+    departamento: u.department,
+    estado: u.activo ? ('activo' as const) : ('inactivo' as const),
+  }));
 
   return json({ success: true, total, count: data.length, data });
 }
