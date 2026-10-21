@@ -36,7 +36,11 @@ interface RawUsuario {
   tipo: string;
   activo: boolean;
 }
-
+interface ApiUsuariosResponse {
+  success?: boolean;
+  error?: string;
+  data?: RawUsuario[];
+  }
 export class ProxyError extends Error {
   status?: number;
   constructor(message: string, status?: number) {
