@@ -819,7 +819,7 @@ export async function syncCollaboratorsToSupabase(collaborators: Collaborator[])
   return { success, errors };
 }
 
-// ===== SINCRONIZACIÓN DE MOVIMIENTOS DE EQUIPOS (hardware -> usuarios SAI_TEST) =====
+// ===== SINCRONIZACIÓN DE MOVIMIENTOS DE EQUIPOS (hardware -> usuarios de la base interna) =====
 import { equipmentMovementsService } from './supabase';
 import type { EquipmentMovement } from '../types';
 

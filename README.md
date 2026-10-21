@@ -88,7 +88,7 @@ Detalle completo: [`docs/arquitectura.md`](docs/arquitectura.md).
 │   │                       # ImportData, ImportModal, Asignaciones, monitoreo remoto
 │   ├── context/            # AppContext (estado = copia de Supabase), AuthContext, ThemeContext
 │   ├── services/           # supabase.ts, supabaseSync.ts (ABM), authService.ts,
-│   │                       # metabaseProxy.ts (llama a /api/usuarios), Mesh Central, etc.
+│   │                       # usuariosApi.ts (llama a /api/usuarios), Mesh Central, etc.
 │   ├── utils/              # Importadores CSV/Excel/Word/PDF, compatibilidad de tóner
 │   ├── types.ts            # Tipos TypeScript
 │   ├── data.ts             # Constantes del sistema

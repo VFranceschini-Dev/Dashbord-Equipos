@@ -531,7 +531,7 @@ export async function testConnection() {
   
   return { connected: !error, error };
 }
-// ===== EQUIPMENT MOVEMENTS (hardware -> usuarios SAI_TEST) =====
+// ===== EQUIPMENT MOVEMENTS (hardware -> usuarios de la base interna) =====
 import type { EquipmentMovement } from '../types';
 
 export interface SupabaseEquipmentMovement {

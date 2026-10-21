@@ -159,7 +159,7 @@ export interface EquipmentMovement {
   id: string;
   userId: string;
   equipmentId: string;
-  usuarioRef: string;        // usuariosaccesoid (Metabase, solo lectura)
+  usuarioRef: string;        // id del usuario en la fuente de origen (solo lectura)
   usuarioNombre: string;     // cache del nombre al momento del movimiento
   usuarioArea: string;       // cache del área/descripción
   tipo: EquipmentMovementType;
