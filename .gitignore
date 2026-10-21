@@ -11,3 +11,5 @@ tsconfig.tsbuildinfo
 *.log
 *.patch
 supabase-auth-setup.sql
+.env.*.local
+.vercel
