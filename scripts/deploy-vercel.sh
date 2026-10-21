@@ -3,9 +3,9 @@
 # deploy-vercel.sh — publica Dashbord-Equipos en Vercel
 # https://dashbord-equipos.vercel.app/
 #
-# La app NO necesita backend propio: los usuarios de SAI_TEST se
-# leen vía el proxy interno https://ipa.donnet.com.ar/api (Metabase,
-# solo lectura) y el ABM va directo a Supabase.
+# La app NO necesita backend propio: los usuarios se leen vía la función
+# serverless /api/usuarios (que consulta en el servidor, solo lectura) y el
+# ABM va directo a las tablas propias.
 #
 # Uso:
 #   VERCEL_TOKEN=xxx ./scripts/deploy-vercel.sh            # producción
@@ -46,5 +46,6 @@ fi
 
 echo ""
 echo "✅ Listo. Recordá que en Vercel deben estar configuradas (Project > Settings > Environment Variables):"
-echo "   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY y opcional VITE_METABASE_PROXY_URL."
+echo "   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (frontend) y del lado del servidor"
+echo "   IPA_API_URL, IPA_API_KEY, IPA_DB_ID, IPA_USUARIOS_TABLE_ID, SUPABASE_URL, SUPABASE_ANON_KEY."
 echo "   Y en Supabase > Authentication > URL Configuration: Site URL = https://dashbord-equipos.vercel.app"
