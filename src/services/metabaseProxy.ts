@@ -61,7 +61,7 @@ async function authedFetch(pathAndQuery: string, init: RequestInit = {}): Promis
   if (!token) throw new ProxyError('Sesión no válida: volvé a iniciar sesión.', 401);
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), 20000);
   let res: Response;
   try {
     res = await fetch(`/api/usuarios${pathAndQuery}`, {
@@ -80,7 +80,7 @@ async function authedFetch(pathAndQuery: string, init: RequestInit = {}): Promis
     clearTimeout(timer);
   }
 
-  let json: any;
+  let json: ApiUsuariosResponse;
   try {
     json = await res.json();
   } catch {
