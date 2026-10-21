@@ -46,6 +46,5 @@ fi
 
 echo ""
 echo "✅ Listo. Recordá que en Vercel deben estar configuradas (Project > Settings > Environment Variables):"
-echo "   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (frontend) y del lado del servidor"
-echo "   IPA_API_URL, IPA_API_KEY, IPA_DB_ID, IPA_USUARIOS_TABLE_ID, SUPABASE_URL, SUPABASE_ANON_KEY."
+echo "   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (frontend) e IPA_API_URL, IPA_API_KEY, IPA_DB_ID, IPA_USUARIOS_TABLE_ID, SUPABASE_URL, SUPABASE_ANON_KEY (función api/usuarios)."
 echo "   Y en Supabase > Authentication > URL Configuration: Site URL = https://dashbord-equipos.vercel.app"

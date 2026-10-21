@@ -1,2 +1,13 @@
+node_modules/
 dist/
-node_modules
+build/
+.next/
+.vercel/
+tsconfig.tsbuildinfo
+.env
+.env.local
+.env.*
+!.env.example
+*.log
+*.patch
+supabase-auth-setup.sql

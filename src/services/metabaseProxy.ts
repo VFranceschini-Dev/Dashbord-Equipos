@@ -1,25 +1,40 @@
 /**
- * Cliente del proxy local de Vercel (función serverless, mismo dominio).
+ * metabaseProxy.ts — Cliente del endpoint propio /api/usuarios (función de Vercel).
  *
- * El navegador NUNCA habla con los servidores internos ni conoce credenciales:
- * todo pasa por /api/usuarios, que valida la sesión y combina dos fuentes de
- * usuarios en el servidor (solo lectura). La respuesta trae únicamente
- * { id, nombre, usuario } — sin origen, base ni tabla visibles.
+ * El navegador NUNCA habla con ipa.donnet.com.ar: la lectura de SAI_TEST
+ * (UsuariosAccesos, SOLO LECTURA) pasa por la función serverless del mismo
+ * dominio, que es la única que conoce la API key de Metabase.
+ *
+ * Exportaciones estables (usadas por EquipmentAssignments.tsx):
+ *   getUsuarios, ProxyError, MetabaseUsuario, refreshUsuarios, checkProxy
  */
 
 import { supabase } from './supabase';
 
-// Endpoint único del proxy serverless.
-export const USERS_PROXY_ENDPOINT = '/api/usuarios';
+const TIMEOUT_MS = 20000; // timeout del lado del navegador (la función corta a los 15 s)
 
 export interface MetabaseUsuario {
-  id: string;             // identificador opaco (no revela la fuente)
-  nombre: string;         // nombre completo
-  usuario: string;        // login/código
-  // Campos derivados en el cliente (compatibilidad con EquipmentAssignments.tsx):
-  nombreCompleto: string; // = nombre
+  id: string;             // usuariosaccesoid
+  usuario: string;        // login (nombre)
+  nombreCompleto: string; // descripcion
+  perfilId: string;       // perfil
+  ubicacionId: string;    // ubicacionid
+  tipo: string;           // mayúsculas ('U' = persona)
+  activo: boolean;
+  // --- Alias de compatibilidad (no romper EquipmentAssignments.tsx) ---
+  nombre: string;         // = nombreCompleto
   area: string;           // = usuario (login)
   estado: 'activo' | 'inactivo';
+}
+
+interface RawUsuario {
+  id: string;
+  usuario: string;
+  nombreCompleto: string;
+  perfilId: string;
+  ubicacionId: string;
+  tipo: string;
+  activo: boolean;
 }
 
 export class ProxyError extends Error {
@@ -31,42 +46,36 @@ export class ProxyError extends Error {
   }
 }
 
-interface ApiUsuariosResponse {
-  success: boolean;
-  total?: number;
-  count?: number;
-  data?: Array<{ id: string; nombre: string; usuario: string }>;
-  error?: string;
-  message?: string;
+function withCompat(u: RawUsuario): MetabaseUsuario {
+  return {
+    ...u,
+    nombre: u.nombreCompleto,
+    area: u.usuario,
+    estado: u.activo ? 'activo' : 'inactivo',
+  };
 }
 
-async function fetchUsuariosApi(
-  params: Record<string, string | number | boolean | undefined>,
-): Promise<ApiUsuariosResponse> {
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError || !sessionData?.session?.access_token) {
-    throw new ProxyError('Sesión expirada. Volvé a iniciar sesión.', 401);
-  }
-
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== '') qs.set(k, String(v));
-  }
-  const url = `${USERS_PROXY_ENDPOINT}${qs.toString() ? `?${qs.toString()}` : ''}`;
+async function authedFetch(pathAndQuery: string, init: RequestInit = {}): Promise<any> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new ProxyError('Sesión no válida: volvé a iniciar sesión.', 401);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetch(`/api/usuarios${pathAndQuery}`, {
+      ...init,
       headers: {
-        Authorization: `Bearer ${sessionData.session.access_token}`,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(init.headers || {}),
       },
       signal: controller.signal,
     });
   } catch (err) {
-    if ((err as Error).name === 'AbortError') throw new ProxyError('Tiempo de espera agotado al buscar usuarios.');
-    throw new ProxyError('No se pudo conectar con el servidor de usuarios.');
+    if ((err as Error).name === 'AbortError') throw new ProxyError(`Timeout de /api/usuarios (${TIMEOUT_MS} ms)`);
+    throw new ProxyError(`No se pudo conectar a /api/usuarios: ${(err as Error).message}`);
   } finally {
     clearTimeout(timer);
   }
@@ -75,63 +84,47 @@ async function fetchUsuariosApi(
   try {
     json = await res.json();
   } catch {
-    throw new ProxyError('Respuesta inválida del servidor.', res.status);
+    throw new ProxyError(`Respuesta no JSON de /api/usuarios (HTTP ${res.status})`, res.status);
   }
-  if (!res.ok || !json.success) {
-    // Mensaje genérico: no reenviamos detalles internos al usuario.
-    throw new ProxyError('No se pudo cargar la lista de usuarios.', res.status);
-  }
-
-  // Derivar los campos que usa la UI a partir de { id, nombre, usuario }.
-  if (json.data) {
-    json.data = json.data.map((u) => ({
-      ...u,
-      nombre: u.nombre ?? u.usuario ?? '',
-    })) as ApiUsuariosResponse['data'];
+  if (!res.ok || json?.success === false) {
+    throw new ProxyError(json?.error || `/api/usuarios respondió HTTP ${res.status}`, res.status);
   }
   return json;
 }
 
-function toUsuario(u: { id: string; nombre: string; usuario: string }): MetabaseUsuario {
-  return {
-    id: u.id,
-    nombre: u.nombre,
-    usuario: u.usuario,
-    nombreCompleto: u.nombre,
-    area: u.usuario,
-    estado: 'activo', // el backend ya filtró inactivos cuando soloActivos=true
-  };
+export interface GetUsuariosOptions {
+  soloActivos?: boolean;  // default true
+  soloPersonas?: boolean; // tipo 'U'
+  limit?: number;         // 1..500, default 50
+  refresh?: boolean;      // ignora la caché del servidor
 }
 
-/**
- * Lista/busca usuarios combinando las dos fuentes del servidor vía /api/usuarios.
- * El filtro q se aplica en memoria en el backend (sin tildes ni mayúsculas);
- * nunca se arma SQL con el texto. Por defecto solo activos.
- */
-export async function getUsuarios(
-  q = '',
-  opts?: { soloActivos?: boolean; soloPersonas?: boolean; limit?: number },
-): Promise<MetabaseUsuario[]> {
-  const json = await fetchUsuariosApi({
-    q: q || undefined,
-    soloActivos: opts?.soloActivos ?? true,
-    soloPersonas: opts?.soloPersonas ?? undefined,
-    limit: opts?.limit ?? undefined,
-  });
-  return (json.data || []).map(toUsuario);
+/** Lista/busca usuarios de UsuariosAccesos vía /api/usuarios (mismo dominio). */
+export async function getUsuarios(q = '', options: GetUsuariosOptions = {}): Promise<MetabaseUsuario[]> {
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  params.set('soloActivos', String(options.soloActivos ?? true));
+  if (options.soloPersonas) params.set('soloPersonas', 'true');
+  if (options.limit !== undefined) params.set('limit', String(options.limit));
+  if (options.refresh) params.set('refresh', 'true');
+
+  const qs = params.toString();
+  const json = await authedFetch(qs ? `?${qs}` : '');
+  const rows: RawUsuario[] = json.data || [];
+  return rows.map(withCompat);
 }
 
-/** Fuerza recarga de la caché de usuarios en la función serverless (TTL 5 min). */
+/** Fuerza recarga de la caché de usuarios en la función serverless. */
 export async function refreshUsuarios(): Promise<{ count: number }> {
-  const json = await fetchUsuariosApi({ refresh: true, limit: 500, soloActivos: false });
-  return { count: json.total ?? json.count ?? 0 };
+  const users = await getUsuarios('', { soloActivos: false, limit: 500, refresh: true });
+  return { count: users.length };
 }
 
-/** Healthcheck del puente /api/users (sesión + variables del servidor). */
+/** Healthcheck del endpoint propio (para mostrar aviso si la función no responde). */
 export async function checkProxy(): Promise<boolean> {
   try {
-    await fetchUsuariosApi({ limit: 1 });
-    return true;
+    const json = await authedFetch('?limit=1');
+    return json?.success === true;
   } catch {
     return false;
   }
