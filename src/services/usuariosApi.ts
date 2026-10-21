@@ -12,7 +12,7 @@ import { supabase } from './supabase';
 // Endpoint único del proxy serverless.
 export const USERS_PROXY_ENDPOINT = '/api/usuarios';
 
-export interface MetabaseUsuario {
+export interface Usuario {
   id: string;             // identificador opaco (no revela la fuente)
   nombre: string;         // nombre completo
   usuario: string;        // login/código
@@ -92,7 +92,7 @@ async function fetchUsuariosApi(
   return json;
 }
 
-function toUsuario(u: { id: string; nombre: string; usuario: string }): MetabaseUsuario {
+function toUsuario(u: { id: string; nombre: string; usuario: string }): Usuario {
   return {
     id: u.id,
     nombre: u.nombre,
@@ -111,7 +111,7 @@ function toUsuario(u: { id: string; nombre: string; usuario: string }): Metabase
 export async function getUsuarios(
   q = '',
   opts?: { soloActivos?: boolean; soloPersonas?: boolean; limit?: number },
-): Promise<MetabaseUsuario[]> {
+): Promise<Usuario[]> {
   const json = await fetchUsuariosApi({
     q: q || undefined,
     soloActivos: opts?.soloActivos ?? true,

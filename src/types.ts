@@ -152,7 +152,7 @@ export interface SyncedDevice {
   localEquipmentId?: string;
 }
 
-// ===== Movimientos de EQUIPOS (hardware) a usuarios de SAI_TEST/UsuariosAccesos =====
+// ===== Movimientos de EQUIPOS (hardware) a usuarios de la base interna =====
 export type EquipmentMovementType = 'asignacion' | 'devolucion' | 'traslado' | 'baja';
 
 export interface EquipmentMovement {

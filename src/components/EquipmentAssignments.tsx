@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { syncEquipmentMovementToSupabase, syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
-import { getUsuarios, type MetabaseUsuario } from '../services/metabaseProxy';
+import { getUsuarios, type Usuario } from '../services/usuariosApi';
 import { Equipment, EquipmentMovement } from '../types';
 import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History } from 'lucide-react';
 
@@ -23,8 +23,8 @@ export default function EquipmentAssignments() {
   // de Vercel, mismo dominio). La combinación de fuentes ocurre solo en el backend;
   // la UI recibe { id, nombre, usuario } sin información del origen de los datos.
   const [query, setQuery] = useState('');
-  const [usuarios, setUsuarios] = useState<MetabaseUsuario[]>([]);
-  const [selectedUser, setSelectedUser] = useState<MetabaseUsuario | null>(null);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [selectedUser, setSelectedUser] = useState<Usuario | null>(null);
   const [proxyError, setProxyError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<number | undefined>(undefined);
