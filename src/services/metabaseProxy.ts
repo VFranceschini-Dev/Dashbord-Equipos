@@ -127,7 +127,7 @@ export async function refreshUsuarios(): Promise<{ count: number }> {
   return { count: json.total ?? json.count ?? 0 };
 }
 
-/** Healthcheck del puente /api/users (sesión + variables del servidor). */
+/** Healthcheck del endpoint de usuarios (sesión + variables del servidor). */
 export async function checkProxy(): Promise<boolean> {
   try {
     await fetchUsuariosApi({ limit: 1 });
