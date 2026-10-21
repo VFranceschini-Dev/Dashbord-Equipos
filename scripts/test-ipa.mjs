@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Test de conexión con Metabase SAI_TEST (solo lectura) usando las variables
- * del servidor de .env.local (node --env-file=.env.local scripts/test-ipa.mjs).
+ * Test de diagnóstico de la fuente primaria de usuarios (solo lectura),
+ * ejecutado en tu máquina contra el servidor interno usando las variables
+ * de .env.local (npm run test:ipa). Sirve para verificar conectividad,
+ * credencial y esquema ANTES de configurar la función serverless /api/usuarios.
  * No imprime la API key en ningún paso.
  */
 
@@ -25,12 +27,12 @@ async function main() {
     return;
   }
 
-  // 1) Versión de Metabase
+  // 1) Versión del servicio de datos
   try {
     const res = await fetch(`${BASE}/api/session/properties`, { signal: AbortSignal.timeout(15000) });
     const json = await res.json();
     const version = json?.version?.value ?? 'desconocida';
-    if (res.ok) ok(`Metabase accesible. Versión: ${version}`);
+    if (res.ok) ok(`Servicio de datos accesible. Versión: ${version}`);
     else fail(`/api/session/properties respondió HTTP ${res.status}`);
   } catch (err) {
     fail(`No se pudo conectar con ${BASE}: ${err.message}`);
