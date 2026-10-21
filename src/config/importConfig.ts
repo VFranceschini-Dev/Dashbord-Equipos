@@ -132,7 +132,7 @@ import { getCurrentUserId } from '../services/supabaseSync';
 export function friendlyDbError(err: PostgrestError | { message: string } | null, moduleLabel = 'los datos'): string {
   if (!err) return `No se pudo guardar ${moduleLabel}.`;
   const msg = String(err.message ?? '');
-  console.error('Error técnico de Supabase:', { code: (err as PostgrestError).code, message: msg, details: (err as PostgrestError).details, hint: (err as PostgrestError).hint });
+  console.error('Error técnico de la base:', { code: (err as PostgrestError).code, message: msg, details: (err as PostgrestError).details, hint: (err as PostgrestError).hint });
   const m = /column(?:m)?\s+(\w+)\D/i.exec(msg);
   switch ((err as PostgrestError).code) {
     case '23505': // unique_violation
