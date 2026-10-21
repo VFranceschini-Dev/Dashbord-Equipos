@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { syncEquipmentMovementToSupabase, syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
-import { buscarUsuarios, existeUsuario, darDeAltaUsuario, ProxyError, type UsuarioCompat, type AltaUsuarioInput } from '../services/usuarios';
+import { buscarUsuariosCompat, existeUsuario, darDeAltaUsuario, ProxyError, type UsuarioCompat, type AltaUsuarioInput } from '../services/usuarios';
 import { TEXTOS_USUARIOS } from '../constants/textos';
 import { Equipment, EquipmentMovement } from '../types';
 import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History, UserPlus, X } from 'lucide-react';
@@ -58,10 +58,10 @@ export default function EquipmentAssignments() {
     debounceRef.current = window.setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await buscarUsuarios(query.trim());
+        const res = await buscarUsuariosCompat(query.trim());
         setUsuarios(res);
         setProxyError(null);
-      } catch {
+      } catch (err) {
         setUsuarios([]);
         setProxyError(
           err instanceof ProxyError && err.status === 401
