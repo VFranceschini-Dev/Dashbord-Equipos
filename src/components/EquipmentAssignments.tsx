@@ -61,7 +61,7 @@ export default function EquipmentAssignments() {
         const res = await buscarUsuarios(query.trim());
         setUsuarios(res);
         setProxyError(null);
-      } catch (err) {
+      } catch {
         setUsuarios([]);
         setProxyError(
           err instanceof ProxyError && err.status === 401
