@@ -179,7 +179,7 @@ export default function EquipmentAssignments() {
               <input
                 type="text"
                 placeholder={T.placeholderBusqueda}
-                value={selectedUser ? `${selectedUser.nombreCompleto} — ${selectedUser.area}` : query}
+                value={selectedUser ? selectedUser.nombreCompleto : query}
                 onChange={e => { setSelectedUser(null); setQuery(e.target.value); }}
                 disabled={Boolean(selectedUser)}
                 className="w-full pl-9 pr-9 py-2 rounded-lg border border-gray-200 outline-none text-sm disabled:bg-gray-50"
@@ -197,7 +197,7 @@ export default function EquipmentAssignments() {
                       onClick={() => { setSelectedUser(u); setQuery(''); setUsuarios([]); }}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between"
                     >
-                      <span><span className="font-medium">{u.nombreCompleto}</span> <span className="text-gray-400">· {u.area}</span></span>
+                      <span><span className="font-medium">{u.nombreCompleto}</span></span>
                       <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${u.estado === 'activo' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{u.estado}</span>
                     </button>
                   </li>
