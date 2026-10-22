@@ -297,7 +297,9 @@ async function loadFusionados(): Promise<(UsuarioPublico & { __tipo?: string })[
   const local = localRes.status === 'fulfilled' ? localRes.value : [];
   if (origen.length === 0 && local.length === 0) {
     // Las dos fuentes fallaron → error para que la UI muestre el mensaje genérico.
-    const firstErr = origenRes.status === 'rejected' ? origenRes.reason : localRes.reason;
+    const firstErr = origenRes.status === 'rejected'
+  ? origenRes.reason
+  : localRes.status === 'rejected' ? localRes.reason : undefined;
     throw Object.assign(new Error('no hay datos disponibles'), {
       status: (firstErr as { status?: number })?.status === 500 ? 500 : 502,
     });
