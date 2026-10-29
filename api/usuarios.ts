@@ -385,6 +385,7 @@ export async function GET(request: Request): Promise<Response> {
 // ---------------------------------------------------------------------------
 // POST: alta de usuario nuevo (solo en la tabla local; jamás en el origen)
 // ---------------------------------------------------------------------------
+const NOMBRE_RE = /^[\p{L}\p{M} .'-]{1,80}$/u;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export async function POST(request: Request): Promise<Response> {
@@ -408,10 +409,10 @@ export async function POST(request: Request): Promise<Response> {
   const estado = str(input?.estado).trim().toLowerCase() === 'inactivo' ? 'inactivo' : 'activo';
 
   // Validaciones (mensajes genéricos, sin detalles internos)
-  if (!nombre || !/^[\w .'-]{1,80}$/.test(nombre)) {
+  if (!nombre || !NOMBRE_RE.test(nombre)) {
     return jsonResponse(400, { success: false, error: 'El nombre no es válido.' });
   }
-  if (!apellido || /^[\w .'-]{1,80}$/.test(apellido) === false) {
+  if (!apellido || !NOMBRE_RE.test(apellido)) {
     return jsonResponse(400, { success: false, error: 'El apellido no es válido.' });
   }
   if (!usuario || usuario.length < 2 || usuario.length > 60) {
