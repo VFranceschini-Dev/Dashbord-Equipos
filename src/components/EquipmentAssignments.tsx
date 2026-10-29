@@ -353,7 +353,7 @@ export default function EquipmentAssignments() {
                     <tr key={m.id} className="hover:bg-gray-50 text-sm">
                       <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{new Date(m.fecha).toLocaleString('es-AR')}</td>
                       <td className="px-4 py-2.5 text-gray-800">{nombreEquipo(m.equipmentId)}</td>
-                      <td className="px-4 py-2.5 text-gray-600">{m.usuarioNombre} <span className="text-gray-400">#{m.usuarioRef}</span></td>
+                      <td className="px-4 py-2.5 text-gray-600">{m.usuarioNombre}</td>
                       <td className="px-4 py-2.5 text-gray-600">{m.usuarioArea}</td>
                       <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${t.color}`}>{t.label}</span></td>
                       <td className="px-4 py-2.5 text-gray-500">{m.observaciones || '—'}</td>

@@ -11,7 +11,7 @@
  *      accedida con REST PostgREST usando SUPABASE_SERVICE_ROLE_KEY.
  * La fusión ocurre acá: clave = login en minúsculas sin espacios; si el usuario
  * está en ambas fuentes, prevalece la del origen interno. El id devuelto es un
- * UUID opaco derivado de la fuente + login (no revela el origen).
+ * UUID opaco derivado solo del login (igual en ambas fuentes; no revela el origen).
  *
  * Variables de entorno (Vercel > Settings > Environment Variables, Production):
  *   IPA_API_URL            ej. https://ipa.donnet.com.ar
@@ -27,7 +27,7 @@
 // Perfil normalizado: ES LO ÚNICO que sale al navegador.
 // ---------------------------------------------------------------------------
 interface UsuarioPublico {
-  id: string;           // UUID opaco v5 (fuente + login) — no revela el origen
+  id: string;           // UUID opaco v5 (login) — igual en ambas fuentes, no revela el origen
   nombre: string;       // pila
   apellido: string;
   usuario: string;      // login
@@ -79,7 +79,7 @@ function sha1Bytes(bytes: Uint8Array): Uint8Array {
 }
 
 const NAMESPACE_ORIGEN = '6ba7b811-9dad-11d1-80b4-00c04fd430c8'; // URL
-const NAMESPACE_LOCAL = '6ba7b812-9dad-11d1-80b4-00c04fd430c8';   // OID
+const NAMESPACE_LOCAL = NAMESPACE_ORIGEN; // mismo id para el mismo login, venga de donde venga
 
 function uuidV5(namespaceHex: string, value: string): string {
   const ns = namespaceHex.replace(/-/g, '');
