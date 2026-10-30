@@ -637,7 +637,6 @@ export async function loadModuleFromSupabase<K extends ModuleKey>(
     case 'movements': return loadModule('movements', syncMovementsFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
     case 'equipments': return loadModule('equipments', syncEquipmentsFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
     case 'suppliers': return loadModule('suppliers', syncSuppliersFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
-    case 'collaborators': return loadModule('collaborators', syncCollaboratorsFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
     case 'vouchers': return loadModule('vouchers', syncVouchersFromSupabase) as Promise<ModuleLoad<ModuleDataMap[K]>>;
   }
 }
@@ -648,7 +647,6 @@ export interface ModuleDataMap {
   movements: Movement[];
   equipments: Equipment[];
   suppliers: Supplier[];
-  collaborators: Collaborator[];
   vouchers: Voucher[];
 }
 
@@ -660,7 +658,6 @@ export async function syncAllFromSupabase(): Promise<{
   movements: Movement[];
   equipments: Equipment[];
   suppliers: Supplier[];
-  collaborators: Collaborator[];
   vouchers: Voucher[];
   externalServers: ExternalServer[];
   syncedDevices: SyncedDevice[];
@@ -674,24 +671,23 @@ export async function syncAllFromSupabase(): Promise<{
     loadModule<Movement>('movements', syncMovementsFromSupabase),
     loadModule<Equipment>('equipments', syncEquipmentsFromSupabase),
     loadModule<Supplier>('suppliers', syncSuppliersFromSupabase),
-    loadModule<Collaborator>('collaborators', syncCollaboratorsFromSupabase),
     loadModule<Voucher>('vouchers', syncVouchersFromSupabase),
     syncExternalServersFromSupabase().then(data => ({ data } as ModuleLoad<ExternalServer[]>)),
     syncSyncedDevicesFromSupabase().then(data => ({ data } as ModuleLoad<SyncedDevice[]>)),
   ]);
 
   const keys: (keyof typeof moduleLabels & ModuleKey | 'externalServers' | 'syncedDevices')[] =
-    ['printers', 'toners', 'movements', 'equipments', 'suppliers', 'collaborators', 'vouchers', 'externalServers', 'syncedDevices'];
+    ['printers', 'toners', 'movements', 'equipments', 'suppliers', 'vouchers', 'externalServers', 'syncedDevices'];
 
   const errors: Partial<Record<ModuleKey, string>> = {};
   const okData = results.map((res, i): ModuleLoad<any[]> => {
     if (res.status === 'fulfilled') return res.value;
     // Redundancia defensiva: loadModule nunca rechaza, pero allSettled lo cubre igual.
     console.error(`Error al cargar el módulo ${keys[i]}:`, res.reason);
-    if (i < 7) errors[keys[i] as ModuleKey] = 'No se pudieron cargar los datos. Intentá de nuevo más tarde';
+    if (i < 6) errors[keys[i] as ModuleKey] = 'No se pudieron cargar los datos. Intentá de nuevo más tarde';
     return { data: [] };
   });
-  const [printers, toners, movements, equipments, suppliers, collaborators, vouchers, externalServers, syncedDevices] = okData;
+  const [printers, toners, movements, equipments, suppliers, vouchers, externalServers, syncedDevices] = okData;
 
   return {
     printers: printers.data,
@@ -699,7 +695,6 @@ export async function syncAllFromSupabase(): Promise<{
     movements: movements.data,
     equipments: equipments.data,
     suppliers: suppliers.data,
-    collaborators: collaborators.data,
     vouchers: vouchers.data,
     externalServers: externalServers.data,
     syncedDevices: syncedDevices.data,

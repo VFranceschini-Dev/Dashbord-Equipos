@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { listarUsuarios } from '../services/usuarios';
 import { getLowStockGroups } from '../utils/tonerCompatibility';
 import {
   Printer, Package, AlertTriangle, Monitor, Users, Building2, FileText,
@@ -8,8 +10,16 @@ import LowStockAlerts from './LowStockAlerts';
 import LogoVLF from './LogoVLF';
 
 export default function Dashboard() {
-  const { printers, toners, movements, alerts, equipments, suppliers, collaborators, vouchers, setCurrentPage, dataLoading } = useApp();
+  const { printers, toners, movements, alerts, equipments, suppliers, vouchers, setCurrentPage, dataLoading } = useApp();
 //                              ^^^^^^^^ ← AGREGADO (necesario para leer los comprobantes reales)
+  // Usuarios: misma fuente que la sección Usuarios (solo se necesitan los totales)
+  const [usuarios, setUsuarios] = useState({ total: 0, activos: 0 });
+  useEffect(() => {
+    listarUsuarios('', { soloActivos: false, limit: 1 })
+      .then(({ total, activos }) => setUsuarios({ total, activos }))
+      .catch(() => setUsuarios({ total: 0, activos: 0 }));
+  }, []);
+
   const activePrinters = printers.filter(p => p.status === 'active').length;
 
   // Calcular alertas de stock bajo agrupando por compatibilidad
@@ -31,8 +41,8 @@ export default function Dashboard() {
     },
     {
       title: 'Usuarios',
-      value: collaborators.length,
-      subtitle: `${collaborators.filter(c => c.active).length} activos`,
+      value: usuarios.total,
+      subtitle: `${usuarios.activos} activos`,
       icon: Users,
       color: 'violet',
       page: 'collaborators' as const,
@@ -278,7 +288,7 @@ export default function Dashboard() {
       )}
 
       {/* Welcome State */}
-      {equipments.length === 0 && collaborators.length === 0 && (
+      {equipments.length === 0 && (
         <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-800 dark:via-slate-700 dark:to-slate-800 rounded-2xl p-8 border border-blue-200 dark:border-slate-600">
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200 to-purple-200 dark:from-blue-800 dark:to-purple-800 opacity-20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           <div className="relative text-center">

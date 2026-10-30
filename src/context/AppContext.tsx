@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { Printer, TonerItem, Movement, Alert, Page, Equipment, Supplier, Collaborator, Voucher } from '../types';
+import { Printer, TonerItem, Movement, Alert, Page, Equipment, Supplier, Voucher } from '../types';
 import { useAuth } from './AuthContext';
 import {
   syncAllFromSupabase,
@@ -44,11 +44,6 @@ interface AppContextType {
   addSupplier: (supplier: Omit<Supplier, 'id'>) => void;
   updateSupplier: (id: string, data: Partial<Supplier>) => void;
   deleteSupplier: (id: string) => void;
-  collaborators: Collaborator[];
-  setCollaborators: React.Dispatch<React.SetStateAction<Collaborator[]>>;
-  addCollaborator: (collaborator: Omit<Collaborator, 'id'>) => void;
-  updateCollaborator: (id: string, data: Partial<Collaborator>) => void;
-  deleteCollaborator: (id: string) => void;
   vouchers: Voucher[];
   setVouchers: React.Dispatch<React.SetStateAction<Voucher[]>>;
   addVoucher: (voucher: Omit<Voucher, 'id'>) => void;
@@ -68,7 +63,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
 
   const [dataLoading, setDataLoading] = useState<{ global: boolean; module: ModuleKey | null }>({ global: true, module: null });
@@ -83,7 +77,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMovements(data.movements);
     setEquipments(data.equipments);
     setSuppliers(data.suppliers);
-    setCollaborators(data.collaborators);
     setVouchers(data.vouchers);
     setModuleErrors(data.errors || {});
   }, []);
@@ -100,7 +93,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAlerts([]);
       setEquipments([]);
       setSuppliers([]);
-      setCollaborators([]);
       setVouchers([]);
       setModuleErrors({});
       setDataLoading({ global: false, module: null });
@@ -141,7 +133,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           case 'movements': return loadModuleFromSupabase('movements');
           case 'equipments': return loadModuleFromSupabase('equipments');
           case 'suppliers': return loadModuleFromSupabase('suppliers');
-          case 'collaborators': return loadModuleFromSupabase('collaborators');
           case 'vouchers': return loadModuleFromSupabase('vouchers');
         }
       })();
@@ -153,7 +144,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         case 'movements': setMovements(data as Movement[]); break;
         case 'equipments': setEquipments(data as Equipment[]); break;
         case 'suppliers': setSuppliers(data as Supplier[]); break;
-        case 'collaborators': setCollaborators(data as Collaborator[]); break;
         case 'vouchers': setVouchers(data as Voucher[]); break;
       }
       setModuleErrors(prev => {
@@ -245,16 +235,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSuppliers(prev => prev.filter(s => s.id !== id));
   };
 
-  const addCollaborator = (collaborator: Omit<Collaborator, 'id'>) => {
-    setCollaborators(prev => [...prev, { ...collaborator, id: uuidv4() }]);
-  };
-  const updateCollaborator = (id: string, data: Partial<Collaborator>) => {
-    setCollaborators(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
-  };
-  const deleteCollaborator = (id: string) => {
-    setCollaborators(prev => prev.filter(c => c.id !== id));
-  };
-
   const addVoucher = (voucher: Omit<Voucher, 'id'>) => {
     setVouchers(prev => [...prev, { ...voucher, id: uuidv4() }]);
   };
@@ -275,7 +255,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       alerts, setAlerts, markAlertRead, unreadAlerts,
       equipments, setEquipments, addEquipment, updateEquipment, deleteEquipment,
       suppliers, setSuppliers, addSupplier, updateSupplier, deleteSupplier,
-      collaborators, setCollaborators, addCollaborator, updateCollaborator, deleteCollaborator,
       vouchers, setVouchers, addVoucher, updateVoucher, deleteVoucher,
     }}>
       {children}
