@@ -19,10 +19,10 @@ function cacheKey(q: string): string {
 // Caché en memoria del navegador (5 min): la sección Usuarios y el buscador de
 // Asignación de Equipos comparten resultados y no repiten llamadas al servidor.
 const LIST_TTL_MS = 5 * 60 * 1000;
-const listCache = new Map<string, { expiresAt: number; value: Usuario[] }>();
-const inFlight = new Map<string, Promise<Usuario[]>>();
+const listCache = new Map<string, { expiresAt: number; value: ListadoUsuarios }>();
+const inFlight = new Map<string, Promise<ListadoUsuarios>>();
 
-function remember(key: string, promise: Promise<Usuario[]>): Promise<Usuario[]> {
+function remember(key: string, promise: Promise<ListadoUsuarios>): Promise<ListadoUsuarios> {
   const existing = inFlight.get(key);
   if (existing) return existing; // evita consultas duplicadas simultáneas
   const tracked = promise.then(
@@ -108,8 +108,20 @@ export interface BuscarUsuariosOptions {
   refresh?: boolean;      // ignora la caché del servidor
 }
 
+/** Resultado de un listado: total y activos cuentan todas las coincidencias, no solo las devueltas. */
+export interface ListadoUsuarios {
+  total: number;
+  activos: number;
+  data: Usuario[];
+}
+
 /** Busca usuarios (nombre, apellido, login o correo). Nunca arma consultas con el texto: filtra el backend. */
 export async function buscarUsuarios(q = '', options: BuscarUsuariosOptions = {}): Promise<Usuario[]> {
+  return (await listarUsuarios(q, options)).data;
+}
+
+/** Igual que buscarUsuarios, pero devuelve también los totales (para tarjetas de resumen). */
+export async function listarUsuarios(q = '', options: BuscarUsuariosOptions = {}): Promise<ListadoUsuarios> {
   const soloActivos = options.soloActivos ?? true;
   const limit = options.limit ?? 50;
   const key = `${cacheKey(q)}|${soloActivos ? 'a' : 't'}|${limit}`;
@@ -128,7 +140,12 @@ export async function buscarUsuarios(q = '', options: BuscarUsuariosOptions = {}
 
   return remember(key, (async () => {
     const json = await authedFetch(qs ? `?${qs}` : '');
-    return (json.data || []) as Usuario[];
+    const data = (json.data || []) as Usuario[];
+    return {
+      total: typeof json.total === 'number' ? json.total : data.length,
+      activos: typeof json.activos === 'number' ? json.activos : data.filter(u => u.estado === 'activo').length,
+      data,
+    };
   })());
 }
 

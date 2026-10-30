@@ -361,8 +361,7 @@ export async function GET(request: Request): Promise<Response> {
     return jsonResponse(502, { success: false, error: 'No se pudo obtener la información en este momento.' });
   }
 
-  let filtered = list;
-  if (onlyActive) filtered = filtered.filter(u => u.estado === 'activo');
+  let filtered = [...list]; // copia: el sort de abajo no debe alterar la caché
   const q = norm(qRaw);
   if (q) {
     filtered = filtered.filter(u =>
@@ -375,11 +374,13 @@ export async function GET(request: Request): Promise<Response> {
       norm(u.departamento).includes(q),
     );
   }
+  const activos = filtered.filter(u => u.estado === 'activo').length;
+  if (onlyActive) filtered = filtered.filter(u => u.estado === 'activo');
   filtered.sort((a, b) => `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`));
 
   const total = filtered.length;
   const data = filtered.slice(0, limitParam);
-  return jsonResponse(200, { success: true, total, count: data.length, data });
+  return jsonResponse(200, { success: true, total, activos, count: data.length, data });
 }
 
 // ---------------------------------------------------------------------------
