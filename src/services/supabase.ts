@@ -97,24 +97,6 @@ export interface SupabaseSupplier {
   updated_at?: string;
 }
 
-export interface SupabaseCollaborator {
-  id?: string;
-  user_id: string;
-  name: string;
-  last_name: string;
-  dni: string;
-  email: string;
-  phone: string;
-  department: string;
-  position: string;
-  active: boolean;
-  equipment_count: number;
-  join_date: string;
-  notes: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface SupabaseVoucher {
   id?: string;
   user_id: string;
@@ -351,45 +333,6 @@ export const suppliersService = {
   async delete(id: string) {
     const { error } = await supabase
       .from('suppliers')
-      .delete()
-      .eq('id', id);
-    return { error };
-  },
-};
-
-// ===== COLLABORATORS =====
-export const collaboratorsService = {
-  async getAll(userId: string) {
-    const { data, error } = await supabase
-      .from('collaborators')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    return { data, error };
-  },
-
-  async create(collaborator: Omit<SupabaseCollaborator, 'id' | 'created_at' | 'updated_at'>) {
-    const { data, error } = await supabase
-      .from('collaborators')
-      .insert([collaborator])
-      .select()
-      .single();
-    return { data, error };
-  },
-
-  async update(id: string, updates: Partial<SupabaseCollaborator>) {
-    const { data, error } = await supabase
-      .from('collaborators')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-    return { data, error };
-  },
-
-  async delete(id: string) {
-    const { error } = await supabase
-      .from('collaborators')
       .delete()
       .eq('id', id);
     return { error };

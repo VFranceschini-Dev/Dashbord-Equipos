@@ -74,21 +74,6 @@ export interface Supplier {
   notes: string;
 }
 
-export interface Collaborator {
-  id: string;
-  name: string;
-  lastName: string;
-  dni: string;
-  email: string;
-  phone: string;
-  department: string;
-  position: string;
-  active: boolean;
-  equipmentCount: number;
-  joinDate: string;
-  notes: string;
-}
-
 export interface Voucher {
   id: string;
   number: string;

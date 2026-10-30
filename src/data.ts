@@ -1,4 +1,4 @@
-import { Printer, TonerItem, Movement, Alert, Equipment, Supplier, Collaborator, Voucher } from './types';
+import { Printer, TonerItem, Movement, Alert, Equipment, Supplier, Voucher } from './types';
 
 export const initialPrinters: Printer[] = [];
 export const initialToners: TonerItem[] = [];
@@ -6,7 +6,6 @@ export const initialMovements: Movement[] = [];
 export const initialAlerts: Alert[] = [];
 export const initialEquipments: Equipment[] = [];
 export const initialSuppliers: Supplier[] = [];
-export const initialCollaborators: Collaborator[] = [];
 export const initialVouchers: Voucher[] = [];
 
 export const EQUIPMENT_CATEGORIES = [

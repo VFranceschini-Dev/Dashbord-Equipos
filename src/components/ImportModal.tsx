@@ -6,8 +6,7 @@ import {
   syncPrintersToSupabase, 
   syncTonersToSupabase, 
   syncEquipmentsToSupabase, 
-  syncSuppliersToSupabase, 
-  syncCollaboratorsToSupabase 
+  syncSuppliersToSupabase
 } from '../services/supabaseSync';
 
 interface ImportModalProps {
@@ -18,7 +17,7 @@ interface ImportModalProps {
   templateHeaders: string[];
   mapping: Record<string, string>;
   validator?: (row: any) => string | null;
-  entityType?: 'printers' | 'toners' | 'equipments' | 'suppliers' | 'collaborators';
+  entityType?: 'printers' | 'toners' | 'equipments' | 'suppliers';
 }
 
 type ImportStep = 'upload' | 'review' | 'save';
@@ -125,9 +124,6 @@ export default function ImportModal({
           break;
         case 'suppliers':
           supabaseResult = await syncSuppliersToSupabase(importedData as any[]);
-          break;
-        case 'collaborators':
-          supabaseResult = await syncCollaboratorsToSupabase(importedData as any[]);
           break;
         default:
           supabaseResult = { success: 0, errors: ['Tipo de entidad no soportado'] };

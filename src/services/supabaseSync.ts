@@ -1,6 +1,6 @@
-import { supabase, printersService, tonersService, movementsService, equipmentsService, suppliersService, collaboratorsService, vouchersService, externalServersService, syncedDevicesService } from './supabase';
+import { supabase, printersService, tonersService, movementsService, equipmentsService, suppliersService, vouchersService, externalServersService, syncedDevicesService } from './supabase';
 import * as localDb from './localDatabase';
-import { Printer, TonerItem, Movement, Equipment, Supplier, Collaborator, Voucher, ExternalServer, SyncedDevice } from '../types';
+import { Printer, TonerItem, Movement, Equipment, Supplier, Voucher, ExternalServer, SyncedDevice } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 // ID del usuario actual (en producción, esto vendría de la autenticación)
@@ -330,66 +330,6 @@ export async function deleteSupplierFromSupabase(id: string): Promise<boolean> {
   return !error;
 }
 
-// ===== SINCRONIZACIÓN DE USUARIOS =====
-export async function syncCollaboratorsFromSupabase(): Promise<Collaborator[]> {
-  const userId = getCurrentUserId();
-  const { data, error } = await collaboratorsService.getAll(userId);
-
-  if (error) {
-    console.error('Error al obtener usuarios de Supabase:', error);
-    throw new Error(`Error al obtener usuarios de Supabase: ${error.message}`);
-  }
-
-  return (data || []).map(c => ({
-    id: c.id,
-    name: c.name,
-    lastName: c.last_name,
-    dni: c.dni,
-    email: c.email,
-    phone: c.phone,
-    department: c.department,
-    position: c.position,
-    active: c.active,
-    equipmentCount: c.equipment_count,
-    joinDate: c.join_date,
-    notes: c.notes,
-  }));
-}
-
-export async function syncCollaboratorToSupabase(collaborator: Collaborator): Promise<boolean> {
-  const userId = getCurrentUserId();
-  const supabaseCollaborator = {
-    user_id: userId,
-    name: collaborator.name,
-    last_name: collaborator.lastName,
-    dni: collaborator.dni,
-    email: collaborator.email,
-    phone: collaborator.phone,
-    department: collaborator.department,
-    position: collaborator.position,
-    active: collaborator.active,
-    equipment_count: collaborator.equipmentCount,
-    join_date: collaborator.joinDate,
-    notes: collaborator.notes,
-  };
-
-  if (collaborator.id && collaborator.id.length === 36) {
-    const { error } = await collaboratorsService.update(collaborator.id, supabaseCollaborator);
-    return !error;
-  } else {
-    const { data, error } = await collaboratorsService.create(supabaseCollaborator);
-    if (!error && data) {
-      collaborator.id = data.id;
-    }
-    return !error;
-  }
-}
-
-export async function deleteCollaboratorFromSupabase(id: string): Promise<boolean> {
-  const { error } = await collaboratorsService.delete(id);
-  return !error;
-}
-
 // ===== SINCRONIZACIÓN DE COMPROBANTES =====
 export async function syncVouchersFromSupabase(): Promise<Voucher[]> {
   const userId = getCurrentUserId();
@@ -582,7 +522,6 @@ const moduleLabels: Record<string, string> = {
   movements: 'movimientos',
   equipments: 'equipamientos',
   suppliers: 'proveedores',
-  collaborators: 'usuarios',
   vouchers: 'comprobantes',
 };
 
@@ -612,7 +551,6 @@ const moduleTables: Record<string, string> = {
   movements: 'movements',
   equipments: 'equipments',
   suppliers: 'suppliers',
-  collaborators: 'collaborators',
   vouchers: 'vouchers',
 };
 void moduleTables; // nombres internos de tablas: solo diagnóstico técnico, nunca texto visible
@@ -789,26 +727,6 @@ export async function syncSuppliersToSupabase(suppliers: Supplier[]): Promise<{ 
       }
     } catch (error) {
       errors.push(`Error al sincronizar proveedor ${supplier.name}: ${error}`);
-    }
-  }
-
-  return { success, errors };
-}
-
-export async function syncCollaboratorsToSupabase(collaborators: Collaborator[]): Promise<{ success: number; errors: string[] }> {
-  let success = 0;
-  const errors: string[] = [];
-
-  for (const collaborator of collaborators) {
-    try {
-      const result = await syncCollaboratorToSupabase(collaborator);
-      if (result) {
-        success++;
-      } else {
-        errors.push(`Error al sincronizar usuario: ${collaborator.name} ${collaborator.lastName}`);
-      }
-    } catch (error) {
-      errors.push(`Error al sincronizar usuario ${collaborator.name}: ${error}`);
     }
   }
 
