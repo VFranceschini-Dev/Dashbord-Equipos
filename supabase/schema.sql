@@ -1,429 +1,334 @@
--- ============================================
+-- ============================================================================
 -- ESQUEMA DE BASE DE DATOS PARA SUPABASE
--- Dashboard Control de Equipamientos (ex Sistema de Control de Tóner)
--- Estado real de la base: incluye toner_movements (con su política UPDATE),
--- equipment_movimientos + RPC registrar_equipment_movement.
--- Idempotente: puede ejecutarse más de una vez sobre la misma base.
--- ============================================
+-- Dashboard Control de Equipamientos
+--
+-- Refleja la base de producción (relevada el 2026-10-30) en las tablas que usa
+-- la aplicación, con la corrección de equipment_movements ya aplicada
+-- (usuario_ref como texto, política RLS y función registrar_equipment_movement).
+--
+-- Idempotente: puede ejecutarse más de una vez sobre la misma base
+-- (CREATE ... IF NOT EXISTS, CREATE OR REPLACE y DROP ... IF EXISTS).
+--
+-- Diferencia deliberada con producción: en producción
+-- equipments.collaborator_id tiene una FK hacia la tabla "Users_Nuevos", que la
+-- app no usa ni crea este archivo. Acá la columna queda sin FK.
+-- ============================================================================
 
--- Habilitar extensión UUID
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- ============================================
+-- FUNCIONES PARA updated_at
+-- ============================================
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
 
 -- ============================================
--- TABLA: PRINTERS (Impresoras)
+-- TABLA: APP_PRINTERS (Impresoras)
 -- ============================================
-CREATE TABLE IF NOT EXISTS printers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  location TEXT NOT NULL DEFAULT '',
-  department TEXT NOT NULL DEFAULT '',
-  model TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
-  toner_model TEXT NOT NULL DEFAULT '',
-  last_maintenance TEXT NOT NULL DEFAULT '',
-  total_pages INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.app_printers (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name             text NOT NULL,
+  location         text NOT NULL DEFAULT '',
+  department       text NOT NULL DEFAULT '',
+  model            text NOT NULL DEFAULT '',
+  status           text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
+  toner_model      text NOT NULL DEFAULT '',
+  last_maintenance text NOT NULL DEFAULT '',
+  total_pages      integer NOT NULL DEFAULT 0,
+  created_at       timestamptz DEFAULT now(),
+  updated_at       timestamptz DEFAULT now()
 );
-
-CREATE INDEX idx_printers_user_id ON printers(user_id);
-CREATE INDEX idx_printers_status ON printers(status);
+CREATE INDEX IF NOT EXISTS idx_app_printers_user_id ON public.app_printers (user_id);
 
 -- ============================================
--- TABLA: TONER_ITEMS (Inventario de Tóner)
+-- TABLA: TONER_ITEMS (Inventario de tóner)
 -- ============================================
-CREATE TABLE IF NOT EXISTS toner_items (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  model TEXT NOT NULL,
-  brand TEXT NOT NULL,
-  color TEXT NOT NULL DEFAULT 'black' CHECK (color IN ('black', 'cyan', 'magenta', 'yellow')),
-  stock INTEGER NOT NULL DEFAULT 0,
-  min_stock INTEGER NOT NULL DEFAULT 2,
-  max_stock INTEGER NOT NULL DEFAULT 10,
-  unit_price DECIMAL(10, 2) NOT NULL DEFAULT 0,
-  supplier TEXT NOT NULL DEFAULT '',
-  last_restock TEXT NOT NULL DEFAULT '',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.toner_items (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  model        text NOT NULL,
+  brand        text NOT NULL DEFAULT '',
+  color        text NOT NULL DEFAULT 'black' CHECK (color IN ('black', 'cyan', 'magenta', 'yellow')),
+  stock        integer NOT NULL DEFAULT 0,
+  min_stock    integer NOT NULL DEFAULT 2,
+  max_stock    integer NOT NULL DEFAULT 10,
+  unit_price   numeric(10,2) NOT NULL DEFAULT 0,
+  supplier     text NOT NULL DEFAULT '',
+  last_restock text NOT NULL DEFAULT '',
+  created_at   timestamptz DEFAULT now(),
+  updated_at   timestamptz DEFAULT now()
 );
-
-CREATE INDEX idx_toner_items_user_id ON toner_items(user_id);
-CREATE INDEX idx_toner_items_color ON toner_items(color);
+CREATE INDEX IF NOT EXISTS idx_toner_items_user_id ON public.toner_items (user_id);
 
 -- ============================================
--- TABLA: TONER_MOVEMENTS (Movimientos de Tóner)
+-- TABLA: TONER_MOVEMENTS (Movimientos de tóner)
 -- ============================================
-CREATE TABLE IF NOT EXISTS toner_movements (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('delivery', 'return', 'restock', 'disposal')),
-  toner_id TEXT NOT NULL,
-  toner_model TEXT NOT NULL,
-  printer_id TEXT,
-  printer_name TEXT,
-  quantity INTEGER NOT NULL DEFAULT 1,
-  date TEXT NOT NULL,
-  user_name TEXT NOT NULL DEFAULT '',
-  notes TEXT NOT NULL DEFAULT '',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.toner_movements (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type         text NOT NULL CHECK (type IN ('delivery', 'return', 'restock', 'disposal')),
+  toner_id     text NOT NULL,
+  toner_model  text NOT NULL DEFAULT '',
+  printer_id   text,
+  printer_name text,
+  quantity     integer NOT NULL DEFAULT 1,
+  date         text NOT NULL,
+  "user"       text NOT NULL DEFAULT '',
+  user_name    text NOT NULL DEFAULT '',
+  notes        text NOT NULL DEFAULT '',
+  created_at   timestamptz DEFAULT now()
 );
-
-CREATE INDEX idx_toner_movements_user_id ON toner_movements(user_id);
-CREATE INDEX idx_toner_movements_type ON toner_movements(type);
-CREATE INDEX idx_toner_movements_date ON toner_movements(date);
-
--- TABLA: COLLABORATORS (Colaboradores)
--- ============================================
-CREATE TABLE IF NOT EXISTS collaborators (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  last_name TEXT NOT NULL DEFAULT '',
-  dni TEXT NOT NULL DEFAULT '',
-  email TEXT NOT NULL DEFAULT '',
-  phone TEXT NOT NULL DEFAULT '',
-  department TEXT NOT NULL DEFAULT 'IT',
-  position TEXT NOT NULL DEFAULT '',
-  active BOOLEAN NOT NULL DEFAULT true,
-  equipment_count INTEGER NOT NULL DEFAULT 0,
-  join_date TEXT NOT NULL DEFAULT '',
-  notes TEXT NOT NULL DEFAULT '',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX idx_collaborators_user_id ON collaborators(user_id);
-CREATE INDEX idx_collaborators_department ON collaborators(department);
-CREATE INDEX idx_collaborators_active ON collaborators(active);
+CREATE INDEX IF NOT EXISTS idx_toner_movements_user_id ON public.toner_movements (user_id);
 
 -- ============================================
 -- TABLA: EQUIPMENTS (Equipamientos)
 -- ============================================
-CREATE TABLE IF NOT EXISTS equipments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  type TEXT NOT NULL DEFAULT 'desktop' CHECK (type IN ('desktop', 'laptop', 'server', 'monitor', 'peripheral', 'other')),
-  brand TEXT NOT NULL DEFAULT '',
-  model TEXT NOT NULL DEFAULT '',
-  serial_number TEXT NOT NULL DEFAULT '',
-  asset_tag TEXT NOT NULL DEFAULT '',
-  category TEXT NOT NULL DEFAULT 'Informática',
-  status TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('assigned', 'available', 'maintenance', 'retired')),
-  collaborator_id UUID REFERENCES collaborators(id) ON DELETE SET NULL,
-  purchase_date TEXT NOT NULL DEFAULT '',
-  warranty_end TEXT NOT NULL DEFAULT '',
-  notes TEXT NOT NULL DEFAULT '',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.equipments (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name            text NOT NULL,
+  type            text NOT NULL DEFAULT 'desktop' CHECK (type IN ('desktop', 'laptop', 'server', 'monitor', 'peripheral', 'other')),
+  brand           text NOT NULL DEFAULT '',
+  model           text NOT NULL DEFAULT '',
+  serial_number   text NOT NULL DEFAULT '',
+  asset_tag       text NOT NULL DEFAULT '',
+  category        text NOT NULL DEFAULT 'Informática',
+  status          text NOT NULL DEFAULT 'available' CHECK (status IN ('assigned', 'available', 'maintenance', 'retired')),
+  collaborator_id uuid,  -- sin uso en la app (ver encabezado)
+  purchase_date   text NOT NULL DEFAULT '',
+  warranty_end    text NOT NULL DEFAULT '',
+  notes           text NOT NULL DEFAULT '',
+  created_at      timestamptz DEFAULT now(),
+  updated_at      timestamptz DEFAULT now()
 );
-
-CREATE INDEX idx_equipments_user_id ON equipments(user_id);
-CREATE INDEX idx_equipments_type ON equipments(type);
-CREATE INDEX idx_equipments_status ON equipments(status);
-CREATE INDEX idx_equipments_collaborator_id ON equipments(collaborator_id);
+CREATE INDEX IF NOT EXISTS idx_equipments_user_id ON public.equipments (user_id);
 
 -- ============================================
 -- TABLA: SUPPLIERS (Proveedores)
 -- ============================================
-CREATE TABLE IF NOT EXISTS suppliers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  cuit TEXT NOT NULL DEFAULT '',
-  contact TEXT NOT NULL DEFAULT '',
-  email TEXT NOT NULL DEFAULT '',
-  phone TEXT NOT NULL DEFAULT '',
-  address TEXT NOT NULL DEFAULT '',
-  category TEXT[] NOT NULL DEFAULT ARRAY['Hardware'], -- Array para soportar múltiples categorías
-  active BOOLEAN NOT NULL DEFAULT true,
-  notes TEXT NOT NULL DEFAULT '',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.suppliers (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name       text NOT NULL,
+  cuit       text NOT NULL DEFAULT '',
+  contact    text NOT NULL DEFAULT '',
+  email      text NOT NULL DEFAULT '',
+  phone      text NOT NULL DEFAULT '',
+  address    text NOT NULL DEFAULT '',
+  category   text[] NOT NULL DEFAULT ARRAY['Hardware'],
+  active     boolean NOT NULL DEFAULT true,
+  notes      text NOT NULL DEFAULT '',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_suppliers_user_id ON public.suppliers (user_id);
 
-CREATE INDEX idx_suppliers_user_id ON suppliers(user_id);
-CREATE INDEX idx_suppliers_category ON suppliers(category);
-CREATE INDEX idx_suppliers_active ON suppliers(active);
-
--- ============================================
 -- ============================================
 -- TABLA: VOUCHERS (Comprobantes)
 -- ============================================
-CREATE TABLE IF NOT EXISTS vouchers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  number TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('invoice', 'receipt', 'order', 'delivery', 'return')),
-  supplier_id TEXT NOT NULL,
-  supplier_name TEXT NOT NULL,
-  date TEXT NOT NULL,
-  amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
-  currency TEXT NOT NULL DEFAULT 'ARS' CHECK (currency IN ('ARS', 'USD')),
-  description TEXT NOT NULL DEFAULT '',
-  equipment_ids TEXT[] NOT NULL DEFAULT '{}',
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'processed')),
-  notes TEXT NOT NULL DEFAULT '',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.vouchers (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  number        text NOT NULL,
+  type          text NOT NULL CHECK (type IN ('invoice', 'receipt', 'order', 'delivery', 'return')),
+  supplier_id   text NOT NULL DEFAULT '',
+  supplier_name text NOT NULL DEFAULT '',
+  date          text NOT NULL,
+  amount        numeric(10,2) NOT NULL DEFAULT 0,
+  currency      text NOT NULL DEFAULT 'ARS' CHECK (currency IN ('ARS', 'USD')),
+  description   text NOT NULL DEFAULT '',
+  equipment_ids text[] NOT NULL DEFAULT '{}',
+  status        text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'processed')),
+  notes         text NOT NULL DEFAULT '',
+  created_at    timestamptz DEFAULT now(),
+  updated_at    timestamptz DEFAULT now()
 );
-
-CREATE INDEX idx_vouchers_user_id ON vouchers(user_id);
-CREATE INDEX idx_vouchers_type ON vouchers(type);
-CREATE INDEX idx_vouchers_status ON vouchers(status);
-CREATE INDEX idx_vouchers_date ON vouchers(date);
+CREATE INDEX IF NOT EXISTS idx_vouchers_user_id ON public.vouchers (user_id);
 
 -- ============================================
--- TABLA: EXTERNAL_SERVERS (Servidores Externos)
+-- TABLA: EXTERNAL_SERVERS (Servidores externos)
 -- ============================================
-CREATE TABLE IF NOT EXISTS external_servers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  type TEXT NOT NULL DEFAULT 'meshcentral' CHECK (type IN ('meshcentral', 'custom')),
-  url TEXT NOT NULL,
-  username TEXT NOT NULL,
-  password TEXT NOT NULL,
-  auto_sync BOOLEAN NOT NULL DEFAULT false,
-  sync_interval INTEGER NOT NULL DEFAULT 5,
-  last_sync TIMESTAMP WITH TIME ZONE,
-  status TEXT NOT NULL DEFAULT 'inactive' CHECK (status IN ('active', 'inactive', 'error')),
-  notes TEXT DEFAULT '',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.external_servers (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name          text NOT NULL,
+  type          text NOT NULL DEFAULT 'meshcentral' CHECK (type IN ('meshcentral', 'custom')),
+  url           text NOT NULL,
+  username      text NOT NULL DEFAULT '',
+  password      text NOT NULL DEFAULT '',
+  auto_sync     boolean NOT NULL DEFAULT false,
+  sync_interval integer NOT NULL DEFAULT 5,
+  last_sync     timestamptz,
+  status        text NOT NULL DEFAULT 'inactive' CHECK (status IN ('active', 'inactive', 'error')),
+  notes         text DEFAULT '',
+  created_at    timestamptz DEFAULT now(),
+  updated_at    timestamptz DEFAULT now()
 );
-
-CREATE INDEX idx_external_servers_user_id ON external_servers(user_id);
-CREATE INDEX idx_external_servers_type ON external_servers(type);
-CREATE INDEX idx_external_servers_status ON external_servers(status);
+CREATE INDEX IF NOT EXISTS idx_external_servers_user_id ON public.external_servers (user_id);
 
 -- ============================================
--- TABLA: SYNCED_DEVICES (Dispositivos Sincronizados)
+-- TABLA: SYNCED_DEVICES (Dispositivos sincronizados)
 -- ============================================
-CREATE TABLE IF NOT EXISTS synced_devices (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  server_id UUID NOT NULL REFERENCES external_servers(id) ON DELETE CASCADE,
-  external_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  hostname TEXT NOT NULL DEFAULT '',
-  ip TEXT NOT NULL DEFAULT '',
-  os TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL DEFAULT 'disconnected' CHECK (status IN ('connected', 'disconnected')),
-  last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  group_name TEXT DEFAULT '',
-  cpu TEXT DEFAULT '',
-  ram TEXT DEFAULT '',
-  synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  local_equipment_id UUID REFERENCES equipments(id) ON DELETE SET NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(server_id, external_id)
+CREATE TABLE IF NOT EXISTS public.synced_devices (
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id            uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  server_id          uuid NOT NULL REFERENCES public.external_servers(id) ON DELETE CASCADE,
+  external_id        text NOT NULL,
+  name               text NOT NULL,
+  hostname           text NOT NULL DEFAULT '',
+  ip                 text NOT NULL DEFAULT '',
+  os                 text NOT NULL DEFAULT '',
+  status             text NOT NULL DEFAULT 'disconnected' CHECK (status IN ('connected', 'disconnected')),
+  last_seen          timestamptz DEFAULT now(),
+  group_name         text DEFAULT '',
+  cpu                text DEFAULT '',
+  ram                text DEFAULT '',
+  synced_at          timestamptz DEFAULT now(),
+  local_equipment_id uuid REFERENCES public.equipments(id) ON DELETE SET NULL,
+  created_at         timestamptz DEFAULT now(),
+  updated_at         timestamptz DEFAULT now(),
+  UNIQUE (server_id, external_id)
 );
-
-CREATE INDEX idx_synced_devices_user_id ON synced_devices(user_id);
-CREATE INDEX idx_synced_devices_server_id ON synced_devices(server_id);
-CREATE INDEX idx_synced_devices_status ON synced_devices(status);
-CREATE INDEX idx_synced_devices_local_equipment_id ON synced_devices(local_equipment_id);
+CREATE INDEX IF NOT EXISTS idx_synced_devices_user_id ON public.synced_devices (user_id);
 
 -- ============================================
--- TABLA: ALERTS (Alertas del Sistema)
+-- TABLA: EQUIPMENT_MOVEMENTS (Movimientos de equipos a usuarios)
+-- usuario_ref guarda el id opaco del usuario (texto).
 -- ============================================
-CREATE TABLE IF NOT EXISTS alerts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('low_stock', 'maintenance', 'info', 'after_hours')),
-  message TEXT NOT NULL,
-  severity TEXT NOT NULL DEFAULT 'low' CHECK (severity IN ('low', 'medium', 'high')),
-  date TEXT NOT NULL,
-  read BOOLEAN NOT NULL DEFAULT false,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.equipment_movements (
+  id             bigserial PRIMARY KEY,
+  user_id        uuid REFERENCES auth.users(id),
+  equipment_id   uuid REFERENCES public.equipments(id),
+  usuario_ref    text,
+  usuario_nombre varchar(255),
+  usuario_area   varchar(255),
+  tipo           varchar(50) CHECK (tipo IN ('asignacion', 'devolucion', 'traslado', 'baja')),
+  fecha          timestamptz DEFAULT now(),
+  observaciones  text,
+  registrado_por varchar(255),
+  created_at     timestamptz DEFAULT now()
 );
-
-CREATE INDEX idx_alerts_user_id ON alerts(user_id);
-CREATE INDEX idx_alerts_type ON alerts(type);
-CREATE INDEX idx_alerts_severity ON alerts(severity);
-CREATE INDEX idx_alerts_read ON alerts(read);
+CREATE INDEX IF NOT EXISTS eqmov_user_idx   ON public.equipment_movements (user_id);
+CREATE INDEX IF NOT EXISTS eqmov_equipo_idx ON public.equipment_movements (equipment_id);
+CREATE INDEX IF NOT EXISTS eqmov_fecha_idx  ON public.equipment_movements (fecha DESC);
 
 -- ============================================
--- FUNCIÓN: Actualizar updated_at automáticamente
+-- TABLA: USERS_NEW (Altas de usuarios hechas desde la app)
+-- La lee y escribe solo la función serverless con la clave service_role.
 -- ============================================
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+CREATE TABLE IF NOT EXISTS public.users_new (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nombre       text NOT NULL,
+  apellido     text NOT NULL,
+  usuario      text NOT NULL,          -- login, en minúsculas sin espacios
+  correo       text NOT NULL DEFAULT '',
+  departamento text NOT NULL DEFAULT '',
+  estado       text NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'inactivo')),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS users_new_usuario_key ON public.users_new (lower(usuario));
+CREATE UNIQUE INDEX IF NOT EXISTS users_new_correo_key  ON public.users_new (lower(correo)) WHERE correo <> '';
+
+-- ============================================
+-- TRIGGERS DE updated_at
+-- (suppliers no tiene trigger en producción)
+-- ============================================
+DROP TRIGGER IF EXISTS update_app_printers_updated_at ON public.app_printers;
+CREATE TRIGGER update_app_printers_updated_at BEFORE UPDATE ON public.app_printers
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_toner_items_updated_at ON public.toner_items;
+CREATE TRIGGER update_toner_items_updated_at BEFORE UPDATE ON public.toner_items
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_equipments_updated_at ON public.equipments;
+CREATE TRIGGER update_equipments_updated_at BEFORE UPDATE ON public.equipments
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_vouchers_updated_at ON public.vouchers;
+CREATE TRIGGER update_vouchers_updated_at BEFORE UPDATE ON public.vouchers
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_external_servers_updated_at ON public.external_servers;
+CREATE TRIGGER update_external_servers_updated_at BEFORE UPDATE ON public.external_servers
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_synced_devices_updated_at ON public.synced_devices;
+CREATE TRIGGER update_synced_devices_updated_at BEFORE UPDATE ON public.synced_devices
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS users_new_set_updated_at ON public.users_new;
+CREATE TRIGGER users_new_set_updated_at BEFORE UPDATE ON public.users_new
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- ============================================
+-- RLS (Row Level Security)
+-- ============================================
+ALTER TABLE public.app_printers        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.toner_items         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.toner_movements     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.equipments          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suppliers           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vouchers            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.external_servers    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.synced_devices      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.equipment_movements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users_new           ENABLE ROW LEVEL SECURITY;
+-- users_new queda SIN políticas a propósito: el navegador no puede leerla ni
+-- escribirla; solo la función serverless (service_role, que ignora RLS).
+
+-- Políticas "cada usuario ve y modifica solo sus filas" (SELECT/INSERT/UPDATE/DELETE).
+-- En toner_movements los nombres de política dicen "movements" (nombre previo de la tabla).
+DO $$
+DECLARE
+  t record;
 BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+  FOR t IN
+    SELECT * FROM (VALUES
+      ('app_printers',     'app_printers'),
+      ('toner_items',      'toner_items'),
+      ('toner_movements',  'movements'),
+      ('equipments',       'equipments'),
+      ('suppliers',        'suppliers'),
+      ('vouchers',         'vouchers'),
+      ('external_servers', 'external_servers'),
+      ('synced_devices',   'synced_devices')
+    ) AS v(tabla, etiqueta)
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can view their own '   || t.etiqueta, t.tabla);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can insert their own ' || t.etiqueta, t.tabla);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can update their own ' || t.etiqueta, t.tabla);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can delete their own ' || t.etiqueta, t.tabla);
 
--- Aplicar trigger a todas las tablas con updated_at
-CREATE TRIGGER update_printers_updated_at BEFORE UPDATE ON printers
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT USING (auth.uid() = user_id)',
+                   'Users can view their own '   || t.etiqueta, t.tabla);
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR INSERT WITH CHECK (auth.uid() = user_id)',
+                   'Users can insert their own ' || t.etiqueta, t.tabla);
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR UPDATE USING (auth.uid() = user_id)',
+                   'Users can update their own ' || t.etiqueta, t.tabla);
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR DELETE USING (auth.uid() = user_id)',
+                   'Users can delete their own ' || t.etiqueta, t.tabla);
+  END LOOP;
+END $$;
 
-CREATE TRIGGER update_toner_items_updated_at BEFORE UPDATE ON toner_items
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_equipments_updated_at BEFORE UPDATE ON equipments
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_suppliers_updated_at BEFORE UPDATE ON suppliers
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_collaborators_updated_at BEFORE UPDATE ON collaborators
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_vouchers_updated_at BEFORE UPDATE ON vouchers
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_external_servers_updated_at BEFORE UPDATE ON external_servers
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_synced_devices_updated_at BEFORE UPDATE ON synced_devices
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- ============================================
--- POLÍTICAS DE SEGURIDAD (RLS - Row Level Security)
--- ============================================
-
--- Habilitar RLS en todas las tablas
-ALTER TABLE printers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE toner_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE toner_movements ENABLE ROW LEVEL SECURITY;
-ALTER TABLE equipments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE collaborators ENABLE ROW LEVEL SECURITY;
-ALTER TABLE vouchers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE external_servers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE synced_devices ENABLE ROW LEVEL SECURITY;
-ALTER TABLE alerts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE equipment_movements ENABLE ROW LEVEL SECURITY;
-
--- Políticas para cada tabla (los usuarios solo pueden ver sus propios datos)
-CREATE POLICY "Users can view their own printers" ON printers
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own printers" ON printers
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own printers" ON printers
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own printers" ON printers
-  FOR DELETE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view their own toner_items" ON toner_items
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own toner_items" ON toner_items
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own toner_items" ON toner_items
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own toner_items" ON toner_items
-  FOR DELETE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view their own toner movements" ON toner_movements
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own toner movements" ON toner_movements
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- Los movimientos de tóner son inmutables: se corrigen con un movimiento nuevo,
--- por eso existe una política UPDATE propia (además de SELECT/INSERT/DELETE).
-CREATE POLICY "Users can update their own toner movements" ON toner_movements
-  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own toner movements" ON toner_movements
-  FOR DELETE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view their own equipments" ON equipments
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own equipments" ON equipments
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own equipments" ON equipments
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own equipments" ON equipments
-  FOR DELETE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view their own suppliers" ON suppliers
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own suppliers" ON suppliers
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own suppliers" ON suppliers
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own suppliers" ON suppliers
-  FOR DELETE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view their own collaborators" ON collaborators
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own collaborators" ON collaborators
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own collaborators" ON collaborators
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own collaborators" ON collaborators
-  FOR DELETE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view their own vouchers" ON vouchers
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own vouchers" ON vouchers
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own vouchers" ON vouchers
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own vouchers" ON vouchers
-  FOR DELETE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view their own external_servers" ON external_servers
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own external_servers" ON external_servers
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own external_servers" ON external_servers
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own external_servers" ON external_servers
-  FOR DELETE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view their own synced_devices" ON synced_devices
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own synced_devices" ON synced_devices
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own synced_devices" ON synced_devices
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own synced_devices" ON synced_devices
-  FOR DELETE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view their own alerts" ON alerts
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own alerts" ON alerts
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own alerts" ON alerts
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own alerts" ON alerts
-  FOR DELETE USING (auth.uid() = user_id);
-
--- Movimientos de equipos: una sola policy FOR ALL (idéntica a la migración).
+-- Movimientos de equipos: una sola política FOR ALL.
 DROP POLICY IF EXISTS "own_equipment_movements" ON public.equipment_movements;
 CREATE POLICY "own_equipment_movements"
   ON public.equipment_movements FOR ALL
@@ -432,56 +337,52 @@ CREATE POLICY "own_equipment_movements"
 
 -- ============================================
 -- RPC: registrar movimiento de equipo (transaccional)
--- Copia fiel de la migración; CREATE OR REPLACE la mantiene idempotente.
+-- Inserta el movimiento y actualiza el estado del equipo:
+-- asignacion/traslado -> assigned | devolucion -> available | baja -> retired
 -- ============================================
--- RPC atómica: inserta el movimiento y actualiza el status del equipo coherente.
--- asignacion -> assigned | devolucion -> available | traslado -> assigned | baja -> retired
-create or replace function public.registrar_equipment_movement(
+CREATE OR REPLACE FUNCTION public.registrar_equipment_movement(
   p_equipment_id uuid,
   p_usuario_ref text,
   p_usuario_nombre text,
   p_usuario_area text,
   p_tipo text,
-  p_observaciones text default null,
-  p_registrado_por text default null
-) returns uuid
-language plpgsql
-security invoker
-as $$
-declare
-  v_new_id uuid;
+  p_observaciones text DEFAULT NULL,
+  p_registrado_por text DEFAULT NULL
+) RETURNS bigint
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+  v_new_id bigint;
   v_status text;
-begin
-  if p_tipo not in ('asignacion','devolucion','traslado','baja') then
-    raise exception 'Tipo de movimiento inválido: %', p_tipo;
-  end if;
+BEGIN
+  IF p_tipo NOT IN ('asignacion', 'devolucion', 'traslado', 'baja') THEN
+    RAISE EXCEPTION 'Tipo de movimiento inválido: %', p_tipo;
+  END IF;
 
-  v_status := case p_tipo
-    when 'asignacion' then 'assigned'
-    when 'traslado'   then 'assigned'
-    when 'devolucion' then 'available'
-    when 'baja'       then 'retired'
-  end;
+  v_status := CASE p_tipo
+    WHEN 'asignacion' THEN 'assigned'
+    WHEN 'traslado'   THEN 'assigned'
+    WHEN 'devolucion' THEN 'available'
+    WHEN 'baja'       THEN 'retired'
+  END;
 
-  -- valida que el equipo exista y pertenezca al usuario logueado
-  perform id from public.equipments
-    where id = p_equipment_id and user_id = auth.uid();
-  if not found then
-    raise exception 'El equipamiento no existe o no pertenece al usuario';
-  end if;
+  PERFORM id FROM public.equipments
+    WHERE id = p_equipment_id AND user_id = auth.uid();
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'El equipamiento no existe o no pertenece al usuario';
+  END IF;
 
-  insert into public.equipment_movements
+  INSERT INTO public.equipment_movements
     (user_id, equipment_id, usuario_ref, usuario_nombre, usuario_area, tipo, observaciones, registrado_por)
-  values
+  VALUES
     (auth.uid(), p_equipment_id, p_usuario_ref, p_usuario_nombre, p_usuario_area, p_tipo, p_observaciones, p_registrado_por)
-  returning id into v_new_id;
+  RETURNING id INTO v_new_id;
 
-  update public.equipments
-    set status = v_status,
-        collaborator_id = case when p_tipo in ('asignacion','traslado') then collaborator_id else null end,
-        updated_at = now()
-    where id = p_equipment_id;
+  UPDATE public.equipments
+    SET status = v_status, updated_at = now()
+    WHERE id = p_equipment_id;
 
-  return v_new_id;
-end;
+  RETURN v_new_id;
+END;
 $$;
