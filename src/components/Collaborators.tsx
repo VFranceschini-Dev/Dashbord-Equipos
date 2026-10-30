@@ -128,12 +128,12 @@ export default function Collaborators() {
     <div className="space-y-5">
       <div className="flex items-center justify-end gap-3 text-sm">
         {loading && (
-          <span className="flex items-center gap-2 text-gray-500">
+          <span className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
             <Loader2 size={14} className="animate-spin" /> {TU.cargando}
           </span>
         )}
         <button onClick={() => recargar(true)} disabled={loading}
-          className="flex items-center gap-1.5 text-gray-600 hover:text-blue-600 disabled:opacity-50">
+          className="flex items-center gap-1.5 text-gray-600 dark:text-slate-300 hover:text-blue-600 disabled:opacity-50">
           <RefreshCw size={14} /> Actualizar
         </button>
       </div>
@@ -183,7 +183,7 @@ export default function Collaborators() {
       </div>
 
       {listado.total > listado.data.length && (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-500 dark:text-slate-400">
           Se muestran {listado.data.length} de {listado.total} usuarios. Usá el buscador para encontrar al resto.
         </p>
       )}

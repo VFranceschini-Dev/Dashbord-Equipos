@@ -156,8 +156,8 @@ export default function EquipmentAssignments() {
       <div className="flex items-center gap-3">
         <div className="p-2 bg-blue-50 rounded-lg"><Monitor size={22} className="text-blue-600" /></div>
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Asignación de Equipos</h2>
-          <p className="text-xs text-gray-500">{T.subtitulo}</p>
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white">Asignación de Equipos</h2>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{T.subtitulo}</p>
         </div>
       </div>
 
