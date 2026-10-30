@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Equipment } from '../types';
 import { EQUIPMENT_CATEGORIES } from '../data';
+import { syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
+import { asignacionesActuales, type AsignacionActual } from '../utils/asignaciones';
 import {
   Plus, Search, Edit2, Trash2, X, Monitor, Laptop, Server,
   HardDrive, Mouse, Package, Tag, User, Upload
@@ -34,8 +36,11 @@ const statusConfig = {
   retired: { label: 'Retirado', color: 'bg-gray-100 text-gray-700' },
 };
 
+const ESTADOS_EDITABLES: Equipment['status'][] = ['available', 'maintenance'];
+
 export default function Equipments() {
-  const { equipments, addEquipment, updateEquipment, deleteEquipment, collaborators } = useApp();
+  const { equipments, addEquipment, updateEquipment, deleteEquipment } = useApp();
+  const [asignaciones, setAsignaciones] = useState<Map<string, AsignacionActual>>(new Map());
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -87,11 +92,14 @@ export default function Equipments() {
     setShowForm(true);
   };
 
-  const getCollaboratorName = (id?: string) => {
-    if (!id) return '-';
-    const c = collaborators.find(c => c.id === id);
-    return c ? `${c.name} ${c.lastName}` : 'Sin asignar';
-  };
+  // "Asignado a" sale del último movimiento de cada equipo (se registra en Asignación de Equipos).
+  useEffect(() => {
+    syncEquipmentMovementsFromSupabase()
+      .then(movs => setAsignaciones(asignacionesActuales(movs)))
+      .catch(() => setAsignaciones(new Map()));
+  }, []);
+
+  const getAsignadoA = (equipmentId: string) => asignaciones.get(equipmentId)?.usuarioNombre || '-';
 
   const handleImport = (importedData: any[]) => {
     importedData.forEach(item => {
@@ -231,20 +239,17 @@ export default function Equipments() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                  {/* "Asignado" y "Retirado" solo cambian al registrar movimientos en Asignación de Equipos */}
                   <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Equipment['status'] })}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm">
-                    {Object.entries(statusConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    disabled={!ESTADOS_EDITABLES.includes(form.status)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm disabled:bg-gray-50 disabled:text-gray-500">
+                    {Object.entries(statusConfig)
+                      .filter(([k]) => ESTADOS_EDITABLES.includes(k as Equipment['status']) || k === form.status)
+                      .map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a usuario</label>
-                  <select value={form.collaboratorId || ''} onChange={e => setForm({ ...form, collaboratorId: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm">
-                    <option value="">Sin asignar</option>
-                    {collaborators.map(c => <option key={c.id} value={c.id}>{c.name} {c.lastName}</option>)}
-                  </select>
+                  {!ESTADOS_EDITABLES.includes(form.status) && (
+                    <p className="text-xs text-gray-500 mt-1">Se cambia desde Asignación de Equipos.</p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -323,7 +328,7 @@ export default function Equipments() {
                   <td className="px-4 py-3 text-sm text-gray-600 font-mono">{eq.serialNumber || '-'}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1 text-sm text-gray-600">
-                      <User size={12} /> {getCollaboratorName(eq.collaboratorId)}
+                      <User size={12} /> {getAsignadoA(eq.id)}
                     </span>
                   </td>
                   <td className="px-4 py-3">
