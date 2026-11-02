@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { syncEquipmentMovementToSupabase, syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
-import { buscarUsuariosCompat, existeUsuario, darDeAltaUsuario, ProxyError, type UsuarioCompat, type AltaUsuarioInput } from '../services/usuarios';
+import { buscarUsuariosCompat, existeUsuario, darDeAltaUsuario, generarCodigoUsuario, codigoDisponible, ProxyError, type UsuarioCompat, type AltaUsuarioInput } from '../services/usuarios';
 import { TEXTOS_USUARIOS } from '../constants/textos';
 import { Equipment, EquipmentMovement } from '../types';
 import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History, UserPlus, X } from 'lucide-react';
@@ -33,6 +33,7 @@ export default function EquipmentAssignments() {
   // Alta rápida de usuario no registrado desde "Registrar movimiento"
   const [showAlta, setShowAlta] = useState(false);
   const [altaForm, setAltaForm] = useState<AltaUsuarioInput>({ nombre: '', apellido: '', usuario: '', correo: '', departamento: '', estado: 'activo' });
+  const [altaLoginEditado, setAltaLoginEditado] = useState(false);
   const [altaSaving, setAltaSaving] = useState(false);
   const [altaMsg, setAltaMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -77,10 +78,13 @@ export default function EquipmentAssignments() {
 
   const abrirAlta = () => {
     const partes = query.trim().split(/\s+/);
+    const nombre = partes[0] || '';
+    const apellido = partes.slice(1).join(' ');
+    setAltaLoginEditado(false);
     setAltaForm({
-      nombre: partes[0] || '',
-      apellido: partes.slice(1).join(' '),
-      usuario: query.trim(),
+      nombre,
+      apellido,
+      usuario: generarCodigoUsuario(nombre, apellido),
       correo: '',
       departamento: '',
       estado: 'activo',
@@ -89,17 +93,28 @@ export default function EquipmentAssignments() {
     setShowAlta(true);
   };
 
+  // Mientras no se edite a mano, el código se regenera con nombre y apellido.
+  const updateAltaNombre = (campo: 'nombre' | 'apellido', valor: string) => {
+    const next = { ...altaForm, [campo]: valor };
+    if (!altaLoginEditado) next.usuario = generarCodigoUsuario(next.nombre, next.apellido);
+    setAltaForm(next);
+  };
+
   const handleAltaGuardado = async () => {
     setAltaSaving(true);
     setAltaMsg(null);
-    // 1) Verificar si ya existe (alguna fuente)
-    if (await existeUsuario({ usuario: altaForm.usuario, correo: altaForm.correo })) {
+    // 1) Mismo correo = misma persona: ya está registrada
+    if (altaForm.correo.trim() && await existeUsuario({ correo: altaForm.correo })) {
       setAltaSaving(false);
       setAltaMsg({ ok: false, text: T.yaRegistrado });
       return;
     }
-    // 2) Alta
-    const resultado = await darDeAltaUsuario(altaForm);
+    // 2) Código automático: si ya existe, se le agrega un número (vfranceschini2).
+    //    Si se editó a mano, se respeta y el servidor avisa si está repetido.
+    const usuario = altaLoginEditado ? altaForm.usuario.trim() : await codigoDisponible(altaForm.usuario.trim());
+    if (usuario !== altaForm.usuario) setAltaForm(f => ({ ...f, usuario }));
+    // 3) Alta
+    const resultado = await darDeAltaUsuario({ ...altaForm, usuario });
     setAltaSaving(false);
     if (resultado.ok) {
       const compat = { ...resultado.usuario, nombreCompleto: `${resultado.usuario.nombre} ${resultado.usuario.apellido}`.trim() || resultado.usuario.usuario, area: resultado.usuario.departamento || resultado.usuario.usuario };
@@ -261,19 +276,21 @@ export default function EquipmentAssignments() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-                  <input type="text" value={altaForm.nombre} onChange={e => setAltaForm({ ...altaForm, nombre: e.target.value })}
+                  <input type="text" value={altaForm.nombre} onChange={e => updateAltaNombre('nombre', e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Apellido *</label>
-                  <input type="text" value={altaForm.apellido} onChange={e => setAltaForm({ ...altaForm, apellido: e.target.value })}
+                  <input type="text" value={altaForm.apellido} onChange={e => updateAltaNombre('apellido', e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Usuario (código) *</label>
-                <input type="text" value={altaForm.usuario} onChange={e => setAltaForm({ ...altaForm, usuario: e.target.value })}
+                <input type="text" value={altaForm.usuario}
+                  onChange={e => { setAltaLoginEditado(true); setAltaForm({ ...altaForm, usuario: e.target.value }); }}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+                <p className="text-xs text-gray-400 mt-1">Se genera automáticamente; podés modificarlo.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Correo</label>

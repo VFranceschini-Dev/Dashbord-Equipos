@@ -149,6 +149,39 @@ export async function listarUsuarios(q = '', options: BuscarUsuariosOptions = {}
   })());
 }
 
+/**
+ * Código de usuario sugerido: inicial del primer nombre + apellido completo,
+ * en minúsculas, sin tildes, sin ñ (pasa a n) y sin espacios ni signos.
+ * Ej.: Verónica / Franceschini → vfranceschini; María José / Pérez Gil → mperezgil.
+ */
+export function generarCodigoUsuario(nombre: string, apellido: string): string {
+  const limpiar = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  const inicial = limpiar(nombre.trim().split(/\s+/)[0] || '').charAt(0);
+  return inicial + limpiar(apellido);
+}
+
+/**
+ * Devuelve el código si está libre; si ya existe, le agrega el primer número
+ * libre (vfranceschini2, vfranceschini3...). Si no se puede consultar, devuelve
+ * el código tal cual y el servidor rechaza el duplicado al guardar.
+ */
+export async function codigoDisponible(codigo: string): Promise<string> {
+  const base = codigo.toLowerCase().replace(/\s+/g, '');
+  if (!base) return base;
+  let usados: Set<string>;
+  try {
+    const lista = await buscarUsuarios(base, { soloActivos: false, limit: 500 });
+    usados = new Set(lista.map(u => u.usuario.toLowerCase().replace(/\s+/g, '')));
+  } catch {
+    return base;
+  }
+  if (!usados.has(base)) return base;
+  let n = 2;
+  while (usados.has(`${base}${n}`)) n++;
+  return `${base}${n}`;
+}
+
 /** Verifica si un usuario (login) o correo ya existe en alguna fuente. */
 export async function existeUsuario({ usuario, correo }: { usuario?: string; correo?: string }): Promise<boolean> {
   const terminos = [usuario, correo].map(t => (t || '').trim()).filter(Boolean);

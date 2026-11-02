@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { DEPARTMENTS } from '../data';
 import { TEXTOS_USUARIOS } from '../constants/textos';
-import { listarUsuarios, darDeAltaUsuario, ProxyError, type ListadoUsuarios, type AltaUsuarioInput } from '../services/usuarios';
+import { listarUsuarios, darDeAltaUsuario, generarCodigoUsuario, codigoDisponible, ProxyError, type ListadoUsuarios, type AltaUsuarioInput } from '../services/usuarios';
 import { syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
 import { asignacionesActuales, equiposPorUsuario } from '../utils/asignaciones';
 import {
@@ -13,11 +13,6 @@ const TU = TEXTOS_USUARIOS.usuarios;
 const TA = TEXTOS_USUARIOS.asignaciones;
 
 const LIMITE = 500;
-
-/** Sugerencia de login: nombre + apellido en minúsculas, sin tildes ni espacios. */
-function sugerirLogin(nombre: string, apellido: string): string {
-  return `${nombre}${apellido}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '');
-}
 
 const emptyForm: AltaUsuarioInput = {
   nombre: '', apellido: '', usuario: '', correo: '', departamento: '', estado: 'activo',
@@ -89,7 +84,7 @@ export default function Collaborators() {
 
   const updateNombre = (campo: 'nombre' | 'apellido', valor: string) => {
     const next = { ...form, [campo]: valor };
-    if (!loginEditado) next.usuario = sugerirLogin(next.nombre, next.apellido);
+    if (!loginEditado) next.usuario = generarCodigoUsuario(next.nombre, next.apellido);
     setForm(next);
   };
 
@@ -100,11 +95,15 @@ export default function Collaborators() {
     }
     setSavingUser(true);
     setFormMsg(null);
+    // Código automático: si ya existe, se le agrega un número (vfranceschini2).
+    // Si se editó a mano, se respeta y el servidor avisa si está repetido.
+    const usuario = loginEditado ? form.usuario.trim() : await codigoDisponible(form.usuario.trim());
+    if (usuario !== form.usuario) setForm(f => ({ ...f, usuario }));
     const resultado = await darDeAltaUsuario({
       ...form,
       nombre: form.nombre.trim(),
       apellido: form.apellido.trim(),
-      usuario: form.usuario.trim(),
+      usuario,
       correo: form.correo.trim(),
       departamento: form.departamento.trim(),
     });
@@ -214,6 +213,7 @@ export default function Collaborators() {
                   <input type="text" value={form.usuario}
                     onChange={e => { setLoginEditado(true); setForm({ ...form, usuario: e.target.value }); }}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+                  <p className="text-xs text-gray-400 mt-1">Se genera automáticamente; podés modificarlo.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Correo</label>
