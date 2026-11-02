@@ -188,7 +188,13 @@ export default function EquipmentAssignments() {
         <h3 className="font-semibold text-gray-800 flex items-center gap-2"><ArrowLeftRight size={16} /> Registrar movimiento</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{T.etiquetaUsuario}</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">{T.etiquetaUsuario}</label>
+              <button onClick={abrirAlta}
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+                <UserPlus size={13} /> {TEXTOS_USUARIOS.usuarios.nuevo}
+              </button>
+            </div>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
