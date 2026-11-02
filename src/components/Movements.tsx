@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ModuleSyncControls from './ModuleSyncControls';
 import { Movement } from '../types';
 import {
   Plus, Search, X, CheckCircle, Package, ArrowLeftRight, Trash2, Filter, Calendar
@@ -82,6 +83,7 @@ export default function Movements() {
 
   return (
     <div className="space-y-5">
+      <ModuleSyncControls module="movements" />
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex items-center gap-2 flex-wrap">
           <Filter size={16} className="text-gray-400" />

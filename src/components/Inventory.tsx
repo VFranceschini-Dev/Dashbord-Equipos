@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ModuleSyncControls from './ModuleSyncControls';
 import { TonerItem } from '../types';
 import { groupTonersByCompatibility, getCompatibilityKey, getLowStockGroups } from '../utils/tonerCompatibility';
 import {
@@ -125,6 +126,7 @@ export default function Inventory() {
 
   return (
     <div className="space-y-5">
+      <ModuleSyncControls module="toners" />
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="relative flex-1 max-w-md">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

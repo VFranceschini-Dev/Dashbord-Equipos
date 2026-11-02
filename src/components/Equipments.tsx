@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ModuleSyncControls from './ModuleSyncControls';
 import { Equipment } from '../types';
 import { EQUIPMENT_CATEGORIES } from '../data';
 import { syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
@@ -126,6 +127,7 @@ export default function Equipments() {
 
   return (
     <div className="space-y-5">
+      <ModuleSyncControls module="equipments" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
           <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">Total Equipos</p>
