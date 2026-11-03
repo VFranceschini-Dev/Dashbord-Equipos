@@ -119,9 +119,11 @@ function consultarMesh(url: string, usuario: string, clave: string): Promise<Res
         (lista || []).map(n => ({ ...n, grupo: grupos?.[meshId] || '' })));
       resolve({ nodos, ultimasConexiones });
     };
-    const error = (mensaje: string, status: number) => Object.assign(new Error(mensaje), { status });
+    // detalle: causa técnica del fallo, sin credenciales (se muestra al usuario para diagnóstico)
+    const error = (mensaje: string, status: number, detalle: string) =>
+      Object.assign(new Error(mensaje), { status, detalle: detalle.slice(0, 120) });
 
-    const limite = setTimeout(() => fin(error('timeout', 504)), TIMEOUT_MS);
+    const limite = setTimeout(() => fin(error('timeout', 504, `sin respuesta en ${TIMEOUT_MS / 1000} s`)), TIMEOUT_MS);
 
     // Con grupos y nodos alcanza; se espera un instante por las últimas conexiones (opcional).
     const quizasTerminar = () => {
@@ -138,7 +140,7 @@ function consultarMesh(url: string, usuario: string, clave: string): Promise<Res
       let msg: any;
       try { msg = JSON.parse(raw.toString()); } catch { return; }
       if (msg?.action === 'close' || msg?.cause === 'noauth') {
-        fin(error('autenticación rechazada', 401));
+        fin(error('autenticación rechazada', 401, `servidor: ${msg?.cause || msg?.msg || 'close'}`));
       } else if (msg?.action === 'meshes' && Array.isArray(msg.meshes)) {
         grupos = Object.fromEntries(msg.meshes.map((m: any) => [String(m._id), String(m.name ?? '')]));
         quizasTerminar();
@@ -152,12 +154,15 @@ function consultarMesh(url: string, usuario: string, clave: string): Promise<Res
     });
 
     ws.on('unexpected-response', (_req, res) => {
-      fin(error(`HTTP ${res.statusCode}`, res.statusCode === 401 || res.statusCode === 403 ? 401 : 502));
+      const server = res.headers['server'] ? `, server: ${res.headers['server']}` : '';
+      fin(error(`HTTP ${res.statusCode}`, res.statusCode === 401 || res.statusCode === 403 ? 401 : 502,
+        `HTTP ${res.statusCode}${server}`));
     });
-    ws.on('error', () => fin(error('no se pudo conectar', 502)));
-    ws.on('close', () => {
+    ws.on('error', err => fin(error('no se pudo conectar', 502, (err as NodeJS.ErrnoException).code || err.message)));
+    ws.on('close', (code, reason) => {
       if (grupos && nodosPorGrupo) fin();
-      else fin(error('la conexión se cerró antes de recibir datos (¿credenciales?)', 401));
+      else fin(error('la conexión se cerró antes de recibir datos', 401,
+        `cerró la conexión sin datos, código ${code}${reason.length ? `: ${reason.toString()}` : ''}`));
     });
   });
 }
@@ -198,10 +203,12 @@ export async function GET(request: Request): Promise<Response> {
   try {
     respuesta = await consultarMesh(url, usuario, clave);
   } catch (err) {
-    const status = (err as { status?: number }).status ?? 502;
-    if (status === 401) return jsonResponse(502, { success: false, error: 'El servidor de monitoreo rechazó las credenciales.' });
-    if (status === 504) return jsonResponse(504, { success: false, error: 'El servidor de monitoreo no respondió a tiempo.' });
-    return jsonResponse(502, { success: false, error: 'No se pudo conectar con el servidor de monitoreo.' });
+    const { status = 502, detalle = '' } = err as { status?: number; detalle?: string };
+    console.error('[api/mesh] fallo al consultar:', detalle || (err as Error).message);
+    const extra = detalle ? ` (${detalle})` : '';
+    if (status === 401) return jsonResponse(502, { success: false, error: `El servidor de monitoreo rechazó las credenciales${extra}.` });
+    if (status === 504) return jsonResponse(504, { success: false, error: `El servidor de monitoreo no respondió a tiempo${extra}.` });
+    return jsonResponse(502, { success: false, error: `No se pudo conectar con el servidor de monitoreo${extra}.` });
   }
 
   const data: EquipoMesh[] = [];
