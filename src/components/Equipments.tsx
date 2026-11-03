@@ -7,8 +7,9 @@ import { syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
 import { asignacionesActuales, type AsignacionActual } from '../utils/asignaciones';
 import {
   Plus, Search, Edit2, Trash2, X, Monitor, Laptop, Server,
-  HardDrive, Mouse, Package, Tag, User, Upload
+  HardDrive, Mouse, Package, Tag, User, Upload, RefreshCw, Loader2
 } from 'lucide-react';
+import { sincronizarConMesh } from '../services/mesh';
 import ImportModal from './ImportModal';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -40,7 +41,9 @@ const statusConfig = {
 const ESTADOS_EDITABLES: Equipment['status'][] = ['available', 'maintenance'];
 
 export default function Equipments() {
-  const { equipments, addEquipment, updateEquipment, deleteEquipment } = useApp();
+  const { equipments, addEquipment, updateEquipment, deleteEquipment, refreshModule } = useApp();
+  const [sincronizando, setSincronizando] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [asignaciones, setAsignaciones] = useState<Map<string, AsignacionActual>>(new Map());
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
@@ -101,6 +104,25 @@ export default function Equipments() {
   }, []);
 
   const getAsignadoA = (equipmentId: string) => asignaciones.get(equipmentId)?.usuarioNombre || '-';
+
+  // Trae PC y notebooks del servidor de monitoreo y los guarda (nuevos + actualizados).
+  const handleSincronizarMesh = async () => {
+    setSincronizando(true);
+    setSyncMsg(null);
+    try {
+      const r = await sincronizarConMesh();
+      await refreshModule('equipments');
+      setSyncMsg({
+        ok: r.errores === 0,
+        text: `Sincronización: ${r.nuevos} nuevos, ${r.actualizados} actualizados, ${r.ignorados} ignorados (no son PC ni notebook)`
+          + (r.errores ? `, ${r.errores} con error.` : '.'),
+      });
+    } catch (err) {
+      setSyncMsg({ ok: false, text: (err as Error).message });
+    } finally {
+      setSincronizando(false);
+    }
+  };
 
   const handleImport = (importedData: any[]) => {
     importedData.forEach(item => {
@@ -176,6 +198,10 @@ export default function Equipments() {
           </select>
         </div>
         <div className="flex gap-2">
+          <button onClick={handleSincronizarMesh} disabled={sincronizando}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-60">
+            {sincronizando ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Sincronizar con Mesh
+          </button>
           <button onClick={() => setShowImport(true)}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium">
             <Upload size={16} /> Importar
@@ -186,6 +212,12 @@ export default function Equipments() {
           </button>
         </div>
       </div>
+
+      {syncMsg && (
+        <div className={`rounded-lg px-3 py-2 text-sm ${syncMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+          {syncMsg.text}
+        </div>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -304,6 +336,7 @@ export default function Equipments() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Tipo</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Categoría</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Serial</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">En línea</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Asignado a</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Estado</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Acciones</th>
@@ -317,7 +350,11 @@ export default function Equipments() {
                       <div className="p-1.5 bg-blue-50 rounded text-blue-600">{typeIcons[eq.type]}</div>
                       <div>
                         <p className="text-sm font-medium text-gray-800">{eq.name}</p>
-                        <p className="text-xs text-gray-400">{eq.brand} {eq.model}</p>
+                        <p className="text-xs text-gray-400">
+                          {eq.meshNodeId
+                            ? [eq.meshGrupo, eq.meshIp, eq.meshSo].filter(Boolean).join(' · ')
+                            : `${eq.brand} ${eq.model}`}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -328,6 +365,15 @@ export default function Equipments() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 font-mono">{eq.serialNumber || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {eq.meshNodeId ? (
+                      <span className="inline-flex items-center gap-1.5"
+                        title={eq.meshUltimaConexion ? `Última conexión: ${new Date(eq.meshUltimaConexion).toLocaleString('es-AR')}` : undefined}>
+                        <span className={`w-2 h-2 rounded-full ${eq.meshEnLinea ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                        {eq.meshEnLinea ? 'Sí' : 'No'}
+                      </span>
+                    ) : '-'}
+                  </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1 text-sm text-gray-600">
                       <User size={12} /> {getAsignadoA(eq.id)}

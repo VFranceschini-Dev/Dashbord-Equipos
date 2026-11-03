@@ -119,6 +119,19 @@ CREATE TABLE IF NOT EXISTS public.equipments (
 );
 CREATE INDEX IF NOT EXISTS idx_equipments_user_id ON public.equipments (user_id);
 
+-- Datos del servidor de monitoreo remoto (migración 20261103_equipments_mesh.sql)
+ALTER TABLE public.equipments
+  ADD COLUMN IF NOT EXISTS mesh_node_id         text,
+  ADD COLUMN IF NOT EXISTS mesh_so              text,
+  ADD COLUMN IF NOT EXISTS mesh_ip              text,
+  ADD COLUMN IF NOT EXISTS mesh_grupo           text,
+  ADD COLUMN IF NOT EXISTS mesh_en_linea        boolean,
+  ADD COLUMN IF NOT EXISTS mesh_ultima_conexion timestamptz,
+  ADD COLUMN IF NOT EXISTS mesh_sincronizado    timestamptz;
+CREATE UNIQUE INDEX IF NOT EXISTS equipments_mesh_node_key
+  ON public.equipments (user_id, mesh_node_id)
+  WHERE mesh_node_id IS NOT NULL;
+
 -- ============================================
 -- TABLA: SUPPLIERS (Proveedores)
 -- ============================================

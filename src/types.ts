@@ -59,6 +59,14 @@ export interface Equipment {
   purchaseDate: string;
   warrantyEnd: string;
   notes: string;
+  // Datos del servidor de monitoreo remoto (solo equipos sincronizados)
+  meshNodeId?: string;
+  meshSo?: string;
+  meshIp?: string;
+  meshGrupo?: string;
+  meshEnLinea?: boolean;
+  meshUltimaConexion?: string;
+  meshSincronizado?: string;
 }
 
 export interface Supplier {

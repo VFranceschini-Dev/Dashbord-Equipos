@@ -77,6 +77,13 @@ export interface SupabaseEquipment {
   purchase_date: string;
   warranty_end: string;
   notes: string;
+  mesh_node_id?: string | null;
+  mesh_so?: string | null;
+  mesh_ip?: string | null;
+  mesh_grupo?: string | null;
+  mesh_en_linea?: boolean | null;
+  mesh_ultima_conexion?: string | null;
+  mesh_sincronizado?: string | null;
   created_at?: string;
   updated_at?: string;
 }

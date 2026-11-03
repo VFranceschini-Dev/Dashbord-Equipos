@@ -236,6 +236,13 @@ export async function syncEquipmentsFromSupabase(): Promise<Equipment[]> {
     purchaseDate: e.purchase_date,
     warrantyEnd: e.warranty_end,
     notes: e.notes,
+    meshNodeId: e.mesh_node_id ?? undefined,
+    meshSo: e.mesh_so ?? undefined,
+    meshIp: e.mesh_ip ?? undefined,
+    meshGrupo: e.mesh_grupo ?? undefined,
+    meshEnLinea: e.mesh_en_linea ?? undefined,
+    meshUltimaConexion: e.mesh_ultima_conexion ?? undefined,
+    meshSincronizado: e.mesh_sincronizado ?? undefined,
   }));
 }
 

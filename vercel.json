@@ -3,6 +3,9 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/mesh.ts": { "maxDuration": 30 }
+  },
   "rewrites": [
     { "source": "/((?!api/|src/|@|node_modules/|assets/|.*\\..*).*)", "destination": "/index.html" }
   ]
