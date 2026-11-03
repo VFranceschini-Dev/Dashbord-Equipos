@@ -218,10 +218,17 @@ function clasificar(n: NodoMesh): EquipoMesh['tipo'] | null {
   return null; // teléfono, servidor, router, etc.
 }
 
-/** Sector: primera parte del nombre (adm-pfernandez2 → adm); si no hay guion, el grupo. */
+/**
+ * Sector: primera parte del nombre (ADM-PFERNANDEZ2 → adm). Si el nombre empieza
+ * con el tipo de equipo (NOTE-, PC-), el sector es la segunda parte
+ * (PC-RECEP-CENTRAL → recep). Sin guion, el grupo de dispositivos.
+ */
+const PREFIJOS_DE_TIPO = ['note', 'pc'];
+
 function sectorDe(nombre: string, grupo: string): string {
-  const i = nombre.indexOf('-');
-  return i > 0 ? nombre.slice(0, i).toLowerCase() : grupo;
+  const partes = nombre.split('-').map(p => p.trim().toLowerCase()).filter(Boolean);
+  if (partes.length < 2) return grupo;
+  return PREFIJOS_DE_TIPO.includes(partes[0]) ? partes[1] : partes[0];
 }
 
 // ---------------------------------------------------------------------------
