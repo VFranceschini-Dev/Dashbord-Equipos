@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { sincronizarConMesh } from '../services/mesh';
 import ImportModal from './ImportModal';
+import EquipoDetalle from './EquipoDetalle';
 import { v4 as uuidv4 } from 'uuid';
 
 const typeIcons = {
@@ -44,6 +45,8 @@ export default function Equipments() {
   const { equipments, addEquipment, updateEquipment, deleteEquipment, refreshModule } = useApp();
   const [sincronizando, setSincronizando] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [detalleId, setDetalleId] = useState<string | null>(null);
+  const equipoDetalle = detalleId ? equipments.find(e => e.id === detalleId) : undefined;
   const [asignaciones, setAsignaciones] = useState<Map<string, AsignacionActual>>(new Map());
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
@@ -344,7 +347,8 @@ export default function Equipments() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.map(eq => (
-                <tr key={eq.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={eq.id} onClick={() => setDetalleId(eq.id)} title="Ver detalle"
+                  className="hover:bg-gray-50 transition-colors cursor-pointer">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 bg-blue-50 rounded text-blue-600">{typeIcons[eq.type]}</div>
@@ -385,7 +389,7 @@ export default function Equipments() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
                       <button onClick={() => startEdit(eq)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600"><Edit2 size={16} /></button>
                       <button onClick={() => setDeleteConfirm(eq.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>
                     </div>
@@ -402,6 +406,10 @@ export default function Equipments() {
           </div>
         )}
       </div>
+
+      {equipoDetalle && (
+        <EquipoDetalle equipment={equipoDetalle} asignadoA={getAsignadoA(equipoDetalle.id)} onClose={() => setDetalleId(null)} />
+      )}
 
       <ImportModal
         isOpen={showImport}

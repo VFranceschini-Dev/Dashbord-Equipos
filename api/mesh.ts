@@ -5,6 +5,8 @@
  *                 (MeshCentral), SOLO LECTURA: nunca envía órdenes a los equipos.
  * GET /api/mesh?estado=1 → solo indica si está configurado y a qué servidor
  *                 apunta (sin conectarse y sin revelar el usuario).
+ * GET /api/mesh?nodo=<id> → detalle de un equipo: sistema, hardware, redes,
+ *                 antivirus y usuario activo de Windows.
  *
  * Respuesta: { success, total, ignorados, data: EquipoMesh[] }
  *
@@ -29,6 +31,7 @@ export interface EquipoMesh {
 
 const TIMEOUT_MS = 20000;
 const GRACIA_LASTCONNECTS_MS = 2500;
+const GRACIA_DETALLE_MS = 5000;
 
 // Iconos de MeshCentral: el agente informa si el equipo es de escritorio o portátil.
 const ICONO_ESCRITORIO = 1;
@@ -87,14 +90,41 @@ interface NodoMesh {
   icon?: number;
   conn?: number;
   lastconnect?: number;
+  lastbootuptime?: number;
+  users?: string[];
+  av?: { product?: string; enabled?: boolean; updated?: boolean }[];
 }
 
-interface RespuestaMesh {
-  nodos: (NodoMesh & { grupo: string })[];
-  ultimasConexiones: Record<string, number>;
+export interface DetalleMesh {
+  meshNodeId: string;
+  nombre: string;
+  enLinea: boolean;
+  so: string;
+  versionSo: string;
+  arquitectura: string;
+  ultimoArranque: string | null; // ISO
+  fabricante: string;
+  modelo: string;
+  serial: string;
+  procesador: string;
+  memoriaGb: number | null;
+  discos: { nombre: string; tamanoGb: number | null }[];
+  redes: { nombre: string; ipv4: string[]; mac: string }[];
+  ipPrincipal: string;
+  antivirus: { nombre: string; activo: boolean | null; actualizado: boolean | null }[];
+  usuariosActivos: string[];
 }
 
-function consultarMesh(url: string, usuario: string, clave: string): Promise<RespuestaMesh> {
+/**
+ * Abre una sesión de solo lectura, envía los pedidos y junta las respuestas
+ * por acción. Termina cuando llegaron todas las esperadas; las "requeridas"
+ * son obligatorias y, una vez que están, se espera como máximo `graciaMs`
+ * por las demás (algunos servidores no responden todas las acciones).
+ */
+function sesionMesh(
+  url: string, usuario: string, clave: string,
+  pedidos: Record<string, unknown>[], requeridas: string[], graciaMs: number,
+): Promise<Record<string, any>> {
   return new Promise((resolve, reject) => {
     const wsUrl = `${url.replace(/^http/i, 'ws').replace(/\/+$/, '')}/control.ashx`;
     const ws = new WebSocket(wsUrl, {
@@ -104,11 +134,11 @@ function consultarMesh(url: string, usuario: string, clave: string): Promise<Res
       handshakeTimeout: TIMEOUT_MS,
     });
 
-    let grupos: Record<string, string> | null = null;
-    let nodosPorGrupo: Record<string, NodoMesh[]> | null = null;
-    let ultimasConexiones: Record<string, number> = {};
+    const esperadas = pedidos.map(p => String(p.action));
+    const respuestas: Record<string, any> = {};
     let terminado = false;
     let gracia: NodeJS.Timeout | undefined;
+    const tieneRequeridas = () => requeridas.every(a => a in respuestas);
 
     const fin = (err?: Error & { status?: number }) => {
       if (terminado) return;
@@ -116,10 +146,8 @@ function consultarMesh(url: string, usuario: string, clave: string): Promise<Res
       clearTimeout(limite);
       clearTimeout(gracia);
       try { ws.close(); } catch { /* ya cerrado */ }
-      if (err) { reject(err); return; }
-      const nodos = Object.entries(nodosPorGrupo || {}).flatMap(([meshId, lista]) =>
-        (lista || []).map(n => ({ ...n, grupo: grupos?.[meshId] || '' })));
-      resolve({ nodos, ultimasConexiones });
+      if (err) reject(err);
+      else resolve(respuestas);
     };
     // detalle: causa técnica del fallo, sin credenciales (se muestra al usuario para diagnóstico)
     const error = (mensaje: string, status: number, detalle: string) =>
@@ -127,15 +155,8 @@ function consultarMesh(url: string, usuario: string, clave: string): Promise<Res
 
     const limite = setTimeout(() => fin(error('timeout', 504, `sin respuesta en ${TIMEOUT_MS / 1000} s`)), TIMEOUT_MS);
 
-    // Con grupos y nodos alcanza; se espera un instante por las últimas conexiones (opcional).
-    const quizasTerminar = () => {
-      if (grupos && nodosPorGrupo && !gracia) gracia = setTimeout(() => fin(), GRACIA_LASTCONNECTS_MS);
-    };
-
     ws.on('open', () => {
-      ws.send(JSON.stringify({ action: 'meshes', responseid: 'meshes' }));
-      ws.send(JSON.stringify({ action: 'nodes', responseid: 'nodes' }));
-      ws.send(JSON.stringify({ action: 'lastconnects', responseid: 'lastconnects' }));
+      for (const p of pedidos) ws.send(JSON.stringify({ ...p, responseid: p.action }));
     });
 
     ws.on('message', raw => {
@@ -143,16 +164,12 @@ function consultarMesh(url: string, usuario: string, clave: string): Promise<Res
       try { msg = JSON.parse(raw.toString()); } catch { return; }
       if (msg?.action === 'close' || msg?.cause === 'noauth') {
         fin(error('autenticación rechazada', 401, `servidor: ${msg?.cause || msg?.msg || 'close'}`));
-      } else if (msg?.action === 'meshes' && Array.isArray(msg.meshes)) {
-        grupos = Object.fromEntries(msg.meshes.map((m: any) => [String(m._id), String(m.name ?? '')]));
-        quizasTerminar();
-      } else if (msg?.action === 'nodes' && msg.nodes && typeof msg.nodes === 'object') {
-        nodosPorGrupo = msg.nodes;
-        quizasTerminar();
-      } else if (msg?.action === 'lastconnects' && msg.lastconnects && typeof msg.lastconnects === 'object') {
-        ultimasConexiones = msg.lastconnects;
-        if (grupos && nodosPorGrupo) fin();
+        return;
       }
+      if (!esperadas.includes(msg?.action)) return;
+      respuestas[msg.action] = msg;
+      if (esperadas.every(a => a in respuestas)) fin();
+      else if (tieneRequeridas() && !gracia) gracia = setTimeout(() => fin(), graciaMs);
     });
 
     ws.on('unexpected-response', (_req, res) => {
@@ -162,11 +179,32 @@ function consultarMesh(url: string, usuario: string, clave: string): Promise<Res
     });
     ws.on('error', err => fin(error('no se pudo conectar', 502, (err as NodeJS.ErrnoException).code || err.message)));
     ws.on('close', (code, reason) => {
-      if (grupos && nodosPorGrupo) fin();
+      if (tieneRequeridas()) fin();
       else fin(error('la conexión se cerró antes de recibir datos', 401,
         `cerró la conexión sin datos, código ${code}${reason.length ? `: ${reason.toString()}` : ''}`));
     });
   });
+}
+
+interface RespuestaMesh {
+  nodos: (NodoMesh & { grupo: string })[];
+  ultimasConexiones: Record<string, number>;
+}
+
+/** Lista de equipos: grupos + nodos (+ últimas conexiones, si el servidor las informa). */
+async function consultarMesh(url: string, usuario: string, clave: string): Promise<RespuestaMesh> {
+  const r = await sesionMesh(url, usuario, clave,
+    [{ action: 'meshes' }, { action: 'nodes' }, { action: 'lastconnects' }],
+    ['meshes', 'nodes'], GRACIA_LASTCONNECTS_MS);
+  const grupos: Record<string, string> = Object.fromEntries(
+    (Array.isArray(r.meshes?.meshes) ? r.meshes.meshes : []).map((m: any) => [String(m._id), String(m.name ?? '')]));
+  const nodosPorGrupo: Record<string, NodoMesh[]> =
+    r.nodes?.nodes && typeof r.nodes.nodes === 'object' ? r.nodes.nodes : {};
+  const nodos = Object.entries(nodosPorGrupo).flatMap(([meshId, lista]) =>
+    (Array.isArray(lista) ? lista : []).map(n => ({ ...n, grupo: grupos[meshId] || '' })));
+  const ultimasConexiones = r.lastconnects?.lastconnects && typeof r.lastconnects.lastconnects === 'object'
+    ? r.lastconnects.lastconnects : {};
+  return { nodos, ultimasConexiones };
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +222,110 @@ function clasificar(n: NodoMesh): EquipoMesh['tipo'] | null {
 function sectorDe(nombre: string, grupo: string): string {
   const i = nombre.indexOf('-');
   return i > 0 ? nombre.slice(0, i).toLowerCase() : grupo;
+}
+
+// ---------------------------------------------------------------------------
+// Detalle de un equipo (los datos varían según la versión del agente: todo es opcional)
+// ---------------------------------------------------------------------------
+const VALOR_BASURA = /^(to be filled by o\.?e\.?m\.?|default string|system (product name|serial number|manufacturer)|not applicable|none|0+|n\/a)$/i;
+
+function primero(...valores: unknown[]): string {
+  for (const v of valores) {
+    const t = typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '';
+    if (t && !VALOR_BASURA.test(t)) return t;
+  }
+  return '';
+}
+
+function aGb(bytes: unknown): number | null {
+  const n = typeof bytes === 'string' ? Number(bytes) : typeof bytes === 'number' ? bytes : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.round((n / 1024 ** 3) * 10) / 10 : null;
+}
+
+/** Fecha WMI (20261029101540.500000-180), ISO o milisegundos → ISO. */
+function aFecha(v: unknown): string | null {
+  if (typeof v === 'number' && v > 0) return new Date(v).toISOString();
+  if (typeof v !== 'string' || !v) return null;
+  // WMI: el sufijo es el desfasaje en minutos respecto de UTC (-180 = Argentina)
+  const wmi = v.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\.\d+)?([+-]\d{1,4})?$/);
+  let d: Date;
+  if (wmi) {
+    const minutos = Number(wmi[7] ?? 0);
+    const offset = `${minutos < 0 ? '-' : '+'}${String(Math.floor(Math.abs(minutos) / 60)).padStart(2, '0')}:${String(Math.abs(minutos) % 60).padStart(2, '0')}`;
+    d = new Date(`${wmi[1]}-${wmi[2]}-${wmi[3]}T${wmi[4]}:${wmi[5]}:${wmi[6]}${offset}`);
+  } else {
+    d = new Date(v);
+  }
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function ipUtil(ip: string): boolean {
+  return /^\d+\.\d+\.\d+\.\d+$/.test(ip) && !ip.startsWith('127.') && !ip.startsWith('169.254.');
+}
+
+function armarDetalle(nodo: NodoMesh, sys: any, net: any): DetalleMesh {
+  const hw = sys?.hardware ?? sys?.data?.hardware ?? {};
+  const id = hw.identifiers ?? {};
+  const win = hw.windows ?? {};
+  const os = win.osinfo ?? {};
+
+  const memoriaBytes = Array.isArray(win.memory)
+    ? win.memory.reduce((t: number, m: any) => t + (Number(m?.Capacity) || 0), 0)
+    : 0;
+  const discosFuente: any[] = Array.isArray(win.drives) ? win.drives
+    : Array.isArray(id.storage_devices) ? id.storage_devices : [];
+
+  // Redes: formato nuevo (netif2: { nombre: [direcciones] }) o anterior (netif: [...])
+  const redes: DetalleMesh['redes'] = [];
+  const netif2 = net?.netif2 ?? net?.netinfo?.netif2;
+  if (netif2 && typeof netif2 === 'object') {
+    for (const [nombre, dirs] of Object.entries(netif2)) {
+      const lista = Array.isArray(dirs) ? dirs as any[] : [];
+      const ipv4 = lista.filter(d => d?.family === 'IPv4' || d?.family === 4).map(d => String(d.address || ''));
+      const mac = primero(...lista.map(d => d?.mac));
+      redes.push({ nombre, ipv4: ipv4.filter(Boolean), mac });
+    }
+  } else if (Array.isArray(net?.netif)) {
+    for (const i of net.netif) redes.push({ nombre: String(i?.name ?? ''), ipv4: [i?.v4addr].filter(Boolean).map(String), mac: String(i?.mac ?? '') });
+  }
+  const ipPrincipal = redes.flatMap(r => r.ipv4).find(ipUtil) || '';
+
+  return {
+    meshNodeId: nodo._id,
+    nombre: String(nodo.name || nodo.host || nodo._id),
+    enLinea: ((nodo.conn ?? 0) & 1) === 1,
+    so: primero(os.Caption, nodo.osdesc),
+    versionSo: primero(os.Version, os.BuildNumber),
+    arquitectura: primero(os.OSArchitecture),
+    ultimoArranque: aFecha(os.LastBootUpTime) ?? aFecha(nodo.lastbootuptime),
+    fabricante: primero(id.sys_vendor, id.product_vendor, id.board_vendor, id.bios_vendor),
+    modelo: primero(id.product_name, id.product_version, id.board_name),
+    serial: primero(id.product_serial, id.bios_serial, id.board_serial),
+    procesador: primero(id.cpu_name, Array.isArray(win.cpu) ? win.cpu[0]?.Name : ''),
+    memoriaGb: aGb(memoriaBytes),
+    discos: discosFuente.map(d => ({ nombre: primero(d?.Caption, d?.Model, d?.Name), tamanoGb: aGb(d?.Size) }))
+      .filter(d => d.nombre || d.tamanoGb),
+    redes: redes.filter(r => r.ipv4.length || r.mac),
+    ipPrincipal,
+    antivirus: (Array.isArray(nodo.av) ? nodo.av : []).map(a => ({
+      nombre: String(a?.product ?? ''),
+      activo: typeof a?.enabled === 'boolean' ? a.enabled : null,
+      actualizado: typeof a?.updated === 'boolean' ? a.updated : null,
+    })).filter(a => a.nombre),
+    usuariosActivos: Array.isArray(nodo.users) ? nodo.users.map(String) : [],
+  };
+}
+
+async function consultarDetalle(url: string, usuario: string, clave: string, nodeId: string): Promise<DetalleMesh | null> {
+  const r = await sesionMesh(url, usuario, clave,
+    [{ action: 'nodes' }, { action: 'getsysinfo', nodeid: nodeId, nodeinfo: true }, { action: 'getnetworkinfo', nodeid: nodeId }],
+    ['nodes'], GRACIA_DETALLE_MS);
+  const todos: NodoMesh[] = Object.values(r.nodes?.nodes ?? {}).flatMap(l => (Array.isArray(l) ? l : []) as NodoMesh[]);
+  const nodo = todos.find(n => n._id === nodeId);
+  if (!nodo) return null;
+  const sys = r.getsysinfo?.nodeid === nodeId ? (r.getsysinfo.data ?? r.getsysinfo) : null;
+  const net = r.getnetworkinfo?.nodeid === nodeId ? r.getnetworkinfo : null;
+  return armarDetalle(nodo, sys, net);
 }
 
 // ---------------------------------------------------------------------------
@@ -208,8 +350,18 @@ export async function GET(request: Request): Promise<Response> {
     return jsonResponse(500, { success: false, error: 'Falta configuración del servidor de monitoreo.' });
   }
 
+  const nodo = new URL(request.url).searchParams.get('nodo');
+  if (nodo !== null && !/^node\/[\w@$/+=-]{1,200}$/.test(nodo)) {
+    return jsonResponse(400, { success: false, error: 'Identificador de equipo inválido.' });
+  }
+
   let respuesta: RespuestaMesh;
   try {
+    if (nodo) {
+      const detalle = await consultarDetalle(url, usuario, clave, nodo);
+      if (!detalle) return jsonResponse(404, { success: false, error: 'El equipo ya no figura en el servidor de monitoreo.' });
+      return jsonResponse(200, { success: true, data: detalle });
+    }
     respuesta = await consultarMesh(url, usuario, clave);
   } catch (err) {
     const { status = 502, detalle = '' } = err as { status?: number; detalle?: string };
