@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
-  Monitor, ClipboardCheck, Users, Building2, FileText, ChevronRight, Settings, Server, RefreshCw
+  Monitor, ClipboardCheck, Users, Building2, FileText, ChevronRight, Settings, Server
 } from 'lucide-react';
 import { useState } from 'react';
 import ThemeToggle from './ThemeToggle';
@@ -21,7 +21,6 @@ const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'movements', label: 'Movimientos', icon: <ArrowLeftRight size={20} /> },
   { page: 'reports', label: 'Reportes', icon: <BarChart3 size={20} /> },
   { page: 'server-config', label: 'Servidores', icon: <Server size={20} /> },
-  { page: 'data-sync', label: 'Sincronización', icon: <RefreshCw size={20} /> },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
