@@ -97,7 +97,7 @@ export interface Voucher {
   notes: string;
 }
 
-export type Page = 'dashboard' | 'asignaciones' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'server-config' | 'data-sync';
+export type Page = 'dashboard' | 'asignaciones' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'server-config';
 
 export interface ExternalServer {
   id: string;

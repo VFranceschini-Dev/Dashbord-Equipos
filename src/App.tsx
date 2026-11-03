@@ -13,7 +13,6 @@ import Suppliers from './components/Suppliers';
 import Collaborators from './components/Collaborators';
 import Vouchers from './components/Vouchers';
 import ServerConfig from './components/ServerConfig';
-import DataSync from './components/DataSync';
 import EquipmentAssignments from './components/EquipmentAssignments';
 
 function PageRouter() {
@@ -42,8 +41,6 @@ function PageRouter() {
       return <Vouchers />;
     case 'server-config':
       return <ServerConfig />;
-    case 'data-sync':
-      return <DataSync />;
     default:
       return <Dashboard />;
   }

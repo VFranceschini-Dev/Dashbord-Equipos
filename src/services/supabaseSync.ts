@@ -1,6 +1,5 @@
-import { supabase, printersService, tonersService, movementsService, equipmentsService, suppliersService, vouchersService, externalServersService, syncedDevicesService } from './supabase';
-import * as localDb from './localDatabase';
-import { Printer, TonerItem, Movement, Equipment, Supplier, Voucher, ExternalServer, SyncedDevice } from '../types';
+import { supabase, printersService, tonersService, movementsService, equipmentsService, suppliersService, vouchersService } from './supabase';
+import { Printer, TonerItem, Movement, Equipment, Supplier, Voucher } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 // ID del usuario actual (en producción, esto vendría de la autenticación)
@@ -397,125 +396,6 @@ export async function deleteVoucherFromSupabase(id: string): Promise<boolean> {
   return !error;
 }
 
-// ===== SINCRONIZACIÓN DE SERVIDORES EXTERNOS =====
-export async function syncExternalServersFromSupabase(): Promise<ExternalServer[]> {
-  const userId = getCurrentUserId();
-  const { data, error } = await externalServersService.getAll(userId);
-
-  if (error) {
-    console.error('Error al obtener servidores de Supabase:', error);
-    return [];
-  }
-
-  return (data || []).map(s => ({
-    id: s.id,
-    name: s.name,
-    type: s.type as 'meshcentral' | 'custom',
-    url: s.url,
-    username: s.username,
-    password: s.password,
-    autoSync: s.auto_sync,
-    syncInterval: s.sync_interval,
-    lastSync: s.last_sync,
-    status: s.status as 'active' | 'inactive' | 'error',
-    notes: s.notes,
-    createdAt: s.created_at || new Date().toISOString(),
-    updatedAt: s.updated_at || new Date().toISOString(),
-  }));
-}
-
-export async function syncExternalServerToSupabase(server: ExternalServer): Promise<boolean> {
-  const userId = getCurrentUserId();
-  const supabaseServer = {
-    user_id: userId,
-    name: server.name,
-    type: server.type,
-    url: server.url,
-    username: server.username,
-    password: server.password,
-    auto_sync: server.autoSync,
-    sync_interval: server.syncInterval,
-    last_sync: server.lastSync,
-    status: server.status,
-    notes: server.notes,
-  };
-
-  if (server.id && server.id.length === 36) {
-    const { error } = await externalServersService.update(server.id, supabaseServer);
-    return !error;
-  } else {
-    const { data, error } = await externalServersService.create(supabaseServer);
-    if (!error && data) {
-      server.id = data.id;
-    }
-    return !error;
-  }
-}
-
-export async function deleteExternalServerFromSupabase(id: string): Promise<boolean> {
-  const { error } = await externalServersService.delete(id);
-  return !error;
-}
-
-// ===== SINCRONIZACIÓN DE DISPOSITIVOS SINCRONIZADOS =====
-export async function syncSyncedDevicesFromSupabase(): Promise<SyncedDevice[]> {
-  const userId = getCurrentUserId();
-  const { data, error } = await syncedDevicesService.getAll(userId);
-
-  if (error) {
-    console.error('Error al obtener dispositivos sincronizados de Supabase:', error);
-    return [];
-  }
-
-  return (data || []).map(d => ({
-    id: d.id,
-    serverId: d.server_id,
-    externalId: d.external_id,
-    name: d.name,
-    hostname: d.hostname,
-    ip: d.ip,
-    os: d.os,
-    status: d.status as 'connected' | 'disconnected',
-    lastSeen: d.last_seen,
-    group: d.group_name,
-    cpu: d.cpu,
-    ram: d.ram,
-    syncedAt: d.synced_at,
-    localEquipmentId: d.local_equipment_id,
-  }));
-}
-
-export async function syncSyncedDeviceToSupabase(device: SyncedDevice): Promise<boolean> {
-  const userId = getCurrentUserId();
-  const supabaseDevice = {
-    user_id: userId,
-    server_id: device.serverId,
-    external_id: device.externalId,
-    name: device.name,
-    hostname: device.hostname,
-    ip: device.ip,
-    os: device.os,
-    status: device.status,
-    last_seen: device.lastSeen,
-    group_name: device.group,
-    cpu: device.cpu,
-    ram: device.ram,
-    synced_at: device.syncedAt,
-    local_equipment_id: device.localEquipmentId,
-  };
-
-  if (device.id && device.id.length === 36) {
-    const { error } = await syncedDevicesService.update(device.id, supabaseDevice);
-    return !error;
-  } else {
-    const { data, error } = await syncedDevicesService.create(supabaseDevice);
-    if (!error && data) {
-      device.id = data.id;
-    }
-    return !error;
-  }
-}
-
 // ===== SINCRONIZACIÓN COMPLETA =====
 
 // Resultado de una carga por módulo: datos + error (si la tabla no existe,
@@ -604,8 +484,6 @@ export async function syncAllFromSupabase(): Promise<{
   equipments: Equipment[];
   suppliers: Supplier[];
   vouchers: Voucher[];
-  externalServers: ExternalServer[];
-  syncedDevices: SyncedDevice[];
   errors: Partial<Record<ModuleKey, string>>;
 }> {
   // Consultas en paralelo con Promise.allSettled: si una tabla falla, las
@@ -617,22 +495,19 @@ export async function syncAllFromSupabase(): Promise<{
     loadModule<Equipment>('equipments', syncEquipmentsFromSupabase),
     loadModule<Supplier>('suppliers', syncSuppliersFromSupabase),
     loadModule<Voucher>('vouchers', syncVouchersFromSupabase),
-    syncExternalServersFromSupabase().then(data => ({ data } as ModuleLoad<ExternalServer[]>)),
-    syncSyncedDevicesFromSupabase().then(data => ({ data } as ModuleLoad<SyncedDevice[]>)),
   ]);
 
-  const keys: (keyof typeof moduleLabels & ModuleKey | 'externalServers' | 'syncedDevices')[] =
-    ['printers', 'toners', 'movements', 'equipments', 'suppliers', 'vouchers', 'externalServers', 'syncedDevices'];
+  const keys: ModuleKey[] = ['printers', 'toners', 'movements', 'equipments', 'suppliers', 'vouchers'];
 
   const errors: Partial<Record<ModuleKey, string>> = {};
   const okData = results.map((res, i): ModuleLoad<any[]> => {
     if (res.status === 'fulfilled') return res.value;
     // Redundancia defensiva: loadModule nunca rechaza, pero allSettled lo cubre igual.
     console.error(`Error al cargar el módulo ${keys[i]}:`, res.reason);
-    if (i < 6) errors[keys[i] as ModuleKey] = 'No se pudieron cargar los datos. Intentá de nuevo más tarde';
+    errors[keys[i]] = 'No se pudieron cargar los datos. Intentá de nuevo más tarde';
     return { data: [] };
   });
-  const [printers, toners, movements, equipments, suppliers, vouchers, externalServers, syncedDevices] = okData;
+  const [printers, toners, movements, equipments, suppliers, vouchers] = okData;
 
   return {
     printers: printers.data,
@@ -641,8 +516,6 @@ export async function syncAllFromSupabase(): Promise<{
     equipments: equipments.data,
     suppliers: suppliers.data,
     vouchers: vouchers.data,
-    externalServers: externalServers.data,
-    syncedDevices: syncedDevices.data,
     errors,
   };
 }
