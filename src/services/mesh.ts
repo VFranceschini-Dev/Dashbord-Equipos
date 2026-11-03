@@ -25,6 +25,17 @@ export interface ResultadoSincronizacion {
   errores: number;
 }
 
+/** Si el servidor de monitoreo está configurado en el servidor y a qué host apunta. */
+export async function estadoMesh(): Promise<{ configurado: boolean; host: string }> {
+  const { data: sesion } = await supabase.auth.getSession();
+  const token = sesion.session?.access_token;
+  if (!token) throw new Error('Sesión no válida: volvé a iniciar sesión.');
+  const res = await fetch('/api/mesh?estado=1', { headers: { Authorization: `Bearer ${token}` } });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) throw new Error(json?.error || `El servidor respondió HTTP ${res.status}.`);
+  return { configurado: Boolean(json.configurado), host: String(json.host || '') };
+}
+
 async function obtenerEquiposMesh(token: string): Promise<{ data: EquipoMesh[]; ignorados: number }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

@@ -3,6 +3,8 @@
  *
  * GET /api/mesh → lista las PC y notebooks del servidor de monitoreo remoto
  *                 (MeshCentral), SOLO LECTURA: nunca envía órdenes a los equipos.
+ * GET /api/mesh?estado=1 → solo indica si está configurado y a qué servidor
+ *                 apunta (sin conectarse y sin revelar el usuario).
  *
  * Respuesta: { success, total, ignorados, data: EquipoMesh[] }
  *
@@ -195,6 +197,13 @@ export async function GET(request: Request): Promise<Response> {
   const url = env('MESH_URL');
   const usuario = env('MESH_USER');
   const clave = env('MESH_PASS');
+
+  if (new URL(request.url).searchParams.get('estado') === '1') {
+    let host = '';
+    try { host = url ? new URL(url).host : ''; } catch { /* URL inválida: queda vacío */ }
+    return jsonResponse(200, { success: true, configurado: Boolean(url && usuario && clave), host });
+  }
+
   if (!url || !usuario || !clave) {
     return jsonResponse(500, { success: false, error: 'Falta configuración del servidor de monitoreo.' });
   }
