@@ -175,52 +175,6 @@ CREATE TABLE IF NOT EXISTS public.vouchers (
 CREATE INDEX IF NOT EXISTS idx_vouchers_user_id ON public.vouchers (user_id);
 
 -- ============================================
--- TABLA: EXTERNAL_SERVERS (Servidores externos)
--- ============================================
-CREATE TABLE IF NOT EXISTS public.external_servers (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  name          text NOT NULL,
-  type          text NOT NULL DEFAULT 'meshcentral' CHECK (type IN ('meshcentral', 'custom')),
-  url           text NOT NULL,
-  username      text NOT NULL DEFAULT '',
-  password      text NOT NULL DEFAULT '',
-  auto_sync     boolean NOT NULL DEFAULT false,
-  sync_interval integer NOT NULL DEFAULT 5,
-  last_sync     timestamptz,
-  status        text NOT NULL DEFAULT 'inactive' CHECK (status IN ('active', 'inactive', 'error')),
-  notes         text DEFAULT '',
-  created_at    timestamptz DEFAULT now(),
-  updated_at    timestamptz DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_external_servers_user_id ON public.external_servers (user_id);
-
--- ============================================
--- TABLA: SYNCED_DEVICES (Dispositivos sincronizados)
--- ============================================
-CREATE TABLE IF NOT EXISTS public.synced_devices (
-  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id            uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  server_id          uuid NOT NULL REFERENCES public.external_servers(id) ON DELETE CASCADE,
-  external_id        text NOT NULL,
-  name               text NOT NULL,
-  hostname           text NOT NULL DEFAULT '',
-  ip                 text NOT NULL DEFAULT '',
-  os                 text NOT NULL DEFAULT '',
-  status             text NOT NULL DEFAULT 'disconnected' CHECK (status IN ('connected', 'disconnected')),
-  last_seen          timestamptz DEFAULT now(),
-  group_name         text DEFAULT '',
-  cpu                text DEFAULT '',
-  ram                text DEFAULT '',
-  synced_at          timestamptz DEFAULT now(),
-  local_equipment_id uuid REFERENCES public.equipments(id) ON DELETE SET NULL,
-  created_at         timestamptz DEFAULT now(),
-  updated_at         timestamptz DEFAULT now(),
-  UNIQUE (server_id, external_id)
-);
-CREATE INDEX IF NOT EXISTS idx_synced_devices_user_id ON public.synced_devices (user_id);
-
--- ============================================
 -- TABLA: EQUIPMENT_MOVEMENTS (Movimientos de equipos a usuarios)
 -- usuario_ref guarda el id opaco del usuario (texto).
 -- ============================================
@@ -279,14 +233,6 @@ DROP TRIGGER IF EXISTS update_vouchers_updated_at ON public.vouchers;
 CREATE TRIGGER update_vouchers_updated_at BEFORE UPDATE ON public.vouchers
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-DROP TRIGGER IF EXISTS update_external_servers_updated_at ON public.external_servers;
-CREATE TRIGGER update_external_servers_updated_at BEFORE UPDATE ON public.external_servers
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
-DROP TRIGGER IF EXISTS update_synced_devices_updated_at ON public.synced_devices;
-CREATE TRIGGER update_synced_devices_updated_at BEFORE UPDATE ON public.synced_devices
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
 DROP TRIGGER IF EXISTS users_new_set_updated_at ON public.users_new;
 CREATE TRIGGER users_new_set_updated_at BEFORE UPDATE ON public.users_new
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -300,8 +246,6 @@ ALTER TABLE public.toner_movements     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.equipments          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.suppliers           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vouchers            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.external_servers    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.synced_devices      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.equipment_movements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users_new           ENABLE ROW LEVEL SECURITY;
 -- users_new queda SIN políticas a propósito: el navegador no puede leerla ni
@@ -320,9 +264,7 @@ BEGIN
       ('toner_movements',  'movements'),
       ('equipments',       'equipments'),
       ('suppliers',        'suppliers'),
-      ('vouchers',         'vouchers'),
-      ('external_servers', 'external_servers'),
-      ('synced_devices',   'synced_devices')
+      ('vouchers',         'vouchers')
     ) AS v(tabla, etiqueta)
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can view their own '   || t.etiqueta, t.tabla);
