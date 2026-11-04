@@ -645,11 +645,11 @@ export async function syncEquipmentMovementToSupabase(params: {
   tipo: 'asignacion' | 'devolucion' | 'traslado' | 'baja';
   observaciones?: string;
   registradoPor?: string;
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<{ success: boolean; error?: string; movementId?: number }> {
   try {
     const { data, error } = await equipmentMovementsService.createWithStatus(params);
     if (error) return { success: false, error: `Error al registrar el movimiento: ${error.message}` };
-    return { success: true };
+    return { success: true, movementId: typeof data === 'number' ? data : Number(data) || undefined };
   } catch (err) {
     return { success: false, error: `Error inesperado: ${err}` };
   }

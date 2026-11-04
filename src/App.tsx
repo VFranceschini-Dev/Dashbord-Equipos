@@ -13,6 +13,7 @@ import Collaborators from './components/Collaborators';
 import Vouchers from './components/Vouchers';
 import ServerConfig from './components/ServerConfig';
 import EquipmentAssignments from './components/EquipmentAssignments';
+import FirmarComprobante from './components/comprobante/FirmarComprobante';
 
 function PageRouter() {
   const { currentPage } = useApp();
@@ -72,6 +73,10 @@ function AppContent() {
 }
 
 export default function App() {
+  // Página pública de firma de comprobantes: no requiere iniciar sesión.
+  const firma = window.location.pathname.match(/^\/firmar\/([\w-]{20,64})\/?$/);
+  if (firma) return <FirmarComprobante token={firma[1]} />;
+
   return (
     <ThemeProvider>
       <AuthProvider>

@@ -279,6 +279,7 @@ export default function Collaborators() {
             ref: u.id,
             nombre: `${u.nombre} ${u.apellido}`.trim() || u.usuario,
             area: u.departamento,
+            correo: u.correo || undefined,
           };
           const activo = u.estado === 'activo';
           return (

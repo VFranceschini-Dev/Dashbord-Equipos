@@ -5,7 +5,10 @@ import { Equipment } from '../types';
 import { buscarUsuariosCompat, type UsuarioCompat } from '../services/usuarios';
 import { syncEquipmentMovementToSupabase, syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
 import { asignacionesActuales, type AsignacionActual } from '../utils/asignaciones';
-import { X, Loader2, Search, AlertTriangle } from 'lucide-react';
+import { X, Loader2, Search, AlertTriangle, PenLine } from 'lucide-react';
+import { obtenerMiFirma, correoGuardado, guardarCorreo, crearComprobante } from '../services/comprobantes';
+import ComprobanteGenerado from './comprobante/ComprobanteGenerado';
+import MiFirmaModal from './comprobante/MiFirmaModal';
 
 export type TipoMovimiento = 'asignacion' | 'devolucion';
 
@@ -14,7 +17,10 @@ export interface UsuarioMovimiento {
   ref: string;
   nombre: string;
   area: string;
+  correo?: string;   // si la fuente lo trae
 }
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const TITULOS: Record<TipoMovimiento, string> = {
   asignacion: 'Asignar equipo',
@@ -26,10 +32,11 @@ const TITULOS: Record<TipoMovimiento, string> = {
  * desde Equipamientos (con el equipo ya elegido) o desde Usuarios (con la
  * persona ya elegida); lo que no viene, se elige en el formulario.
  */
-export default function RegistrarMovimientoModal({ tipo, equipo, usuario, onClose, onRegistrado }: {
+export default function RegistrarMovimientoModal({ tipo, equipo, usuario, observacionesIniciales, onClose, onRegistrado }: {
   tipo: TipoMovimiento;
   equipo?: Equipment;
   usuario?: UsuarioMovimiento;
+  observacionesIniciales?: string;
   onClose: () => void;
   onRegistrado?: () => void;
 }) {
@@ -39,9 +46,26 @@ export default function RegistrarMovimientoModal({ tipo, equipo, usuario, onClos
   const [asignaciones, setAsignaciones] = useState<Map<string, AsignacionActual> | null>(null);
   const [equipmentId, setEquipmentId] = useState(equipo?.id ?? '');
   const [persona, setPersona] = useState<UsuarioMovimiento | null>(usuario ?? null);
-  const [observaciones, setObservaciones] = useState('');
+  const [observaciones, setObservaciones] = useState(observacionesIniciales ?? '');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Comprobante de entrega (solo asignaciones): correo del usuario y firma del responsable
+  const [correo, setCorreo] = useState('');
+  const [tengoFirma, setTengoFirma] = useState<boolean | null>(null);
+  const [verFirma, setVerFirma] = useState(false);
+  const [resultado, setResultado] = useState<{ token?: string; error?: string } | null>(null);
+
+  useEffect(() => {
+    if (tipo === 'asignacion') obtenerMiFirma().then(f => setTengoFirma(Boolean(f))).catch(() => setTengoFirma(false));
+  }, [tipo, verFirma]);
+
+  // Correo: el de la fuente, o el que se guardó la última vez
+  useEffect(() => {
+    if (tipo !== 'asignacion' || !persona) { setCorreo(''); return; }
+    if (persona.correo) { setCorreo(persona.correo); return; }
+    correoGuardado(persona.ref).then(setCorreo).catch(() => setCorreo(''));
+  }, [tipo, persona]);
 
   // Búsqueda de usuario (solo si no vino elegido)
   const [query, setQuery] = useState('');
@@ -90,6 +114,8 @@ export default function RegistrarMovimientoModal({ tipo, equipo, usuario, onClos
   const validar = (): string | null => {
     if (!equipmentId) return 'Elegí un equipo.';
     if (!persona) return 'Elegí un usuario.';
+    if (tipo === 'asignacion' && !tengoFirma) return 'Configurá tu firma antes de asignar (se usa en el comprobante).';
+    if (tipo === 'asignacion' && !EMAIL_RE.test(correo.trim())) return 'Cargá un correo válido para enviarle el comprobante.';
     if (tipo === 'asignacion' && asignacionDelEquipo) {
       return `El equipo ya está asignado a ${asignacionDelEquipo.usuarioNombre}. Registrá primero la devolución.`;
     }
@@ -119,7 +145,18 @@ export default function RegistrarMovimientoModal({ tipo, equipo, usuario, onClos
     const status: Equipment['status'] = tipo === 'asignacion' ? 'assigned' : 'available';
     setEquipments(prev => prev.map(e => e.id === equipmentId ? { ...e, status } : e));
     onRegistrado?.();
-    onClose();
+    if (tipo === 'devolucion') { onClose(); return; }
+
+    // Asignación: guardar el correo (si no venía de la fuente) y generar el comprobante
+    const correoFinal = correo.trim().toLowerCase();
+    if (correoFinal !== (persona!.correo || '').toLowerCase()) guardarCorreo(persona!.ref, correoFinal).catch(() => undefined);
+    if (!r.movementId) { setResultado({ error: 'no se recibió el número de movimiento' }); return; }
+    try {
+      const c = await crearComprobante(r.movementId, correoFinal);
+      setResultado({ token: c.token });
+    } catch (err) {
+      setResultado({ error: (err as Error).message });
+    }
   };
 
   const equipoElegido = equipments.find(e => e.id === equipmentId);
@@ -131,6 +168,14 @@ export default function RegistrarMovimientoModal({ tipo, equipo, usuario, onClos
           <h3 className="font-semibold text-lg">{TITULOS[tipo]}</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
         </div>
+        {resultado ? (
+          <div className="p-5 space-y-4">
+            <ComprobanteGenerado token={resultado.token} error={resultado.error} correo={correo.trim()} />
+            <div className="flex justify-end">
+              <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">Listo</button>
+            </div>
+          </div>
+        ) : (
         <div className="p-5 space-y-4">
           {/* Equipo */}
           <div>
@@ -178,7 +223,7 @@ export default function RegistrarMovimientoModal({ tipo, equipo, usuario, onClos
                   <ul className="mt-1 border border-gray-100 rounded-lg max-h-40 overflow-y-auto shadow-sm">
                     {resultados.map(u => (
                       <li key={u.id}>
-                        <button onClick={() => { setPersona({ ref: u.id, nombre: u.nombreCompleto, area: u.area }); setError(null); }}
+                        <button onClick={() => { setPersona({ ref: u.id, nombre: u.nombreCompleto, area: u.area, correo: u.correo }); setError(null); }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50">
                           {u.nombreCompleto}
                         </button>
@@ -189,6 +234,24 @@ export default function RegistrarMovimientoModal({ tipo, equipo, usuario, onClos
               </>
             )}
           </div>
+
+          {tipo === 'asignacion' && persona && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Correo del usuario *</label>
+              <input type="email" value={correo} onChange={e => { setCorreo(e.target.value); setError(null); }}
+                placeholder="Para enviarle el comprobante a firmar"
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+            </div>
+          )}
+
+          {tipo === 'asignacion' && tengoFirma === false && (
+            <div className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+              <span>Para generar el comprobante necesitás cargar tu firma.</span>
+              <button onClick={() => setVerFirma(true)} className="flex items-center gap-1 font-medium hover:underline shrink-0">
+                <PenLine size={13} /> Mi firma
+              </button>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
@@ -211,7 +274,9 @@ export default function RegistrarMovimientoModal({ tipo, equipo, usuario, onClos
             </button>
           </div>
         </div>
+        )}
       </div>
+      {verFirma && <MiFirmaModal onClose={() => setVerFirma(false)} />}
     </div>
   );
 }

@@ -141,3 +141,13 @@ body {
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+/* Impresión / "Guardar como PDF" de un comprobante: solo se imprime el documento */
+@media print {
+  body * { visibility: hidden; }
+  .comprobante-imprimible, .comprobante-imprimible * { visibility: visible; }
+  .comprobante-imprimible {
+    position: absolute; left: 0; top: 0; width: 100%;
+    border: none !important; box-shadow: none !important;
+  }
+}

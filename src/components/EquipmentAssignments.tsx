@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { useAuth } from '../context/AuthContext';
-import { syncEquipmentMovementToSupabase, syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
+import { syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
 import { buscarUsuariosCompat, existeUsuario, darDeAltaUsuario, generarCodigoUsuario, codigoDisponible, ProxyError, type UsuarioCompat, type AltaUsuarioInput } from '../services/usuarios';
 import { TEXTOS_USUARIOS } from '../constants/textos';
 import { Equipment, EquipmentMovement } from '../types';
 import { asignacionesActuales } from '../utils/asignaciones';
-import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History, UserPlus, X } from 'lucide-react';
+import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History, UserPlus, X, FileText, Clock } from 'lucide-react';
+import RegistrarMovimientoModal, { type TipoMovimiento, type UsuarioMovimiento } from './RegistrarMovimientoModal';
+import GenerarComprobanteModal from './comprobante/GenerarComprobanteModal';
+import { comprobantesPorMovimiento, enlaceComprobante, type ResumenComprobante } from '../services/comprobantes';
 
 const T = TEXTOS_USUARIOS.asignaciones;
 
@@ -23,8 +25,7 @@ const TIPOS_HISTORICOS: typeof TIPOS = [
 ];
 
 export default function EquipmentAssignments() {
-  const { equipments, setEquipments } = useApp();
-  const { user } = useAuth();
+  const { equipments } = useApp();
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [loadingHist, setLoadingHist] = useState(true);
 
@@ -47,8 +48,19 @@ export default function EquipmentAssignments() {
   const [equipmentId, setEquipmentId] = useState('');
   const [tipo, setTipo] = useState<EquipmentMovement['tipo']>('asignacion');
   const [observaciones, setObservaciones] = useState('');
-  const [saving, setSaving] = useState(false);
   const [formMsg, setFormMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Confirmación del movimiento (correo, firma y comprobante) y comprobantes del historial
+  const [confirmar, setConfirmar] = useState<{ tipo: TipoMovimiento; equipo: Equipment; usuario: UsuarioMovimiento } | null>(null);
+  const [comprobantes, setComprobantes] = useState<Map<number, ResumenComprobante>>(new Map());
+  const [generar, setGenerar] = useState<EquipmentMovement | null>(null);
+  const cargarComprobantes = () => { comprobantesPorMovimiento().then(setComprobantes).catch(() => undefined); };
+  useEffect(cargarComprobantes, []);
+  const recargarHistorial = async () => {
+    const d = await syncEquipmentMovementsFromSupabase().catch(() => null);
+    if (d) setMovements(d);
+    cargarComprobantes();
+  };
 
   // Historial: carga al montar
   useEffect(() => {
@@ -151,31 +163,14 @@ export default function EquipmentAssignments() {
         : 'Ese equipo no está asignado a nadie.' });
       return;
     }
-    setSaving(true);
-    const result = await syncEquipmentMovementToSupabase({
-      equipmentId,
-      usuarioRef: selectedUser.id,
-      usuarioNombre: selectedUser.nombreCompleto,
-      usuarioArea: selectedUser.area,
-      tipo,
-      observaciones: observaciones.trim() || undefined,
-      registradoPor: user?.email || undefined,
+    // El registro (con correo, firma y comprobante) se confirma en el formulario compartido.
+    const equipo = equipments.find(e => e.id === equipmentId);
+    if (!equipo) return;
+    setConfirmar({
+      tipo: tipo === 'devolucion' ? 'devolucion' : 'asignacion',
+      equipo,
+      usuario: { ref: selectedUser.id, nombre: selectedUser.nombreCompleto, area: selectedUser.area, correo: selectedUser.correo || undefined },
     });
-    setSaving(false);
-
-    if (result.success) {
-      // Refrescar historial y status local del equipo (la RPC ya actualizó Supabase)
-      const data = await syncEquipmentMovementsFromSupabase().catch(() => null);
-      if (data) setMovements(data);
-      setEquipments(prev => prev.map(e => e.id === equipmentId ? {
-        ...e,
-        status: (tipo === 'asignacion' ? 'assigned' : 'available') as Equipment['status'],
-      } : e));
-      setFormMsg({ ok: true, text: 'Movimiento registrado y estado del equipo actualizado.' });
-      setObservaciones('');
-    } else {
-      setFormMsg({ ok: false, text: result.error || 'No se pudo registrar el movimiento.' });
-    }
   };
 
   const nombreEquipo = (id: string) => {
@@ -276,10 +271,10 @@ export default function EquipmentAssignments() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={handleSubmit} disabled={saving}
+          <button onClick={handleSubmit}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-60">
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle size={15} />}
-            {saving ? 'Guardando...' : 'Registrar movimiento'}
+            <CheckCircle size={15} />
+            Registrar movimiento
           </button>
           {formMsg && (
             <span className={`text-sm ${formMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{formMsg.text}</span>
@@ -354,11 +349,22 @@ export default function EquipmentAssignments() {
         </div>
       )}
 
+      {confirmar && (
+        <RegistrarMovimientoModal tipo={confirmar.tipo} equipo={confirmar.equipo} usuario={confirmar.usuario}
+          observacionesIniciales={observaciones}
+          onClose={() => setConfirmar(null)}
+          onRegistrado={() => { recargarHistorial(); setObservaciones(''); setEquipmentId(''); }} />
+      )}
+      {generar && (
+        <GenerarComprobanteModal movementId={Number(generar.id)} usuarioRef={generar.usuarioRef} usuarioNombre={generar.usuarioNombre}
+          onClose={() => setGenerar(null)} onGenerado={cargarComprobantes} />
+      )}
+
       {/* Historial */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
           <h3 className="font-semibold text-gray-800 flex items-center gap-2"><History size={16} /> Historial de movimientos de equipos</h3>
-          <button onClick={async () => { const d = await syncEquipmentMovementsFromSupabase().catch(() => null); if (d) setMovements(d); }}
+          <button onClick={recargarHistorial}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-50">
             <RefreshCw size={13} /> Actualizar
           </button>
@@ -384,6 +390,7 @@ export default function EquipmentAssignments() {
                   <th className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Área</th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Tipo</th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Observaciones</th>
+                  <th className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Comprobante</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -397,6 +404,27 @@ export default function EquipmentAssignments() {
                       <td className="px-4 py-2.5 text-gray-600">{m.usuarioArea}</td>
                       <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${t.color}`}>{t.label}</span></td>
                       <td className="px-4 py-2.5 text-gray-500">{m.observaciones || '—'}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        {m.tipo !== 'asignacion' ? <span className="text-gray-300">—</span> : (() => {
+                          const c = comprobantes.get(Number(m.id));
+                          if (!c) {
+                            return (
+                              <button onClick={() => setGenerar(m)} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                                <FileText size={12} /> Generar
+                              </button>
+                            );
+                          }
+                          return (
+                            <a href={`${enlaceComprobante(c.token)}?ver=1`} target="_blank" rel="noreferrer"
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                c.estado === 'firmado' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
+                              title="Ver comprobante">
+                              {c.estado === 'firmado' ? <CheckCircle size={11} /> : <Clock size={11} />}
+                              {c.estado === 'firmado' ? 'Firmado' : 'Pendiente de firma'}
+                            </a>
+                          );
+                        })()}
+                      </td>
                     </tr>
                   );
                 })}

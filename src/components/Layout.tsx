@@ -4,10 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
-  Monitor, Users, Building2, FileText, ChevronRight, Settings, Server
+  Monitor, Users, Building2, FileText, ChevronRight, Settings, Server, PenLine
 } from 'lucide-react';
 import { useState } from 'react';
 import ThemeToggle from './ThemeToggle';
+import MiFirmaModal from './comprobante/MiFirmaModal';
 
 const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
@@ -27,6 +28,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
+  const [showFirma, setShowFirma] = useState(false);
 
   const unreadAlertList = alerts.filter(a => !a.read);
 
@@ -91,6 +93,13 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{user?.email || 'Usuario'}</p>
                 <p className="text-xs text-gray-500 dark:text-slate-400">{user?.role === 'admin' ? 'Administrador' : 'Usuario'}</p>
               </div>
+              <button
+                onClick={() => setShowFirma(true)}
+                className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-500 text-gray-400 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                title="Mi firma (comprobantes de entrega)"
+              >
+                <PenLine size={16} />
+              </button>
               <button 
                 onClick={logout} 
                 className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-500 text-gray-400 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors" 
@@ -102,6 +111,8 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         </div>
       </aside>
+
+      {showFirma && <MiFirmaModal onClose={() => setShowFirma(false)} />}
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm">
