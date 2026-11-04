@@ -4,6 +4,7 @@ import type { EquipmentMovement } from '../types';
 export interface AsignacionActual {
   usuarioRef: string;
   usuarioNombre: string;
+  usuarioArea: string;
 }
 
 /**
@@ -21,15 +22,8 @@ export function asignacionesActuales(movements: EquipmentMovement[]): Map<string
   const result = new Map<string, AsignacionActual>();
   for (const [equipmentId, m] of ultimo) {
     if (m.tipo === 'asignacion' || m.tipo === 'traslado') {
-      result.set(equipmentId, { usuarioRef: m.usuarioRef, usuarioNombre: m.usuarioNombre });
+      result.set(equipmentId, { usuarioRef: m.usuarioRef, usuarioNombre: m.usuarioNombre, usuarioArea: m.usuarioArea });
     }
   }
   return result;
-}
-
-/** Cantidad de equipos asignados hoy a cada usuario (clave: usuarioRef). */
-export function equiposPorUsuario(asignaciones: Map<string, AsignacionActual>): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const a of asignaciones.values()) counts.set(a.usuarioRef, (counts.get(a.usuarioRef) ?? 0) + 1);
-  return counts;
 }

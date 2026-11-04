@@ -99,12 +99,13 @@ export default function Equipments() {
     setShowForm(true);
   };
 
-  // "Asignado a" sale del último movimiento de cada equipo (se registra en Asignación de Equipos).
-  useEffect(() => {
+  // "Asignado a" sale del último movimiento de cada equipo.
+  const cargarAsignaciones = () => {
     syncEquipmentMovementsFromSupabase()
       .then(movs => setAsignaciones(asignacionesActuales(movs)))
       .catch(() => setAsignaciones(new Map()));
-  }, []);
+  };
+  useEffect(cargarAsignaciones, []);
 
   const getAsignadoA = (equipmentId: string) => asignaciones.get(equipmentId)?.usuarioNombre || '-';
 
@@ -408,7 +409,8 @@ export default function Equipments() {
       </div>
 
       {equipoDetalle && (
-        <EquipoDetalle equipment={equipoDetalle} asignadoA={getAsignadoA(equipoDetalle.id)} onClose={() => setDetalleId(null)} />
+        <EquipoDetalle equipment={equipoDetalle} asignacion={asignaciones.get(equipoDetalle.id)}
+          onMovimiento={cargarAsignaciones} onClose={() => setDetalleId(null)} />
       )}
 
       <ImportModal

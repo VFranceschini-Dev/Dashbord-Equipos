@@ -3,8 +3,11 @@ import { useApp } from '../context/AppContext';
 import { Equipment, EquipmentMovement } from '../types';
 import { detalleMesh, guardarIpReal, type DetalleMesh } from '../services/mesh';
 import { syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
+import type { AsignacionActual } from '../utils/asignaciones';
+import RegistrarMovimientoModal, { type TipoMovimiento } from './RegistrarMovimientoModal';
 import {
-  X, Loader2, AlertTriangle, Monitor, Cpu, HardDrive, Network, ShieldCheck, User, History, Wand2, RefreshCw
+  X, Loader2, AlertTriangle, Monitor, Cpu, HardDrive, Network, ShieldCheck, User, History, Wand2, RefreshCw,
+  UserPlus, Undo2
 } from 'lucide-react';
 
 const TIPO_LABEL: Record<Equipment['type'], string> = {
@@ -39,11 +42,13 @@ function Bloque({ titulo, icono, children }: { titulo: string; icono: React.Reac
 }
 
 /** Panel lateral con el detalle de un equipo: datos de la app, monitoreo en vivo e historial. */
-export default function EquipoDetalle({ equipment, asignadoA, onClose }: {
+export default function EquipoDetalle({ equipment, asignacion, onMovimiento, onClose }: {
   equipment: Equipment;
-  asignadoA: string;
+  asignacion?: AsignacionActual;
+  onMovimiento?: () => void;
   onClose: () => void;
 }) {
+  const [movimiento, setMovimiento] = useState<TipoMovimiento | null>(null);
   const { updateEquipment, setEquipments } = useApp();
   const [mesh, setMesh] = useState<DetalleMesh | null>(null);
   const [meshCargando, setMeshCargando] = useState(false);
@@ -70,13 +75,17 @@ export default function EquipoDetalle({ equipment, asignadoA, onClose }: {
     }
   };
 
+  const cargarHistorial = () => {
+    syncEquipmentMovementsFromSupabase()
+      .then(movs => setHistorial(movs.filter(m => m.equipmentId === equipment.id)))
+      .catch(() => setHistorial([]));
+  };
+
   useEffect(() => {
     setMesh(null);
     setAviso(null);
     cargarMesh();
-    syncEquipmentMovementsFromSupabase()
-      .then(movs => setHistorial(movs.filter(m => m.equipmentId === equipment.id)))
-      .catch(() => setHistorial([]));
+    cargarHistorial();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [equipment.id]);
 
@@ -122,13 +131,27 @@ export default function EquipoDetalle({ equipment, asignadoA, onClose }: {
         <div className="p-5 space-y-5">
           <Bloque titulo="Equipo" icono={<Monitor size={13} />}>
             <Fila label="Estado" value={ESTADO_LABEL[equipment.status]} />
-            <Fila label="Asignado a" value={asignadoA !== '-' ? asignadoA : 'Sin asignar'} />
+            <Fila label="Asignado a" value={asignacion?.usuarioNombre || 'Sin asignar'} />
             <Fila label="Marca" value={equipment.brand} />
             <Fila label="Modelo" value={equipment.model} />
             <Fila label="Serial" value={equipment.serialNumber} />
             <Fila label="Categoría" value={equipment.category} />
             {equipment.notes && <Fila label="Notas" value={equipment.notes} />}
           </Bloque>
+
+          {equipment.status !== 'retired' && (
+            asignacion ? (
+              <button onClick={() => setMovimiento('devolucion')}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium">
+                <Undo2 size={15} /> Registrar devolución de {asignacion.usuarioNombre}
+              </button>
+            ) : (
+              <button onClick={() => setMovimiento('asignacion')}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
+                <UserPlus size={15} /> Asignar a usuario
+              </button>
+            )
+          )}
 
           {hayParaCompletar && (
             <button onClick={completarDesdeMesh} disabled={completando}
@@ -229,6 +252,12 @@ export default function EquipoDetalle({ equipment, asignadoA, onClose }: {
           </Bloque>
         </div>
       </aside>
+
+      {movimiento && (
+        <RegistrarMovimientoModal tipo={movimiento} equipo={equipment}
+          onClose={() => setMovimiento(null)}
+          onRegistrado={() => { cargarHistorial(); onMovimiento?.(); }} />
+      )}
     </div>
   );
 }

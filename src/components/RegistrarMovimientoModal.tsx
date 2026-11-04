@@ -1,0 +1,218 @@
+import { useEffect, useRef, useState } from 'react';
+import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
+import { Equipment } from '../types';
+import { buscarUsuariosCompat, type UsuarioCompat } from '../services/usuarios';
+import { syncEquipmentMovementToSupabase, syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
+import { asignacionesActuales, type AsignacionActual } from '../utils/asignaciones';
+import { X, Loader2, Search, AlertTriangle } from 'lucide-react';
+
+export type TipoMovimiento = 'asignacion' | 'devolucion';
+
+/** Persona elegida para el movimiento (de la búsqueda o ya conocida). */
+export interface UsuarioMovimiento {
+  ref: string;
+  nombre: string;
+  area: string;
+}
+
+const TITULOS: Record<TipoMovimiento, string> = {
+  asignacion: 'Asignar equipo',
+  devolucion: 'Registrar devolución',
+};
+
+/**
+ * Formulario de movimiento reutilizable (asignación o devolución). Se abre
+ * desde Equipamientos (con el equipo ya elegido) o desde Usuarios (con la
+ * persona ya elegida); lo que no viene, se elige en el formulario.
+ */
+export default function RegistrarMovimientoModal({ tipo, equipo, usuario, onClose, onRegistrado }: {
+  tipo: TipoMovimiento;
+  equipo?: Equipment;
+  usuario?: UsuarioMovimiento;
+  onClose: () => void;
+  onRegistrado?: () => void;
+}) {
+  const { equipments, setEquipments } = useApp();
+  const { user } = useAuth();
+
+  const [asignaciones, setAsignaciones] = useState<Map<string, AsignacionActual> | null>(null);
+  const [equipmentId, setEquipmentId] = useState(equipo?.id ?? '');
+  const [persona, setPersona] = useState<UsuarioMovimiento | null>(usuario ?? null);
+  const [observaciones, setObservaciones] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Búsqueda de usuario (solo si no vino elegido)
+  const [query, setQuery] = useState('');
+  const [resultados, setResultados] = useState<UsuarioCompat[]>([]);
+  const [buscando, setBuscando] = useState(false);
+  const debounceRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    syncEquipmentMovementsFromSupabase()
+      .then(movs => setAsignaciones(asignacionesActuales(movs)))
+      .catch(() => setAsignaciones(new Map()));
+  }, []);
+
+  useEffect(() => {
+    window.clearTimeout(debounceRef.current);
+    if (usuario || persona || !query.trim()) { setResultados([]); return; }
+    debounceRef.current = window.setTimeout(async () => {
+      setBuscando(true);
+      try {
+        setResultados(await buscarUsuariosCompat(query.trim()));
+      } catch {
+        setResultados([]);
+      } finally {
+        setBuscando(false);
+      }
+    }, 350);
+    return () => window.clearTimeout(debounceRef.current);
+  }, [query, usuario, persona]);
+
+  const asignacionDelEquipo = equipmentId ? asignaciones?.get(equipmentId) : undefined;
+
+  // Devolución de un equipo: la persona es quien lo tiene asignado.
+  useEffect(() => {
+    if (tipo === 'devolucion' && !usuario && asignacionDelEquipo) {
+      setPersona({ ref: asignacionDelEquipo.usuarioRef, nombre: asignacionDelEquipo.usuarioNombre, area: asignacionDelEquipo.usuarioArea });
+    }
+  }, [tipo, usuario, asignacionDelEquipo]);
+
+  // Equipos que se pueden elegir: para asignar, los libres; para devolver, los de esa persona.
+  const opcionesEquipo = equipments.filter(e => {
+    const a = asignaciones?.get(e.id);
+    if (tipo === 'asignacion') return !a && e.status !== 'retired';
+    return persona ? a?.usuarioRef === persona.ref : Boolean(a);
+  });
+
+  const validar = (): string | null => {
+    if (!equipmentId) return 'Elegí un equipo.';
+    if (!persona) return 'Elegí un usuario.';
+    if (tipo === 'asignacion' && asignacionDelEquipo) {
+      return `El equipo ya está asignado a ${asignacionDelEquipo.usuarioNombre}. Registrá primero la devolución.`;
+    }
+    if (tipo === 'devolucion' && asignacionDelEquipo?.usuarioRef !== persona.ref) {
+      return 'Ese equipo no está asignado a esta persona.';
+    }
+    return null;
+  };
+
+  const handleGuardar = async () => {
+    const problema = validar();
+    if (problema) { setError(problema); return; }
+    setGuardando(true);
+    setError(null);
+    const r = await syncEquipmentMovementToSupabase({
+      equipmentId,
+      usuarioRef: persona!.ref,
+      usuarioNombre: persona!.nombre,
+      usuarioArea: persona!.area,
+      tipo,
+      observaciones: observaciones.trim() || undefined,
+      registradoPor: user?.email || undefined,
+    });
+    setGuardando(false);
+    if (!r.success) { setError(r.error || 'No se pudo registrar el movimiento.'); return; }
+    // La función de la base ya actualizó el estado del equipo; se refleja en pantalla.
+    const status: Equipment['status'] = tipo === 'asignacion' ? 'assigned' : 'available';
+    setEquipments(prev => prev.map(e => e.id === equipmentId ? { ...e, status } : e));
+    onRegistrado?.();
+    onClose();
+  };
+
+  const equipoElegido = equipments.find(e => e.id === equipmentId);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-semibold text-lg">{TITULOS[tipo]}</h3>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* Equipo */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Equipo *</label>
+            {equipo ? (
+              <p className="px-3 py-2 rounded-lg bg-gray-50 text-sm text-gray-800">{equipo.name}</p>
+            ) : (
+              <select value={equipmentId} onChange={e => { setEquipmentId(e.target.value); setError(null); }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm">
+                <option value="">{asignaciones ? 'Seleccionar equipo...' : 'Cargando...'}</option>
+                {opcionesEquipo.map(e => (
+                  <option key={e.id} value={e.id}>{e.name}{e.serialNumber ? ` · ${e.serialNumber}` : ''}</option>
+                ))}
+              </select>
+            )}
+            {tipo === 'asignacion' && !equipo && asignaciones && opcionesEquipo.length === 0 && (
+              <p className="text-xs text-gray-500 mt-1">No hay equipos disponibles para asignar.</p>
+            )}
+          </div>
+
+          {/* Usuario */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Usuario *</label>
+            {usuario || persona ? (
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 text-sm">
+                <span className="text-gray-800">{(usuario ?? persona)!.nombre}</span>
+                {!usuario && tipo === 'asignacion' && (
+                  <button onClick={() => { setPersona(null); setQuery(''); }} className="text-xs text-blue-600 hover:underline">cambiar</button>
+                )}
+              </div>
+            ) : tipo === 'devolucion' ? (
+              <p className="px-3 py-2 rounded-lg bg-gray-50 text-sm text-gray-500">
+                {equipoElegido ? 'El equipo no está asignado a nadie.' : 'Elegí el equipo a devolver.'}
+              </p>
+            ) : (
+              <>
+                <div className="relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+                    placeholder="Buscar por nombre, apellido o código..."
+                    className="w-full pl-9 pr-9 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+                  {buscando && <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-blue-500" />}
+                </div>
+                {resultados.length > 0 && (
+                  <ul className="mt-1 border border-gray-100 rounded-lg max-h-40 overflow-y-auto shadow-sm">
+                    {resultados.map(u => (
+                      <li key={u.id}>
+                        <button onClick={() => { setPersona({ ref: u.id, nombre: u.nombreCompleto, area: u.area }); setError(null); }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50">
+                          {u.nombreCompleto}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <input type="text" value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Opcional"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {error}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border border-gray-200 hover:bg-gray-50">Cancelar</button>
+            <button onClick={handleGuardar} disabled={guardando || !asignaciones}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-60">
+              {guardando && <Loader2 size={15} className="animate-spin" />}
+              {tipo === 'asignacion' ? 'Asignar' : 'Registrar devolución'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

@@ -6,7 +6,6 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Printers from './components/Printers';
 import Inventory from './components/Inventory';
-import Movements from './components/Movements';
 import Reports from './components/Reports';
 import Equipments from './components/Equipments';
 import Suppliers from './components/Suppliers';
@@ -23,12 +22,11 @@ function PageRouter() {
       return <Dashboard />;
     case 'printers':
       return <Printers />;
-    case 'asignaciones':
-      return <EquipmentAssignments />;
     case 'inventory':
       return <Inventory />;
     case 'movements':
-      return <Movements />;
+    case 'asignaciones': // ruta anterior: ahora es la misma pantalla
+      return <EquipmentAssignments />;
     case 'reports':
       return <Reports />;
     case 'equipments':

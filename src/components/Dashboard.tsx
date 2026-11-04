@@ -91,12 +91,12 @@ export default function Dashboard() {
       page: 'inventory' as const,
     },
     {
-      title: 'Movimientos',
+      title: 'Movimientos de tóner',
       value: totalMovements,
       subtitle: 'Total registrado',
       icon: Clock,
       color: 'purple',
-      page: 'movements' as const,
+      page: 'inventory' as const,
     },
   ];
 

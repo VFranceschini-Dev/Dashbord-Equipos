@@ -5,13 +5,19 @@ import { syncEquipmentMovementToSupabase, syncEquipmentMovementsFromSupabase } f
 import { buscarUsuariosCompat, existeUsuario, darDeAltaUsuario, generarCodigoUsuario, codigoDisponible, ProxyError, type UsuarioCompat, type AltaUsuarioInput } from '../services/usuarios';
 import { TEXTOS_USUARIOS } from '../constants/textos';
 import { Equipment, EquipmentMovement } from '../types';
+import { asignacionesActuales } from '../utils/asignaciones';
 import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History, UserPlus, X } from 'lucide-react';
 
 const T = TEXTOS_USUARIOS.asignaciones;
 
+// Los equipos solo transitan entre asignación y devolución. Traslado y baja
+// se conservan solo para mostrar movimientos viejos del historial.
 const TIPOS: { value: EquipmentMovement['tipo']; label: string; color: string }[] = [
   { value: 'asignacion', label: 'Asignación', color: 'bg-blue-100 text-blue-700' },
   { value: 'devolucion', label: 'Devolución', color: 'bg-emerald-100 text-emerald-700' },
+];
+const TIPOS_HISTORICOS: typeof TIPOS = [
+  ...TIPOS,
   { value: 'traslado', label: 'Traslado', color: 'bg-amber-100 text-amber-700' },
   { value: 'baja', label: 'Baja', color: 'bg-red-100 text-red-700' },
 ];
@@ -134,6 +140,17 @@ export default function EquipmentAssignments() {
       setFormMsg({ ok: false, text: 'Seleccioná un equipamiento y un usuario antes de registrar.' });
       return;
     }
+    const actual = asignacionesActuales(movements).get(equipmentId);
+    if (tipo === 'asignacion' && actual) {
+      setFormMsg({ ok: false, text: `El equipo ya está asignado a ${actual.usuarioNombre}. Registrá primero la devolución.` });
+      return;
+    }
+    if (tipo === 'devolucion' && actual?.usuarioRef !== selectedUser.id) {
+      setFormMsg({ ok: false, text: actual
+        ? `Ese equipo está asignado a ${actual.usuarioNombre}, no a la persona elegida.`
+        : 'Ese equipo no está asignado a nadie.' });
+      return;
+    }
     setSaving(true);
     const result = await syncEquipmentMovementToSupabase({
       equipmentId,
@@ -152,7 +169,7 @@ export default function EquipmentAssignments() {
       if (data) setMovements(data);
       setEquipments(prev => prev.map(e => e.id === equipmentId ? {
         ...e,
-        status: (tipo === 'asignacion' || tipo === 'traslado' ? 'assigned' : tipo === 'devolucion' ? 'available' : 'retired') as Equipment['status'],
+        status: (tipo === 'asignacion' ? 'assigned' : 'available') as Equipment['status'],
       } : e));
       setFormMsg({ ok: true, text: 'Movimiento registrado y estado del equipo actualizado.' });
       setObservaciones('');
@@ -171,7 +188,7 @@ export default function EquipmentAssignments() {
       <div className="flex items-center gap-3">
         <div className="p-2 bg-blue-50 rounded-lg"><Monitor size={22} className="text-blue-600" /></div>
         <div>
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white">Asignación de Equipos</h2>
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white">Movimientos de equipos</h2>
           <p className="text-xs text-gray-500 dark:text-slate-400">{T.subtitulo}</p>
         </div>
       </div>
@@ -371,7 +388,7 @@ export default function EquipmentAssignments() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {movements.map(m => {
-                  const t = TIPOS.find(x => x.value === m.tipo)!;
+                  const t = TIPOS_HISTORICOS.find(x => x.value === m.tipo)!;
                   return (
                     <tr key={m.id} className="hover:bg-gray-50 text-sm">
                       <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{new Date(m.fecha).toLocaleString('es-AR')}</td>

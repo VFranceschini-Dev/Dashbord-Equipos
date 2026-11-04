@@ -4,9 +4,12 @@ import { DEPARTMENTS } from '../data';
 import { TEXTOS_USUARIOS } from '../constants/textos';
 import { listarUsuarios, darDeAltaUsuario, generarCodigoUsuario, codigoDisponible, ProxyError, type ListadoUsuarios, type AltaUsuarioInput } from '../services/usuarios';
 import { syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
-import { asignacionesActuales, equiposPorUsuario } from '../utils/asignaciones';
+import { asignacionesActuales, type AsignacionActual } from '../utils/asignaciones';
+import RegistrarMovimientoModal, { type TipoMovimiento, type UsuarioMovimiento } from './RegistrarMovimientoModal';
+import type { Equipment } from '../types';
 import {
-  Plus, Search, X, Users, Mail, Building, User, CheckCircle, XCircle, Monitor, Loader2, RefreshCw, AlertTriangle
+  Plus, Search, X, Users, Mail, Building, User, CheckCircle, XCircle, Monitor, Loader2, RefreshCw, AlertTriangle,
+  UserPlus, Undo2
 } from 'lucide-react';
 
 const TU = TEXTOS_USUARIOS.usuarios;
@@ -34,7 +37,8 @@ export default function Collaborators() {
   const refreshNext = useRef(false);
   const debounceRef = useRef<number | undefined>(undefined);
 
-  const [equiposDe, setEquiposDe] = useState<Map<string, number>>(new Map());
+  const [asignaciones, setAsignaciones] = useState<Map<string, AsignacionActual>>(new Map());
+  const [movimiento, setMovimiento] = useState<{ tipo: TipoMovimiento; usuario: UsuarioMovimiento; equipo?: Equipment } | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AltaUsuarioInput>(emptyForm);
@@ -64,14 +68,24 @@ export default function Collaborators() {
   // Equipos asignados hoy a cada usuario (según el historial de movimientos)
   useEffect(() => {
     syncEquipmentMovementsFromSupabase()
-      .then(movs => setEquiposDe(equiposPorUsuario(asignacionesActuales(movs))))
-      .catch(() => setEquiposDe(new Map()));
+      .then(movs => setAsignaciones(asignacionesActuales(movs)))
+      .catch(() => setAsignaciones(new Map()));
   }, [reloadKey]);
 
   const recargar = (refresh: boolean) => {
     refreshNext.current = refresh;
     setReloadKey(k => k + 1);
   };
+
+  // Equipos asignados hoy a cada usuario (clave: id del usuario)
+  const equiposDe = useMemo(() => {
+    const porUsuario = new Map<string, Equipment[]>();
+    for (const [equipmentId, a] of asignaciones) {
+      const eq = equipments.find(e => e.id === equipmentId);
+      if (eq) porUsuario.set(a.usuarioRef, [...(porUsuario.get(a.usuarioRef) ?? []), eq]);
+    }
+    return porUsuario;
+  }, [asignaciones, equipments]);
 
   const departamentos = useMemo(
     () => [...new Set(listado.data.map(u => u.departamento.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
@@ -260,7 +274,12 @@ export default function Collaborators() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map(u => {
-          const eqCount = equiposDe.get(u.id) ?? 0;
+          const susEquipos = equiposDe.get(u.id) ?? [];
+          const persona: UsuarioMovimiento = {
+            ref: u.id,
+            nombre: `${u.nombre} ${u.apellido}`.trim() || u.usuario,
+            area: u.departamento,
+          };
           const activo = u.estado === 'activo';
           return (
             <div key={u.id} className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5">
@@ -288,15 +307,38 @@ export default function Collaborators() {
                 {u.departamento && <p className="text-sm text-gray-600 flex items-center gap-2"><Building size={14} className="text-gray-400" /> {u.departamento}</p>}
                 {u.correo && <p className="text-sm text-gray-600 flex items-center gap-2"><Mail size={14} className="text-gray-400" /> {u.correo}</p>}
               </div>
-              <div className="pt-3 border-t border-gray-100">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">
-                  <Monitor size={10} /> {eqCount} equipo{eqCount !== 1 ? 's' : ''}
-                </span>
+              <div className="pt-3 border-t border-gray-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">
+                    <Monitor size={10} /> {susEquipos.length} equipo{susEquipos.length !== 1 ? 's' : ''}
+                  </span>
+                  {activo && (
+                    <button onClick={() => setMovimiento({ tipo: 'asignacion', usuario: persona })}
+                      className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+                      <UserPlus size={12} /> Asignar equipo
+                    </button>
+                  )}
+                </div>
+                {susEquipos.map(eq => (
+                  <div key={eq.id} className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded-lg px-2 py-1.5">
+                    <span className="truncate">{eq.name}</span>
+                    <button onClick={() => setMovimiento({ tipo: 'devolucion', usuario: persona, equipo: eq })}
+                      className="flex items-center gap-1 font-medium text-emerald-700 hover:underline shrink-0 ml-2">
+                      <Undo2 size={12} /> Devolución
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           );
         })}
       </div>
+
+      {movimiento && (
+        <RegistrarMovimientoModal tipo={movimiento.tipo} usuario={movimiento.usuario} equipo={movimiento.equipo}
+          onClose={() => setMovimiento(null)}
+          onRegistrado={() => setReloadKey(k => k + 1)} />
+      )}
 
       {filtered.length === 0 && !loading && !loadError && (
         <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
