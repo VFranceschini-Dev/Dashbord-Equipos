@@ -88,7 +88,17 @@ export async function guardarCorreo(usuarioRef: string, correo: string): Promise
 }
 
 // ===== Comprobantes =====
-export async function crearComprobante(movementId: number, correo: string): Promise<{ token: string; estado: string }> {
+/** Resultado de crear (o reenviar) un comprobante: el envío por email puede fallar sin perder el comprobante. */
+export interface ComprobanteCreado {
+  token: string;
+  estado: string;
+  enviado: boolean;
+  ticket?: string;
+  error?: string;
+}
+
+/** Crea el comprobante y lo envía por email. Si ya existía sin enviar, reintenta el envío. */
+export async function crearComprobante(movementId: number, correo: string): Promise<ComprobanteCreado> {
   return llamar({
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },

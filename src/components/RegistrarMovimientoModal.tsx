@@ -6,7 +6,7 @@ import { buscarUsuariosCompat, type UsuarioCompat } from '../services/usuarios';
 import { syncEquipmentMovementToSupabase, syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
 import { asignacionesActuales, type AsignacionActual } from '../utils/asignaciones';
 import { X, Loader2, Search, AlertTriangle, PenLine } from 'lucide-react';
-import { obtenerMiFirma, correoGuardado, guardarCorreo, crearComprobante } from '../services/comprobantes';
+import { obtenerMiFirma, correoGuardado, guardarCorreo, crearComprobante, type ComprobanteCreado } from '../services/comprobantes';
 import ComprobanteGenerado from './comprobante/ComprobanteGenerado';
 import MiFirmaModal from './comprobante/MiFirmaModal';
 
@@ -54,7 +54,7 @@ export default function RegistrarMovimientoModal({ tipo, equipo, usuario, observ
   const [correo, setCorreo] = useState('');
   const [tengoFirma, setTengoFirma] = useState<boolean | null>(null);
   const [verFirma, setVerFirma] = useState(false);
-  const [resultado, setResultado] = useState<{ token?: string; error?: string } | null>(null);
+  const [resultado, setResultado] = useState<{ movementId?: number; creado?: ComprobanteCreado; error?: string } | null>(null);
 
   useEffect(() => {
     if (tipo === 'asignacion') obtenerMiFirma().then(f => setTengoFirma(Boolean(f))).catch(() => setTengoFirma(false));
@@ -152,8 +152,7 @@ export default function RegistrarMovimientoModal({ tipo, equipo, usuario, observ
     if (correoFinal !== (persona!.correo || '').toLowerCase()) guardarCorreo(persona!.ref, correoFinal).catch(() => undefined);
     if (!r.movementId) { setResultado({ error: 'no se recibió el número de movimiento' }); return; }
     try {
-      const c = await crearComprobante(r.movementId, correoFinal);
-      setResultado({ token: c.token });
+      setResultado({ movementId: r.movementId, creado: await crearComprobante(r.movementId, correoFinal) });
     } catch (err) {
       setResultado({ error: (err as Error).message });
     }
@@ -170,7 +169,7 @@ export default function RegistrarMovimientoModal({ tipo, equipo, usuario, observ
         </div>
         {resultado ? (
           <div className="p-5 space-y-4">
-            <ComprobanteGenerado token={resultado.token} error={resultado.error} correo={correo.trim()} />
+            <ComprobanteGenerado movementId={resultado.movementId} resultado={resultado.creado} error={resultado.error} correo={correo.trim()} />
             <div className="flex justify-end">
               <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">Listo</button>
             </div>

@@ -415,13 +415,21 @@ export default function EquipmentAssignments() {
                             );
                           }
                           return (
-                            <a href={`${enlaceComprobante(c.token)}?ver=1`} target="_blank" rel="noreferrer"
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                c.estado === 'firmado' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
-                              title="Ver comprobante">
-                              {c.estado === 'firmado' ? <CheckCircle size={11} /> : <Clock size={11} />}
-                              {c.estado === 'firmado' ? 'Firmado' : 'Pendiente de firma'}
-                            </a>
+                            <span className="inline-flex items-center gap-2">
+                              <a href={`${enlaceComprobante(c.token)}?ver=1`} target="_blank" rel="noreferrer"
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  c.estado === 'firmado' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
+                                title="Ver comprobante">
+                                {c.estado === 'firmado' ? <CheckCircle size={11} /> : <Clock size={11} />}
+                                {c.estado === 'firmado' ? 'Firmado' : 'Pendiente de firma'}
+                              </a>
+                              {c.estado === 'pendiente' && (
+                                <button onClick={() => setGenerar(m)} className="text-xs text-blue-600 hover:underline"
+                                  title="Volver a enviar el email (si no se envió) o copiar el enlace">
+                                  Reenviar
+                                </button>
+                              )}
+                            </span>
                           );
                         })()}
                       </td>

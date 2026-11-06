@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
-import { correoGuardado, guardarCorreo, crearComprobante } from '../../services/comprobantes';
+import { correoGuardado, guardarCorreo, crearComprobante, type ComprobanteCreado } from '../../services/comprobantes';
 import ComprobanteGenerado from './ComprobanteGenerado';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -16,7 +16,7 @@ export default function GenerarComprobanteModal({ movementId, usuarioRef, usuari
   const [correo, setCorreo] = useState('');
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [creado, setCreado] = useState<ComprobanteCreado | null>(null);
 
   useEffect(() => { correoGuardado(usuarioRef).then(setCorreo).catch(() => undefined); }, [usuarioRef]);
 
@@ -28,7 +28,7 @@ export default function GenerarComprobanteModal({ movementId, usuarioRef, usuari
     try {
       guardarCorreo(usuarioRef, c).catch(() => undefined);
       const r = await crearComprobante(movementId, c);
-      setToken(r.token);
+      setCreado(r);
       onGenerado();
     } catch (err) {
       setError((err as Error).message);
@@ -45,8 +45,8 @@ export default function GenerarComprobanteModal({ movementId, usuarioRef, usuari
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg text-gray-600"><X size={20} /></button>
         </div>
         <div className="p-5 space-y-4">
-          {token ? (
-            <ComprobanteGenerado token={token} correo={correo.trim()} />
+          {creado ? (
+            <ComprobanteGenerado movementId={movementId} resultado={creado} correo={correo.trim()} />
           ) : (
             <>
               <p className="text-sm text-gray-600">Comprobante de entrega para <span className="font-medium text-gray-900">{usuarioNombre}</span>.</p>
@@ -60,9 +60,9 @@ export default function GenerarComprobanteModal({ movementId, usuarioRef, usuari
           )}
           <div className="flex justify-end gap-2">
             <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border border-gray-200 hover:bg-gray-50 text-gray-700">
-              {token ? 'Listo' : 'Cancelar'}
+              {creado ? 'Listo' : 'Cancelar'}
             </button>
-            {!token && (
+            {!creado && (
               <button onClick={handleGenerar} disabled={generando}
                 className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-60">
                 {generando && <Loader2 size={15} className="animate-spin" />} Generar

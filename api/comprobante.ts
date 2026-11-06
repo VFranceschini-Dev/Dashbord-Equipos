@@ -11,6 +11,14 @@
  *      Registra la firma tipográfica del usuario con fecha, IP y huella.
  *
  * Usa SUPABASE_SERVICE_ROLE_KEY: el navegador nunca escribe en la tabla.
+ *
+ * Envío por Zammad (opcional; si falta configuración, el comprobante se crea
+ * igual y el enlace se puede copiar desde la app):
+ *   ZAMMAD_URL    ej. https://soporte.ejemplo.com
+ *   ZAMMAD_TOKEN  token de acceso (permiso ticket.agent) — solo servidor
+ *   ZAMMAD_GROUP  grupo donde se crean los tickets (nombre exacto)
+ *   ZAMMAD_CERRAR_AL_FIRMAR  "si" para cerrar el ticket cuando el usuario firma
+ *   APP_URL       opcional: dirección pública de la app para el enlace
  */
 import { createHash, randomBytes } from 'node:crypto';
 
@@ -102,6 +110,97 @@ function jsonEstable(v: unknown): string {
 const sha256 = (texto: string) => createHash('sha256').update(texto, 'utf8').digest('hex');
 
 // ---------------------------------------------------------------------------
+// Zammad: el ticket envía el email al usuario y avisa al grupo cuando firma
+// ---------------------------------------------------------------------------
+function zammad(): { url: string; token: string; grupo: string; cerrar: boolean } | null {
+  const url = env('ZAMMAD_URL');
+  const token = env('ZAMMAD_TOKEN');
+  const grupo = env('ZAMMAD_GROUP');
+  if (!url || !token || !grupo) return null;
+  return { url: url.replace(/\/+$/, ''), token, grupo, cerrar: /^(si|sí|true|1)$/i.test(env('ZAMMAD_CERRAR_AL_FIRMAR') || '') };
+}
+
+async function llamarZammad(z: NonNullable<ReturnType<typeof zammad>>, path: string, method: string, body: unknown): Promise<any> {
+  const res = await fetchConTimeout(`${z.url}/api/v1/${path}`, {
+    method,
+    headers: { Authorization: `Token token=${z.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const texto = await res.text();
+  if (!res.ok) {
+    let detalle = `HTTP ${res.status}`;
+    try { const j = JSON.parse(texto); if (j?.error) detalle += `: ${j.error}`; } catch { /* sin detalle */ }
+    throw new Error(detalle.slice(0, 160));
+  }
+  return texto ? JSON.parse(texto) : null;
+}
+
+const html = (t: string) => t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+
+function urlPublica(request: Request): string {
+  return (env('APP_URL') || new URL(request.url).origin).replace(/\/+$/, '');
+}
+
+/** Crea el ticket que le envía al usuario el enlace para firmar. Nunca lanza: devuelve el resultado. */
+async function enviarPorZammad(
+  request: Request, b: NonNullable<ReturnType<typeof base>>,
+  c: { id: string; token: string; datos: any; correo_destino: string },
+): Promise<{ enviado: boolean; ticket?: string; error?: string }> {
+  const z = zammad();
+  if (!z) return { enviado: false, error: 'el envío por email no está configurado' };
+  const enlace = `${urlPublica(request)}/firmar/${c.token}`;
+  const d = c.datos;
+  const equipo = [d.equipo?.nombre, d.equipo?.marca, d.equipo?.modelo].filter(Boolean).join(' · ');
+  const cuerpo = `<p>Hola ${html(d.usuario?.nombre || '')}:</p>
+<p>El área de Sistemas te entregó el siguiente equipamiento:</p>
+<p><strong>${html(equipo)}</strong>${d.equipo?.serial ? `<br>Serial: ${html(d.equipo.serial)}` : ''}</p>
+<p>Para confirmar la recepción, firmá el comprobante de entrega desde este enlace:</p>
+<p><a href="${enlace}">${enlace}</a></p>
+<p>Si tenés alguna consulta, respondé este correo.</p>
+<p>Sistemas ${html(d.empresa || '')}</p>`;
+  try {
+    const ticket = await llamarZammad(z, 'tickets', 'POST', {
+      title: `Comprobante de entrega – ${d.equipo?.nombre || 'equipo'} – ${d.usuario?.nombre || ''}`.slice(0, 250),
+      group: z.grupo,
+      customer_id: `guess:${c.correo_destino}`,
+      article: {
+        subject: `Comprobante de entrega de equipamiento: ${d.equipo?.nombre || ''}`.slice(0, 250),
+        body: cuerpo,
+        content_type: 'text/html',
+        type: 'email',
+        internal: false,
+        to: c.correo_destino,
+      },
+    });
+    if (!ticket?.id) return { enviado: false, error: 'Zammad no devolvió el ticket' };
+    await rest(b, `comprobantes_entrega?id=eq.${c.id}`, { method: 'PATCH', body: JSON.stringify({ zammad_ticket_id: ticket.id }) });
+    return { enviado: true, ticket: String(ticket.number ?? ticket.id) };
+  } catch (err) {
+    console.error('[api/comprobante] envío por Zammad:', (err as Error).message);
+    return { enviado: false, error: `no se pudo crear el ticket (${(err as Error).message})` };
+  }
+}
+
+/** Avisa en el ticket que el usuario firmó (y lo cierra si está configurado). Nunca lanza. */
+async function avisarFirma(ticketId: number, nombre: string, fechaIso: string): Promise<void> {
+  const z = zammad();
+  if (!z) return;
+  try {
+    await llamarZammad(z, 'ticket_articles', 'POST', {
+      ticket_id: ticketId,
+      subject: 'Comprobante firmado',
+      body: `<p>${html(nombre)} firmó el comprobante de entrega el ${new Date(fechaIso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}.</p>`,
+      content_type: 'text/html',
+      type: 'note',
+      internal: true,
+    });
+    if (z.cerrar) await llamarZammad(z, `tickets/${ticketId}`, 'PUT', { state: 'closed' });
+  } catch (err) {
+    console.error('[api/comprobante] aviso de firma en Zammad:', (err as Error).message);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Acciones
 // ---------------------------------------------------------------------------
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -118,9 +217,14 @@ async function crear(request: Request, body: any): Promise<Response> {
   if (!EMAIL_RE.test(correo)) return jsonResponse(400, { success: false, error: 'El correo del usuario no es válido.' });
 
   // ¿Ya existe? (un comprobante por movimiento)
-  const existentes = await rest(b, `comprobantes_entrega?movement_id=eq.${movementId}&select=id,token,estado`);
-  if (Array.isArray(existentes) && existentes[0]) {
-    return jsonResponse(200, { success: true, data: existentes[0] });
+  const existentes = await rest(b, `comprobantes_entrega?movement_id=eq.${movementId}&select=id,token,estado,datos,correo_destino,zammad_ticket_id`);
+  const previo = Array.isArray(existentes) ? existentes[0] : null;
+  if (previo) {
+    // Ya existe: si no se pudo enviar antes y sigue pendiente, se reintenta el envío.
+    const envio = !previo.zammad_ticket_id && previo.estado === 'pendiente'
+      ? await enviarPorZammad(request, b, { ...previo, correo_destino: previo.correo_destino || correo })
+      : { enviado: Boolean(previo.zammad_ticket_id) };
+    return jsonResponse(200, { success: true, data: { id: previo.id, token: previo.token, estado: previo.estado, ...envio } });
   }
 
   const [mov] = await rest(b, `equipment_movements?id=eq.${movementId}&select=*`) ?? [];
@@ -160,7 +264,8 @@ async function crear(request: Request, body: any): Promise<Response> {
       correo_destino: correo,
     }),
   }) ?? [];
-  return jsonResponse(201, { success: true, data: { id: creado.id, token: creado.token, estado: creado.estado } });
+  const envio = await enviarPorZammad(request, b, creado);
+  return jsonResponse(201, { success: true, data: { id: creado.id, token: creado.token, estado: creado.estado, ...envio } });
 }
 
 async function firmar(request: Request, body: any): Promise<Response> {
@@ -177,7 +282,7 @@ async function firmar(request: Request, body: any): Promise<Response> {
   if (!FUENTES_VALIDAS.includes(fuente)) return jsonResponse(400, { success: false, error: 'Elegí un tipo de letra.' });
   if (body?.acepto !== true) return jsonResponse(400, { success: false, error: 'Tenés que aceptar el texto de conformidad.' });
 
-  const [c] = await rest(b, `comprobantes_entrega?token=eq.${token}&select=id,estado,datos,hash_documento`) ?? [];
+  const [c] = await rest(b, `comprobantes_entrega?token=eq.${token}&select=id,estado,datos,hash_documento,zammad_ticket_id`) ?? [];
   if (!c) return jsonResponse(404, { success: false, error: 'El comprobante no existe.' });
   if (c.estado !== 'pendiente') return jsonResponse(409, { success: false, error: 'Este comprobante ya fue firmado.' });
   if (sha256(jsonEstable(c.datos)) !== c.hash_documento) {
@@ -202,6 +307,7 @@ async function firmar(request: Request, body: any): Promise<Response> {
   if (!Array.isArray(actualizado) || actualizado.length === 0) {
     return jsonResponse(409, { success: false, error: 'Este comprobante ya fue firmado.' });
   }
+  if (c.zammad_ticket_id) await avisarFirma(Number(c.zammad_ticket_id), nombre, firmadoAt);
   return jsonResponse(200, { success: true });
 }
 
