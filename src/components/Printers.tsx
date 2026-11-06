@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ModuleSyncControls from './ModuleSyncControls';
 import { Printer as PrinterType } from '../types';
 import {
   Plus, Search, Edit2, Trash2, X, CheckCircle, AlertCircle, Wrench, MapPin, Building, FileText, Printer as PrinterIcon, Upload
@@ -89,6 +90,7 @@ export default function Printers() {
 
   return (
     <div className="space-y-5">
+      <ModuleSyncControls module="printers" />
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex items-center gap-2 flex-wrap">
           {(['all', 'active', 'inactive', 'maintenance'] as const).map(f => (

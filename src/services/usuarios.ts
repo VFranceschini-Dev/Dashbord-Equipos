@@ -19,10 +19,10 @@ function cacheKey(q: string): string {
 // Caché en memoria del navegador (5 min): la sección Usuarios y el buscador de
 // Asignación de Equipos comparten resultados y no repiten llamadas al servidor.
 const LIST_TTL_MS = 5 * 60 * 1000;
-const listCache = new Map<string, { expiresAt: number; value: Usuario[] }>();
-const inFlight = new Map<string, Promise<Usuario[]>>();
+const listCache = new Map<string, { expiresAt: number; value: ListadoUsuarios }>();
+const inFlight = new Map<string, Promise<ListadoUsuarios>>();
 
-function remember(key: string, promise: Promise<Usuario[]>): Promise<Usuario[]> {
+function remember(key: string, promise: Promise<ListadoUsuarios>): Promise<ListadoUsuarios> {
   const existing = inFlight.get(key);
   if (existing) return existing; // evita consultas duplicadas simultáneas
   const tracked = promise.then(
@@ -108,8 +108,20 @@ export interface BuscarUsuariosOptions {
   refresh?: boolean;      // ignora la caché del servidor
 }
 
+/** Resultado de un listado: total y activos cuentan todas las coincidencias, no solo las devueltas. */
+export interface ListadoUsuarios {
+  total: number;
+  activos: number;
+  data: Usuario[];
+}
+
 /** Busca usuarios (nombre, apellido, login o correo). Nunca arma consultas con el texto: filtra el backend. */
 export async function buscarUsuarios(q = '', options: BuscarUsuariosOptions = {}): Promise<Usuario[]> {
+  return (await listarUsuarios(q, options)).data;
+}
+
+/** Igual que buscarUsuarios, pero devuelve también los totales (para tarjetas de resumen). */
+export async function listarUsuarios(q = '', options: BuscarUsuariosOptions = {}): Promise<ListadoUsuarios> {
   const soloActivos = options.soloActivos ?? true;
   const limit = options.limit ?? 50;
   const key = `${cacheKey(q)}|${soloActivos ? 'a' : 't'}|${limit}`;
@@ -128,8 +140,46 @@ export async function buscarUsuarios(q = '', options: BuscarUsuariosOptions = {}
 
   return remember(key, (async () => {
     const json = await authedFetch(qs ? `?${qs}` : '');
-    return (json.data || []) as Usuario[];
+    const data = (json.data || []) as Usuario[];
+    return {
+      total: typeof json.total === 'number' ? json.total : data.length,
+      activos: typeof json.activos === 'number' ? json.activos : data.filter(u => u.estado === 'activo').length,
+      data,
+    };
   })());
+}
+
+/**
+ * Código de usuario sugerido: inicial del primer nombre + apellido completo,
+ * en minúsculas, sin tildes, sin ñ (pasa a n) y sin espacios ni signos.
+ * Ej.: Verónica / Franceschini → vfranceschini; María José / Pérez Gil → mperezgil.
+ */
+export function generarCodigoUsuario(nombre: string, apellido: string): string {
+  const limpiar = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  const inicial = limpiar(nombre.trim().split(/\s+/)[0] || '').charAt(0);
+  return inicial + limpiar(apellido);
+}
+
+/**
+ * Devuelve el código si está libre; si ya existe, le agrega el primer número
+ * libre (vfranceschini2, vfranceschini3...). Si no se puede consultar, devuelve
+ * el código tal cual y el servidor rechaza el duplicado al guardar.
+ */
+export async function codigoDisponible(codigo: string): Promise<string> {
+  const base = codigo.toLowerCase().replace(/\s+/g, '');
+  if (!base) return base;
+  let usados: Set<string>;
+  try {
+    const lista = await buscarUsuarios(base, { soloActivos: false, limit: 500 });
+    usados = new Set(lista.map(u => u.usuario.toLowerCase().replace(/\s+/g, '')));
+  } catch {
+    return base;
+  }
+  if (!usados.has(base)) return base;
+  let n = 2;
+  while (usados.has(`${base}${n}`)) n++;
+  return `${base}${n}`;
 }
 
 /** Verifica si un usuario (login) o correo ya existe en alguna fuente. */

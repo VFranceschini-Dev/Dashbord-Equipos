@@ -11,7 +11,7 @@
  *      accedida con REST PostgREST usando SUPABASE_SERVICE_ROLE_KEY.
  * La fusión ocurre acá: clave = login en minúsculas sin espacios; si el usuario
  * está en ambas fuentes, prevalece la del origen interno. El id devuelto es un
- * UUID opaco derivado de la fuente + login (no revela el origen).
+ * UUID opaco derivado solo del login (igual en ambas fuentes; no revela el origen).
  *
  * Variables de entorno (Vercel > Settings > Environment Variables, Production):
  *   IPA_API_URL            ej. https://ipa.donnet.com.ar
@@ -27,7 +27,7 @@
 // Perfil normalizado: ES LO ÚNICO que sale al navegador.
 // ---------------------------------------------------------------------------
 interface UsuarioPublico {
-  id: string;           // UUID opaco v5 (fuente + login) — no revela el origen
+  id: string;           // UUID opaco v5 (login) — igual en ambas fuentes, no revela el origen
   nombre: string;       // pila
   apellido: string;
   usuario: string;      // login
@@ -79,7 +79,7 @@ function sha1Bytes(bytes: Uint8Array): Uint8Array {
 }
 
 const NAMESPACE_ORIGEN = '6ba7b811-9dad-11d1-80b4-00c04fd430c8'; // URL
-const NAMESPACE_LOCAL = '6ba7b812-9dad-11d1-80b4-00c04fd430c8';   // OID
+const NAMESPACE_LOCAL = NAMESPACE_ORIGEN; // mismo id para el mismo login, venga de donde venga
 
 function uuidV5(namespaceHex: string, value: string): string {
   const ns = namespaceHex.replace(/-/g, '');
@@ -361,8 +361,7 @@ export async function GET(request: Request): Promise<Response> {
     return jsonResponse(502, { success: false, error: 'No se pudo obtener la información en este momento.' });
   }
 
-  let filtered = list;
-  if (onlyActive) filtered = filtered.filter(u => u.estado === 'activo');
+  let filtered = [...list]; // copia: el sort de abajo no debe alterar la caché
   const q = norm(qRaw);
   if (q) {
     filtered = filtered.filter(u =>
@@ -375,16 +374,19 @@ export async function GET(request: Request): Promise<Response> {
       norm(u.departamento).includes(q),
     );
   }
+  const activos = filtered.filter(u => u.estado === 'activo').length;
+  if (onlyActive) filtered = filtered.filter(u => u.estado === 'activo');
   filtered.sort((a, b) => `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`));
 
   const total = filtered.length;
   const data = filtered.slice(0, limitParam);
-  return jsonResponse(200, { success: true, total, count: data.length, data });
+  return jsonResponse(200, { success: true, total, activos, count: data.length, data });
 }
 
 // ---------------------------------------------------------------------------
 // POST: alta de usuario nuevo (solo en la tabla local; jamás en el origen)
 // ---------------------------------------------------------------------------
+const NOMBRE_RE = /^[\p{L}\p{M} .'-]{1,80}$/u;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export async function POST(request: Request): Promise<Response> {
@@ -408,10 +410,10 @@ export async function POST(request: Request): Promise<Response> {
   const estado = str(input?.estado).trim().toLowerCase() === 'inactivo' ? 'inactivo' : 'activo';
 
   // Validaciones (mensajes genéricos, sin detalles internos)
-  if (!nombre || !/^[\w .'-]{1,80}$/.test(nombre)) {
+  if (!nombre || !NOMBRE_RE.test(nombre)) {
     return jsonResponse(400, { success: false, error: 'El nombre no es válido.' });
   }
-  if (!apellido || /^[\w .'-]{1,80}$/.test(apellido) === false) {
+  if (!apellido || !NOMBRE_RE.test(apellido)) {
     return jsonResponse(400, { success: false, error: 'El apellido no es válido.' });
   }
   if (!usuario || usuario.length < 2 || usuario.length > 60) {

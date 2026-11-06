@@ -59,6 +59,14 @@ export interface Equipment {
   purchaseDate: string;
   warrantyEnd: string;
   notes: string;
+  // Datos del servidor de monitoreo remoto (solo equipos sincronizados)
+  meshNodeId?: string;
+  meshSo?: string;
+  meshIp?: string;
+  meshGrupo?: string;
+  meshEnLinea?: boolean;
+  meshUltimaConexion?: string;
+  meshSincronizado?: string;
 }
 
 export interface Supplier {
@@ -71,21 +79,6 @@ export interface Supplier {
   address: string;
   category: string[]; // Ahora soporta múltiples categorías
   active: boolean;
-  notes: string;
-}
-
-export interface Collaborator {
-  id: string;
-  name: string;
-  lastName: string;
-  dni: string;
-  email: string;
-  phone: string;
-  department: string;
-  position: string;
-  active: boolean;
-  equipmentCount: number;
-  joinDate: string;
   notes: string;
 }
 
@@ -104,7 +97,7 @@ export interface Voucher {
   notes: string;
 }
 
-export type Page = 'dashboard' | 'asignaciones' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'server-config' | 'data-sync';
+export type Page = 'dashboard' | 'asignaciones' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'server-config';
 
 export interface ExternalServer {
   id: string;

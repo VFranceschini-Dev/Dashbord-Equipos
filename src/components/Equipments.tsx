@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ModuleSyncControls from './ModuleSyncControls';
 import { Equipment } from '../types';
 import { EQUIPMENT_CATEGORIES } from '../data';
+import { syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
+import { asignacionesActuales, type AsignacionActual } from '../utils/asignaciones';
 import {
   Plus, Search, Edit2, Trash2, X, Monitor, Laptop, Server,
-  HardDrive, Mouse, Package, Tag, User, Upload
+  HardDrive, Mouse, Package, Tag, User, Upload, RefreshCw, Loader2
 } from 'lucide-react';
+import { sincronizarConMesh } from '../services/mesh';
 import ImportModal from './ImportModal';
+import EquipoDetalle from './EquipoDetalle';
 import { v4 as uuidv4 } from 'uuid';
 
 const typeIcons = {
@@ -34,8 +39,15 @@ const statusConfig = {
   retired: { label: 'Retirado', color: 'bg-gray-100 text-gray-700' },
 };
 
+const ESTADOS_EDITABLES: Equipment['status'][] = ['available', 'maintenance'];
+
 export default function Equipments() {
-  const { equipments, addEquipment, updateEquipment, deleteEquipment, collaborators } = useApp();
+  const { equipments, addEquipment, updateEquipment, deleteEquipment, refreshModule } = useApp();
+  const [sincronizando, setSincronizando] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [detalleId, setDetalleId] = useState<string | null>(null);
+  const equipoDetalle = detalleId ? equipments.find(e => e.id === detalleId) : undefined;
+  const [asignaciones, setAsignaciones] = useState<Map<string, AsignacionActual>>(new Map());
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -87,10 +99,33 @@ export default function Equipments() {
     setShowForm(true);
   };
 
-  const getCollaboratorName = (id?: string) => {
-    if (!id) return '-';
-    const c = collaborators.find(c => c.id === id);
-    return c ? `${c.name} ${c.lastName}` : 'Sin asignar';
+  // "Asignado a" sale del último movimiento de cada equipo.
+  const cargarAsignaciones = () => {
+    syncEquipmentMovementsFromSupabase()
+      .then(movs => setAsignaciones(asignacionesActuales(movs)))
+      .catch(() => setAsignaciones(new Map()));
+  };
+  useEffect(cargarAsignaciones, []);
+
+  const getAsignadoA = (equipmentId: string) => asignaciones.get(equipmentId)?.usuarioNombre || '-';
+
+  // Trae PC y notebooks del servidor de monitoreo y los guarda (nuevos + actualizados).
+  const handleSincronizarMesh = async () => {
+    setSincronizando(true);
+    setSyncMsg(null);
+    try {
+      const r = await sincronizarConMesh();
+      await refreshModule('equipments');
+      setSyncMsg({
+        ok: r.errores === 0,
+        text: `Sincronización: ${r.nuevos} nuevos, ${r.actualizados} actualizados, ${r.ignorados} ignorados (no son PC ni notebook)`
+          + (r.errores ? `, ${r.errores} con error.` : '.'),
+      });
+    } catch (err) {
+      setSyncMsg({ ok: false, text: (err as Error).message });
+    } finally {
+      setSincronizando(false);
+    }
   };
 
   const handleImport = (importedData: any[]) => {
@@ -118,6 +153,7 @@ export default function Equipments() {
 
   return (
     <div className="space-y-5">
+      <ModuleSyncControls module="equipments" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
           <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">Total Equipos</p>
@@ -166,6 +202,10 @@ export default function Equipments() {
           </select>
         </div>
         <div className="flex gap-2">
+          <button onClick={handleSincronizarMesh} disabled={sincronizando}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-60">
+            {sincronizando ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Sincronizar con Mesh
+          </button>
           <button onClick={() => setShowImport(true)}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium">
             <Upload size={16} /> Importar
@@ -176,6 +216,12 @@ export default function Equipments() {
           </button>
         </div>
       </div>
+
+      {syncMsg && (
+        <div className={`rounded-lg px-3 py-2 text-sm ${syncMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+          {syncMsg.text}
+        </div>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -231,20 +277,17 @@ export default function Equipments() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                  {/* "Asignado" y "Retirado" solo cambian al registrar movimientos en Asignación de Equipos */}
                   <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Equipment['status'] })}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm">
-                    {Object.entries(statusConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    disabled={!ESTADOS_EDITABLES.includes(form.status)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm disabled:bg-gray-50 disabled:text-gray-500">
+                    {Object.entries(statusConfig)
+                      .filter(([k]) => ESTADOS_EDITABLES.includes(k as Equipment['status']) || k === form.status)
+                      .map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a usuario</label>
-                  <select value={form.collaboratorId || ''} onChange={e => setForm({ ...form, collaboratorId: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm">
-                    <option value="">Sin asignar</option>
-                    {collaborators.map(c => <option key={c.id} value={c.id}>{c.name} {c.lastName}</option>)}
-                  </select>
+                  {!ESTADOS_EDITABLES.includes(form.status) && (
+                    <p className="text-xs text-gray-500 mt-1">Se cambia desde Asignación de Equipos.</p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -297,6 +340,7 @@ export default function Equipments() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Tipo</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Categoría</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Serial</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">En línea</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Asignado a</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Estado</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Acciones</th>
@@ -304,13 +348,18 @@ export default function Equipments() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.map(eq => (
-                <tr key={eq.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={eq.id} onClick={() => setDetalleId(eq.id)} title="Ver detalle"
+                  className="hover:bg-gray-50 transition-colors cursor-pointer">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 bg-blue-50 rounded text-blue-600">{typeIcons[eq.type]}</div>
                       <div>
                         <p className="text-sm font-medium text-gray-800">{eq.name}</p>
-                        <p className="text-xs text-gray-400">{eq.brand} {eq.model}</p>
+                        <p className="text-xs text-gray-400">
+                          {eq.meshNodeId
+                            ? [eq.meshGrupo, eq.meshIp, eq.meshSo].filter(Boolean).join(' · ')
+                            : `${eq.brand} ${eq.model}`}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -321,9 +370,18 @@ export default function Equipments() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 font-mono">{eq.serialNumber || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {eq.meshNodeId ? (
+                      <span className="inline-flex items-center gap-1.5"
+                        title={eq.meshUltimaConexion ? `Última conexión: ${new Date(eq.meshUltimaConexion).toLocaleString('es-AR')}` : undefined}>
+                        <span className={`w-2 h-2 rounded-full ${eq.meshEnLinea ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                        {eq.meshEnLinea ? 'Sí' : 'No'}
+                      </span>
+                    ) : '-'}
+                  </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1 text-sm text-gray-600">
-                      <User size={12} /> {getCollaboratorName(eq.collaboratorId)}
+                      <User size={12} /> {getAsignadoA(eq.id)}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -332,7 +390,7 @@ export default function Equipments() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
                       <button onClick={() => startEdit(eq)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600"><Edit2 size={16} /></button>
                       <button onClick={() => setDeleteConfirm(eq.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>
                     </div>
@@ -349,6 +407,11 @@ export default function Equipments() {
           </div>
         )}
       </div>
+
+      {equipoDetalle && (
+        <EquipoDetalle equipment={equipoDetalle} asignacion={asignaciones.get(equipoDetalle.id)}
+          onMovimiento={cargarAsignaciones} onClose={() => setDetalleId(null)} />
+      )}
 
       <ImportModal
         isOpen={showImport}

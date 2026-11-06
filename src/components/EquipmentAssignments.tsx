@@ -1,24 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { useAuth } from '../context/AuthContext';
-import { syncEquipmentMovementToSupabase, syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
-import { buscarUsuariosCompat, existeUsuario, darDeAltaUsuario, ProxyError, type UsuarioCompat, type AltaUsuarioInput } from '../services/usuarios';
+import { syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
+import { buscarUsuariosCompat, existeUsuario, darDeAltaUsuario, generarCodigoUsuario, codigoDisponible, ProxyError, type UsuarioCompat, type AltaUsuarioInput } from '../services/usuarios';
 import { TEXTOS_USUARIOS } from '../constants/textos';
 import { Equipment, EquipmentMovement } from '../types';
-import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History, UserPlus, X } from 'lucide-react';
+import { asignacionesActuales } from '../utils/asignaciones';
+import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History, UserPlus, X, FileText, Clock } from 'lucide-react';
+import RegistrarMovimientoModal, { type TipoMovimiento, type UsuarioMovimiento } from './RegistrarMovimientoModal';
+import GenerarComprobanteModal from './comprobante/GenerarComprobanteModal';
+import { comprobantesPorMovimiento, enlaceComprobante, type ResumenComprobante } from '../services/comprobantes';
 
 const T = TEXTOS_USUARIOS.asignaciones;
 
+// Los equipos solo transitan entre asignación y devolución. Traslado y baja
+// se conservan solo para mostrar movimientos viejos del historial.
 const TIPOS: { value: EquipmentMovement['tipo']; label: string; color: string }[] = [
   { value: 'asignacion', label: 'Asignación', color: 'bg-blue-100 text-blue-700' },
   { value: 'devolucion', label: 'Devolución', color: 'bg-emerald-100 text-emerald-700' },
+];
+const TIPOS_HISTORICOS: typeof TIPOS = [
+  ...TIPOS,
   { value: 'traslado', label: 'Traslado', color: 'bg-amber-100 text-amber-700' },
   { value: 'baja', label: 'Baja', color: 'bg-red-100 text-red-700' },
 ];
 
 export default function EquipmentAssignments() {
-  const { equipments, setEquipments } = useApp();
-  const { user } = useAuth();
+  const { equipments } = useApp();
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [loadingHist, setLoadingHist] = useState(true);
 
@@ -33,6 +40,7 @@ export default function EquipmentAssignments() {
   // Alta rápida de usuario no registrado desde "Registrar movimiento"
   const [showAlta, setShowAlta] = useState(false);
   const [altaForm, setAltaForm] = useState<AltaUsuarioInput>({ nombre: '', apellido: '', usuario: '', correo: '', departamento: '', estado: 'activo' });
+  const [altaLoginEditado, setAltaLoginEditado] = useState(false);
   const [altaSaving, setAltaSaving] = useState(false);
   const [altaMsg, setAltaMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -40,8 +48,19 @@ export default function EquipmentAssignments() {
   const [equipmentId, setEquipmentId] = useState('');
   const [tipo, setTipo] = useState<EquipmentMovement['tipo']>('asignacion');
   const [observaciones, setObservaciones] = useState('');
-  const [saving, setSaving] = useState(false);
   const [formMsg, setFormMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Confirmación del movimiento (correo, firma y comprobante) y comprobantes del historial
+  const [confirmar, setConfirmar] = useState<{ tipo: TipoMovimiento; equipo: Equipment; usuario: UsuarioMovimiento } | null>(null);
+  const [comprobantes, setComprobantes] = useState<Map<number, ResumenComprobante>>(new Map());
+  const [generar, setGenerar] = useState<EquipmentMovement | null>(null);
+  const cargarComprobantes = () => { comprobantesPorMovimiento().then(setComprobantes).catch(() => undefined); };
+  useEffect(cargarComprobantes, []);
+  const recargarHistorial = async () => {
+    const d = await syncEquipmentMovementsFromSupabase().catch(() => null);
+    if (d) setMovements(d);
+    cargarComprobantes();
+  };
 
   // Historial: carga al montar
   useEffect(() => {
@@ -77,10 +96,13 @@ export default function EquipmentAssignments() {
 
   const abrirAlta = () => {
     const partes = query.trim().split(/\s+/);
+    const nombre = partes[0] || '';
+    const apellido = partes.slice(1).join(' ');
+    setAltaLoginEditado(false);
     setAltaForm({
-      nombre: partes[0] || '',
-      apellido: partes.slice(1).join(' '),
-      usuario: query.trim(),
+      nombre,
+      apellido,
+      usuario: generarCodigoUsuario(nombre, apellido),
       correo: '',
       departamento: '',
       estado: 'activo',
@@ -89,17 +111,28 @@ export default function EquipmentAssignments() {
     setShowAlta(true);
   };
 
+  // Mientras no se edite a mano, el código se regenera con nombre y apellido.
+  const updateAltaNombre = (campo: 'nombre' | 'apellido', valor: string) => {
+    const next = { ...altaForm, [campo]: valor };
+    if (!altaLoginEditado) next.usuario = generarCodigoUsuario(next.nombre, next.apellido);
+    setAltaForm(next);
+  };
+
   const handleAltaGuardado = async () => {
     setAltaSaving(true);
     setAltaMsg(null);
-    // 1) Verificar si ya existe (alguna fuente)
-    if (await existeUsuario({ usuario: altaForm.usuario, correo: altaForm.correo })) {
+    // 1) Mismo correo = misma persona: ya está registrada
+    if (altaForm.correo.trim() && await existeUsuario({ correo: altaForm.correo })) {
       setAltaSaving(false);
       setAltaMsg({ ok: false, text: T.yaRegistrado });
       return;
     }
-    // 2) Alta
-    const resultado = await darDeAltaUsuario(altaForm);
+    // 2) Código automático: si ya existe, se le agrega un número (vfranceschini2).
+    //    Si se editó a mano, se respeta y el servidor avisa si está repetido.
+    const usuario = altaLoginEditado ? altaForm.usuario.trim() : await codigoDisponible(altaForm.usuario.trim());
+    if (usuario !== altaForm.usuario) setAltaForm(f => ({ ...f, usuario }));
+    // 3) Alta
+    const resultado = await darDeAltaUsuario({ ...altaForm, usuario });
     setAltaSaving(false);
     if (resultado.ok) {
       const compat = { ...resultado.usuario, nombreCompleto: `${resultado.usuario.nombre} ${resultado.usuario.apellido}`.trim() || resultado.usuario.usuario, area: resultado.usuario.departamento || resultado.usuario.usuario };
@@ -119,31 +152,25 @@ export default function EquipmentAssignments() {
       setFormMsg({ ok: false, text: 'Seleccioná un equipamiento y un usuario antes de registrar.' });
       return;
     }
-    setSaving(true);
-    const result = await syncEquipmentMovementToSupabase({
-      equipmentId,
-      usuarioRef: selectedUser.id,
-      usuarioNombre: selectedUser.nombreCompleto,
-      usuarioArea: selectedUser.area,
-      tipo,
-      observaciones: observaciones.trim() || undefined,
-      registradoPor: user?.email || undefined,
-    });
-    setSaving(false);
-
-    if (result.success) {
-      // Refrescar historial y status local del equipo (la RPC ya actualizó Supabase)
-      const data = await syncEquipmentMovementsFromSupabase().catch(() => null);
-      if (data) setMovements(data);
-      setEquipments(prev => prev.map(e => e.id === equipmentId ? {
-        ...e,
-        status: (tipo === 'asignacion' || tipo === 'traslado' ? 'assigned' : tipo === 'devolucion' ? 'available' : 'retired') as Equipment['status'],
-      } : e));
-      setFormMsg({ ok: true, text: 'Movimiento registrado y estado del equipo actualizado.' });
-      setObservaciones('');
-    } else {
-      setFormMsg({ ok: false, text: result.error || 'No se pudo registrar el movimiento.' });
+    const actual = asignacionesActuales(movements).get(equipmentId);
+    if (tipo === 'asignacion' && actual) {
+      setFormMsg({ ok: false, text: `El equipo ya está asignado a ${actual.usuarioNombre}. Registrá primero la devolución.` });
+      return;
     }
+    if (tipo === 'devolucion' && actual?.usuarioRef !== selectedUser.id) {
+      setFormMsg({ ok: false, text: actual
+        ? `Ese equipo está asignado a ${actual.usuarioNombre}, no a la persona elegida.`
+        : 'Ese equipo no está asignado a nadie.' });
+      return;
+    }
+    // El registro (con correo, firma y comprobante) se confirma en el formulario compartido.
+    const equipo = equipments.find(e => e.id === equipmentId);
+    if (!equipo) return;
+    setConfirmar({
+      tipo: tipo === 'devolucion' ? 'devolucion' : 'asignacion',
+      equipo,
+      usuario: { ref: selectedUser.id, nombre: selectedUser.nombreCompleto, area: selectedUser.area, correo: selectedUser.correo || undefined },
+    });
   };
 
   const nombreEquipo = (id: string) => {
@@ -156,8 +183,8 @@ export default function EquipmentAssignments() {
       <div className="flex items-center gap-3">
         <div className="p-2 bg-blue-50 rounded-lg"><Monitor size={22} className="text-blue-600" /></div>
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Asignación de Equipos</h2>
-          <p className="text-xs text-gray-500">{T.subtitulo}</p>
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white">Movimientos de equipos</h2>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{T.subtitulo}</p>
         </div>
       </div>
 
@@ -173,7 +200,13 @@ export default function EquipmentAssignments() {
         <h3 className="font-semibold text-gray-800 flex items-center gap-2"><ArrowLeftRight size={16} /> Registrar movimiento</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{T.etiquetaUsuario}</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">{T.etiquetaUsuario}</label>
+              <button onClick={abrirAlta}
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+                <UserPlus size={13} /> {TEXTOS_USUARIOS.usuarios.nuevo}
+              </button>
+            </div>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -238,10 +271,10 @@ export default function EquipmentAssignments() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={handleSubmit} disabled={saving}
+          <button onClick={handleSubmit}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-60">
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle size={15} />}
-            {saving ? 'Guardando...' : 'Registrar movimiento'}
+            <CheckCircle size={15} />
+            Registrar movimiento
           </button>
           {formMsg && (
             <span className={`text-sm ${formMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{formMsg.text}</span>
@@ -261,19 +294,21 @@ export default function EquipmentAssignments() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-                  <input type="text" value={altaForm.nombre} onChange={e => setAltaForm({ ...altaForm, nombre: e.target.value })}
+                  <input type="text" value={altaForm.nombre} onChange={e => updateAltaNombre('nombre', e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Apellido *</label>
-                  <input type="text" value={altaForm.apellido} onChange={e => setAltaForm({ ...altaForm, apellido: e.target.value })}
+                  <input type="text" value={altaForm.apellido} onChange={e => updateAltaNombre('apellido', e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Usuario (código) *</label>
-                <input type="text" value={altaForm.usuario} onChange={e => setAltaForm({ ...altaForm, usuario: e.target.value })}
+                <input type="text" value={altaForm.usuario}
+                  onChange={e => { setAltaLoginEditado(true); setAltaForm({ ...altaForm, usuario: e.target.value }); }}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+                <p className="text-xs text-gray-400 mt-1">Se genera automáticamente; podés modificarlo.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Correo</label>
@@ -314,11 +349,22 @@ export default function EquipmentAssignments() {
         </div>
       )}
 
+      {confirmar && (
+        <RegistrarMovimientoModal tipo={confirmar.tipo} equipo={confirmar.equipo} usuario={confirmar.usuario}
+          observacionesIniciales={observaciones}
+          onClose={() => setConfirmar(null)}
+          onRegistrado={() => { recargarHistorial(); setObservaciones(''); setEquipmentId(''); }} />
+      )}
+      {generar && (
+        <GenerarComprobanteModal movementId={Number(generar.id)} usuarioRef={generar.usuarioRef} usuarioNombre={generar.usuarioNombre}
+          onClose={() => setGenerar(null)} onGenerado={cargarComprobantes} />
+      )}
+
       {/* Historial */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
           <h3 className="font-semibold text-gray-800 flex items-center gap-2"><History size={16} /> Historial de movimientos de equipos</h3>
-          <button onClick={async () => { const d = await syncEquipmentMovementsFromSupabase().catch(() => null); if (d) setMovements(d); }}
+          <button onClick={recargarHistorial}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-50">
             <RefreshCw size={13} /> Actualizar
           </button>
@@ -344,19 +390,49 @@ export default function EquipmentAssignments() {
                   <th className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Área</th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Tipo</th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Observaciones</th>
+                  <th className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Comprobante</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {movements.map(m => {
-                  const t = TIPOS.find(x => x.value === m.tipo)!;
+                  const t = TIPOS_HISTORICOS.find(x => x.value === m.tipo)!;
                   return (
                     <tr key={m.id} className="hover:bg-gray-50 text-sm">
                       <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{new Date(m.fecha).toLocaleString('es-AR')}</td>
                       <td className="px-4 py-2.5 text-gray-800">{nombreEquipo(m.equipmentId)}</td>
-                      <td className="px-4 py-2.5 text-gray-600">{m.usuarioNombre} <span className="text-gray-400">#{m.usuarioRef}</span></td>
+                      <td className="px-4 py-2.5 text-gray-600">{m.usuarioNombre}</td>
                       <td className="px-4 py-2.5 text-gray-600">{m.usuarioArea}</td>
                       <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${t.color}`}>{t.label}</span></td>
                       <td className="px-4 py-2.5 text-gray-500">{m.observaciones || '—'}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        {m.tipo !== 'asignacion' ? <span className="text-gray-300">—</span> : (() => {
+                          const c = comprobantes.get(Number(m.id));
+                          if (!c) {
+                            return (
+                              <button onClick={() => setGenerar(m)} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                                <FileText size={12} /> Generar
+                              </button>
+                            );
+                          }
+                          return (
+                            <span className="inline-flex items-center gap-2">
+                              <a href={`${enlaceComprobante(c.token)}?ver=1`} target="_blank" rel="noreferrer"
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  c.estado === 'firmado' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
+                                title="Ver comprobante">
+                                {c.estado === 'firmado' ? <CheckCircle size={11} /> : <Clock size={11} />}
+                                {c.estado === 'firmado' ? 'Firmado' : 'Pendiente de firma'}
+                              </a>
+                              {c.estado === 'pendiente' && (
+                                <button onClick={() => setGenerar(m)} className="text-xs text-blue-600 hover:underline"
+                                  title="Volver a enviar el email (si no se envió) o copiar el enlace">
+                                  Reenviar
+                                </button>
+                              )}
+                            </span>
+                          );
+                        })()}
+                      </td>
                     </tr>
                   );
                 })}

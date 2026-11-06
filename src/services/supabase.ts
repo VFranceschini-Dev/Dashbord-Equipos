@@ -77,6 +77,13 @@ export interface SupabaseEquipment {
   purchase_date: string;
   warranty_end: string;
   notes: string;
+  mesh_node_id?: string | null;
+  mesh_so?: string | null;
+  mesh_ip?: string | null;
+  mesh_grupo?: string | null;
+  mesh_en_linea?: boolean | null;
+  mesh_ultima_conexion?: string | null;
+  mesh_sincronizado?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -97,24 +104,6 @@ export interface SupabaseSupplier {
   updated_at?: string;
 }
 
-export interface SupabaseCollaborator {
-  id?: string;
-  user_id: string;
-  name: string;
-  last_name: string;
-  dni: string;
-  email: string;
-  phone: string;
-  department: string;
-  position: string;
-  active: boolean;
-  equipment_count: number;
-  join_date: string;
-  notes: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface SupabaseVoucher {
   id?: string;
   user_id: string;
@@ -129,43 +118,6 @@ export interface SupabaseVoucher {
   equipment_ids: string[];
   status: 'pending' | 'approved' | 'rejected' | 'processed';
   notes: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface SupabaseExternalServer {
-  id?: string;
-  user_id: string;
-  name: string;
-  type: 'meshcentral' | 'custom';
-  url: string;
-  username: string;
-  password: string;
-  auto_sync: boolean;
-  sync_interval: number;
-  last_sync?: string;
-  status: 'active' | 'inactive' | 'error';
-  notes?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface SupabaseSyncedDevice {
-  id?: string;
-  user_id: string;
-  server_id: string;
-  external_id: string;
-  name: string;
-  hostname: string;
-  ip: string;
-  os: string;
-  status: 'connected' | 'disconnected';
-  last_seen: string;
-  group?: string;
-  cpu?: string;
-  ram?: string;
-  synced_at: string;
-  local_equipment_id?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -357,45 +309,6 @@ export const suppliersService = {
   },
 };
 
-// ===== COLLABORATORS =====
-export const collaboratorsService = {
-  async getAll(userId: string) {
-    const { data, error } = await supabase
-      .from('collaborators')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    return { data, error };
-  },
-
-  async create(collaborator: Omit<SupabaseCollaborator, 'id' | 'created_at' | 'updated_at'>) {
-    const { data, error } = await supabase
-      .from('collaborators')
-      .insert([collaborator])
-      .select()
-      .single();
-    return { data, error };
-  },
-
-  async update(id: string, updates: Partial<SupabaseCollaborator>) {
-    const { data, error } = await supabase
-      .from('collaborators')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-    return { data, error };
-  },
-
-  async delete(id: string) {
-    const { error } = await supabase
-      .from('collaborators')
-      .delete()
-      .eq('id', id);
-    return { error };
-  },
-};
-
 // ===== VOUCHERS =====
 export const vouchersService = {
   async getAll(userId: string) {
@@ -431,93 +344,6 @@ export const vouchersService = {
       .from('vouchers')
       .delete()
       .eq('id', id);
-    return { error };
-  },
-};
-
-// ===== EXTERNAL SERVERS =====
-export const externalServersService = {
-  async getAll(userId: string) {
-    const { data, error } = await supabase
-      .from('external_servers')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    return { data, error };
-  },
-
-  async create(server: Omit<SupabaseExternalServer, 'id' | 'created_at' | 'updated_at'>) {
-    const { data, error } = await supabase
-      .from('external_servers')
-      .insert([server])
-      .select()
-      .single();
-    return { data, error };
-  },
-
-  async update(id: string, updates: Partial<SupabaseExternalServer>) {
-    const { data, error } = await supabase
-      .from('external_servers')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-    return { data, error };
-  },
-
-  async delete(id: string) {
-    const { error } = await supabase
-      .from('external_servers')
-      .delete()
-      .eq('id', id);
-    return { error };
-  },
-};
-
-// ===== SYNCED DEVICES =====
-export const syncedDevicesService = {
-  async getAll(userId: string) {
-    const { data, error } = await supabase
-      .from('synced_devices')
-      .select('*')
-      .eq('user_id', userId)
-      .order('synced_at', { ascending: false });
-    return { data, error };
-  },
-
-  async create(device: Omit<SupabaseSyncedDevice, 'id' | 'created_at' | 'updated_at'>) {
-    const { data, error } = await supabase
-      .from('synced_devices')
-      .insert([device])
-      .select()
-      .single();
-    return { data, error };
-  },
-
-  async update(id: string, updates: Partial<SupabaseSyncedDevice>) {
-    const { data, error } = await supabase
-      .from('synced_devices')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-    return { data, error };
-  },
-
-  async delete(id: string) {
-    const { error } = await supabase
-      .from('synced_devices')
-      .delete()
-      .eq('id', id);
-    return { error };
-  },
-
-  async deleteByServerId(serverId: string, userId: string) {
-    const { error } = await supabase
-      .from('synced_devices')
-      .delete()
-      .eq('server_id', serverId)
-      .eq('user_id', userId);
     return { error };
   },
 };

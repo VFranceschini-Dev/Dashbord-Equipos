@@ -6,15 +6,14 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Printers from './components/Printers';
 import Inventory from './components/Inventory';
-import Movements from './components/Movements';
 import Reports from './components/Reports';
 import Equipments from './components/Equipments';
 import Suppliers from './components/Suppliers';
 import Collaborators from './components/Collaborators';
 import Vouchers from './components/Vouchers';
 import ServerConfig from './components/ServerConfig';
-import DataSync from './components/DataSync';
 import EquipmentAssignments from './components/EquipmentAssignments';
+import FirmarComprobante from './components/comprobante/FirmarComprobante';
 
 function PageRouter() {
   const { currentPage } = useApp();
@@ -24,12 +23,11 @@ function PageRouter() {
       return <Dashboard />;
     case 'printers':
       return <Printers />;
-    case 'asignaciones':
-      return <EquipmentAssignments />;
     case 'inventory':
       return <Inventory />;
     case 'movements':
-      return <Movements />;
+    case 'asignaciones': // ruta anterior: ahora es la misma pantalla
+      return <EquipmentAssignments />;
     case 'reports':
       return <Reports />;
     case 'equipments':
@@ -42,8 +40,6 @@ function PageRouter() {
       return <Vouchers />;
     case 'server-config':
       return <ServerConfig />;
-    case 'data-sync':
-      return <DataSync />;
     default:
       return <Dashboard />;
   }
@@ -77,6 +73,10 @@ function AppContent() {
 }
 
 export default function App() {
+  // Página pública de firma de comprobantes: no requiere iniciar sesión.
+  const firma = window.location.pathname.match(/^\/firmar\/([\w-]{20,64})\/?$/);
+  if (firma) return <FirmarComprobante token={firma[1]} />;
+
   return (
     <ThemeProvider>
       <AuthProvider>

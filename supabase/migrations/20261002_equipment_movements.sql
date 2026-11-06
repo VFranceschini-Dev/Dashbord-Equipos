@@ -1,3 +1,9 @@
+-- ⚠️ NOTA (2026-10-30): esta migración NO refleja la tabla de producción.
+-- En producción equipment_movements se creó con otro esquema (id bigint,
+-- usuario_ref integer, sin políticas ni RPC) y se corrigió con
+-- 20261030_fix_equipment_movements.sql. Para una base nueva, usar
+-- supabase/schema.sql en lugar de esta migración.
+--
 -- Migración: movimientos de EQUIPOS (hardware) asignados a usuarios de SAI_TEST.
 -- Ejecutar en Supabase > SQL Editor. No modifica tablas existentes.
 -- La tabla "toner_movements" (ex movements) es de TÓNER y NO se reutiliza acá.

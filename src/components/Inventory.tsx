@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ModuleSyncControls from './ModuleSyncControls';
+import Movements from './Movements';
 import { TonerItem } from '../types';
 import { groupTonersByCompatibility, getCompatibilityKey, getLowStockGroups } from '../utils/tonerCompatibility';
 import {
@@ -15,7 +17,23 @@ const colorMap = {
   yellow: { bg: 'bg-yellow-400', label: 'Amarillo', dot: 'bg-yellow-400' },
 };
 
+/** Inventario de tóner: pestañas de stock y de movimientos (entregas, reposiciones, etc.). */
 export default function Inventory() {
+  const [pestana, setPestana] = useState<'stock' | 'movimientos'>('stock');
+  const clase = (activa: boolean) => `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+    activa ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`;
+  return (
+    <div className="space-y-5">
+      <div className="flex gap-2">
+        <button onClick={() => setPestana('stock')} className={clase(pestana === 'stock')}>Stock</button>
+        <button onClick={() => setPestana('movimientos')} className={clase(pestana === 'movimientos')}>Movimientos de tóner</button>
+      </div>
+      {pestana === 'stock' ? <StockToner /> : <Movements />}
+    </div>
+  );
+}
+
+function StockToner() {
   const { toners, addToner, updateToner, deleteToner, addMovement } = useApp();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -125,6 +143,7 @@ export default function Inventory() {
 
   return (
     <div className="space-y-5">
+      <ModuleSyncControls module="toners" />
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="relative flex-1 max-w-md">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
