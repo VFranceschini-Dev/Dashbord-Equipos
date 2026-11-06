@@ -39,9 +39,9 @@ function FirmaPendiente({ rol }: { rol: string }) {
   );
 }
 
-/** Logo de la empresa (se reemplaza por la imagen cuando esté disponible). */
+/** Logo de la empresa (public/logo-donnet.png). */
 function Logo() {
-  return <span className="text-2xl font-extrabold tracking-widest text-blue-800">DONNET</span>;
+  return <img src="/logo-donnet.png" alt="Donnet" className="h-8 sm:h-9 w-auto" />;
 }
 
 function Dato({ label, value }: { label: string; value: string }) {
