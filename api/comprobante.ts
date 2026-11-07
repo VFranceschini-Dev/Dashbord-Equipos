@@ -5,8 +5,10 @@
  *      Crea el comprobante de una asignación: guarda una copia fija del
  *      contenido (equipo, usuario, responsable y su firma), su huella SHA-256
  *      y un enlace secreto para firmar. Si ya existe, devuelve el mismo.
- * GET  ?token=...                                 (público, con el enlace)
+ * GET  ?token=...[&interno=1]                     (público, con el enlace)
  *      Devuelve el comprobante para mostrarlo y, si está firmado, la firma.
+ *      La primera vez que lo abre el usuario (sin interno=1) queda registrado
+ *      como "visto" y se avisa en el ticket.
  * POST { accion: 'firmar', token, nombre, dni, fuente, acepto }   (público)
  *      Registra la firma tipográfica del usuario con fecha, IP y huella.
  *
@@ -181,22 +183,32 @@ async function enviarPorZammad(
   }
 }
 
-/** Avisa en el ticket que el usuario firmó (y lo cierra si está configurado). Nunca lanza. */
-async function avisarFirma(ticketId: number, nombre: string, fechaIso: string): Promise<void> {
+/** Nota interna en el ticket. Nunca lanza. */
+async function notaEnTicket(ticketId: number, asunto: string, cuerpo: string): Promise<void> {
   const z = zammad();
   if (!z) return;
   try {
     await llamarZammad(z, 'ticket_articles', 'POST', {
-      ticket_id: ticketId,
-      subject: 'Comprobante firmado',
-      body: `<p>${html(nombre)} firmó el comprobante de entrega el ${new Date(fechaIso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}.</p>`,
-      content_type: 'text/html',
-      type: 'note',
-      internal: true,
+      ticket_id: ticketId, subject: asunto, body: cuerpo, content_type: 'text/html', type: 'note', internal: true,
     });
-    if (z.cerrar) await llamarZammad(z, `tickets/${ticketId}`, 'PUT', { state: 'closed' });
   } catch (err) {
-    console.error('[api/comprobante] aviso de firma en Zammad:', (err as Error).message);
+    console.error('[api/comprobante] nota en Zammad:', (err as Error).message);
+  }
+}
+
+const fechaAr = (iso: string) => new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+
+/** Avisa en el ticket que el usuario firmó (y lo cierra si está configurado). Nunca lanza. */
+async function avisarFirma(ticketId: number, nombre: string, fechaIso: string): Promise<void> {
+  const z = zammad();
+  if (!z) return;
+  await notaEnTicket(ticketId, 'Comprobante firmado',
+    `<p>${html(nombre)} firmó el comprobante de entrega el ${fechaAr(fechaIso)}.</p>`);
+  if (!z.cerrar) return;
+  try {
+    await llamarZammad(z, `tickets/${ticketId}`, 'PUT', { state: 'closed' });
+  } catch (err) {
+    console.error('[api/comprobante] cierre del ticket en Zammad:', (err as Error).message);
   }
 }
 
@@ -320,8 +332,25 @@ export async function GET(request: Request): Promise<Response> {
   const token = new URL(request.url).searchParams.get('token') ?? '';
   if (!/^[\w-]{20,64}$/.test(token)) return jsonResponse(400, { success: false, error: 'Enlace inválido.' });
   try {
-    const [c] = await rest(b, `comprobantes_entrega?token=eq.${token}&select=id,estado,datos,hash_documento,created_at,firmado_nombre,firmado_dni,firmado_fuente,firmado_at,firmado_ip,hash_firma`) ?? [];
+    const [c] = await rest(b, `comprobantes_entrega?token=eq.${token}&select=id,estado,datos,hash_documento,created_at,firmado_nombre,firmado_dni,firmado_fuente,firmado_at,firmado_ip,hash_firma,visto_at,zammad_ticket_id`) ?? [];
     if (!c) return jsonResponse(404, { success: false, error: 'El comprobante no existe.' });
+
+    // Primera apertura del usuario: se registra (no cuenta cuando Sistemas lo abre para verlo).
+    const interno = new URL(request.url).searchParams.get('interno') === '1';
+    if (!interno && c.estado === 'pendiente' && !c.visto_at) {
+      const ahora = new Date().toISOString();
+      const marcado = await rest(b, `comprobantes_entrega?token=eq.${token}&visto_at=is.null`, {
+        method: 'PATCH', body: JSON.stringify({ visto_at: ahora }),
+      }).catch(() => null);
+      if (Array.isArray(marcado) && marcado.length > 0) {
+        c.visto_at = ahora;
+        if (c.zammad_ticket_id) {
+          await notaEnTicket(Number(c.zammad_ticket_id), 'Comprobante visto',
+            `<p>${html(c.datos?.usuario?.nombre || 'El usuario')} abrió el comprobante de entrega el ${fechaAr(ahora)}.</p>`);
+        }
+      }
+    }
+    delete c.zammad_ticket_id;
     return jsonResponse(200, { success: true, data: c });
   } catch {
     return jsonResponse(502, { success: false, error: 'No se pudo obtener el comprobante en este momento.' });

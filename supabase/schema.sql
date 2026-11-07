@@ -345,9 +345,12 @@ create table if not exists public.comprobantes_entrega (
   firmado_ip         text,
   firmado_user_agent text,
   hash_firma         text,                                     -- SHA-256 de documento + firma
+  visto_at           timestamptz,                              -- primera vez que el usuario abrió el enlace
   created_at         timestamptz not null default now()
 );
 create index if not exists comprobantes_entrega_user_idx on public.comprobantes_entrega (user_id);
+-- Columna agregada en 20261106_comprobantes_visto.sql (para bases creadas antes)
+alter table public.comprobantes_entrega add column if not exists visto_at timestamptz;
 alter table public.comprobantes_entrega enable row level security;
 drop policy if exists "own_comprobantes_select" on public.comprobantes_entrega;
 create policy "own_comprobantes_select" on public.comprobantes_entrega for select

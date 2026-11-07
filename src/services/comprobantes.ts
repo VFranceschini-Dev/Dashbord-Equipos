@@ -34,13 +34,40 @@ export interface Comprobante {
   firmado_at: string | null;
   firmado_ip: string | null;
   hash_firma: string | null;
+  visto_at: string | null;
 }
+
+/** Estado para mostrar: pendiente → visto (el usuario abrió el enlace) → firmado. */
+export type EstadoVisible = 'pendiente' | 'visto' | 'firmado' | 'anulado';
+
+export function estadoVisible(c: { estado: Comprobante['estado']; visto_at?: string | null }): EstadoVisible {
+  if (c.estado === 'pendiente' && c.visto_at) return 'visto';
+  return c.estado;
+}
+
+export const ESTADO_COMPROBANTE: Record<EstadoVisible, { label: string; clase: string }> = {
+  pendiente: { label: 'Pendiente de firma', clase: 'bg-amber-100 text-amber-700' },
+  visto: { label: 'Visto, sin firmar', clase: 'bg-sky-100 text-sky-700' },
+  firmado: { label: 'Firmado', clase: 'bg-emerald-100 text-emerald-700' },
+  anulado: { label: 'Anulado', clase: 'bg-gray-100 text-gray-500' },
+};
 
 export interface ResumenComprobante {
   movement_id: number;
   token: string;
   estado: Comprobante['estado'];
   correo_destino: string | null;
+  visto_at: string | null;
+}
+
+/** Fila del listado de comprobantes de entrega. */
+export interface ComprobanteListado extends ResumenComprobante {
+  id: string;
+  datos: DatosComprobante;
+  zammad_ticket_id: number | null;
+  created_at: string;
+  firmado_at: string | null;
+  firmado_nombre: string | null;
 }
 
 async function token(): Promise<string | undefined> {
@@ -108,13 +135,24 @@ export async function crearComprobante(movementId: number, correo: string): Prom
 
 /** Comprobantes propios, por id de movimiento (para mostrar el estado en el historial). */
 export async function comprobantesPorMovimiento(): Promise<Map<number, ResumenComprobante>> {
-  const { data, error } = await supabase.from('comprobantes_entrega').select('movement_id, token, estado, correo_destino');
+  const { data, error } = await supabase.from('comprobantes_entrega').select('movement_id, token, estado, correo_destino, visto_at');
   if (error || !data) return new Map();
   return new Map(data.map(c => [Number(c.movement_id), c as ResumenComprobante]));
 }
 
-export async function obtenerComprobante(tokenFirma: string): Promise<Comprobante> {
-  return llamar({ method: 'GET' }, `?token=${encodeURIComponent(tokenFirma)}`);
+/** Listado completo de los comprobantes propios, del más nuevo al más viejo. */
+export async function listarComprobantes(): Promise<ComprobanteListado[]> {
+  const { data, error } = await supabase
+    .from('comprobantes_entrega')
+    .select('id, movement_id, token, estado, correo_destino, visto_at, datos, zammad_ticket_id, created_at, firmado_at, firmado_nombre')
+    .order('created_at', { ascending: false });
+  if (error) throw new Error('No se pudieron cargar los comprobantes.');
+  return (data ?? []) as ComprobanteListado[];
+}
+
+/** interno = lo abre Sistemas para verlo (no cuenta como "visto" por el usuario). */
+export async function obtenerComprobante(tokenFirma: string, interno = false): Promise<Comprobante> {
+  return llamar({ method: 'GET' }, `?token=${encodeURIComponent(tokenFirma)}${interno ? '&interno=1' : ''}`);
 }
 
 export async function firmarComprobante(tokenFirma: string, firma: FirmaResponsable & { acepto: boolean }): Promise<void> {
