@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Printer, Eye, EyeOff, AlertCircle, Shield, Server } from 'lucide-react';
 import LogoVLF from './LogoVLF';
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, aviso } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(aviso ?? '');
+  // Si la sesión se cerró por un usuario desactivado, mostrar el motivo.
+  useEffect(() => { if (aviso) setError(aviso); }, [aviso]);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {

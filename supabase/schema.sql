@@ -363,6 +363,47 @@ create policy "own_comprobantes_select" on public.comprobantes_entrega for selec
   using (auth.uid() = user_id);
 
 -- ============================================
+-- PERFILES DE USUARIOS DE LA APP (nombre y rol de quien inicia sesión)
+-- Estructura relevada de producción; políticas de 20261112_perfiles_usuarios_politicas.sql
+-- ============================================
+create table if not exists public.perfiles_usuarios (
+  id         uuid primary key,            -- id del usuario de Supabase Auth
+  nombre     varchar not null,
+  email      varchar not null,
+  rol        varchar,                     -- 'admin' = Administrador
+  area       varchar,
+  activo     boolean,
+  created_at timestamptz not null default now()
+);
+alter table public.perfiles_usuarios enable row level security;
+
+-- ¿El usuario con sesión es administrador? Se evalúa sin aplicar las políticas
+-- de la tabla (security definer), así no se consulta a sí misma en bucle.
+create or replace function public.es_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.perfiles_usuarios
+    where id = auth.uid() and rol = 'admin' and coalesce(activo, true)
+  );
+$$;
+
+-- Modificación solo para administradores (misma regla, sin recursión)
+drop policy if exists "Permitir modificación de perfiles a administradores" on public.perfiles_usuarios;
+create policy "Permitir modificación de perfiles a administradores" on public.perfiles_usuarios
+  for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+
+-- Lectura: solo usuarios con sesión (antes, cualquiera con la clave pública)
+drop policy if exists "Permitir lectura completa de perfiles" on public.perfiles_usuarios;
+create policy "Permitir lectura completa de perfiles" on public.perfiles_usuarios
+  for select to authenticated using (true);
+
+-- ============================================
 -- RPC: registrar movimiento de equipo (transaccional)
 -- Inserta el movimiento y actualiza el estado del equipo:
 -- asignacion/traslado -> assigned | devolucion -> available | baja -> retired

@@ -87,11 +87,13 @@ export default function Layout({ children }: { children: ReactNode }) {
           <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-700 dark:to-slate-600 rounded-xl p-3">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-md">
-                {user?.email?.charAt(0).toUpperCase() || 'U'}
+                {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{user?.email || 'Usuario'}</p>
-                <p className="text-xs text-gray-500 dark:text-slate-400">{user?.role === 'admin' ? 'Administrador' : 'Usuario'}</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate" title={user?.email}>{user?.name || user?.email || 'Usuario'}</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                  {user?.role === 'admin' ? 'Administrador' : 'Usuario'}{user?.area ? ` · ${user.area}` : ''}
+                </p>
               </div>
               <button 
                 onClick={logout} 

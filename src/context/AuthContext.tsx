@@ -13,13 +13,18 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  /** Motivo por el que se cerró la sesión (p. ej. usuario desactivado), para mostrar en el login. */
+  aviso: string | null;
 }
+
+export const MENSAJE_DESACTIVADO = 'Tu usuario está desactivado. Contactá a Sistemas.';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   // Al montar, restaurar la sesión de Supabase Auth (el token persiste automáticamente).
   useEffect(() => {
@@ -27,6 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const applyProfile = (profile: AuthUserProfile | null) => {
       if (!mounted) return;
+      // Perfil desactivado en perfiles_usuarios: se cierra la sesión y no se entra.
+      if (profile && !profile.activo) {
+        supabaseSignOut().catch(() => undefined);
+        setAviso(MENSAJE_DESACTIVADO);
+        profile = null;
+      }
       // Mantener 'current_user_id' sincronizado para los servicios de supabaseSync.
       if (profile) {
         localStorage.setItem('current_user_id', profile.id);
@@ -69,6 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     // Lanza Error si las credenciales son inválidas; el llamador debe manejarlo.
     const profile = await signInWithPassword(email, password);
+    if (!profile.activo) {
+      await supabaseSignOut().catch(() => undefined);
+      throw new Error(MENSAJE_DESACTIVADO);
+    }
+    setAviso(null);
     // Retrocompatibilidad: los servicios de sincronización leen 'current_user_id'
     // de localStorage para filtrar datos por usuario en Supabase.
     localStorage.setItem('current_user_id', profile.id);
@@ -84,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user, aviso }}>
       {children}
     </AuthContext.Provider>
   );
