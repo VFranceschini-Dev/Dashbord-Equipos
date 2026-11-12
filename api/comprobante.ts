@@ -272,7 +272,7 @@ async function crear(request: Request, body: any): Promise<Response> {
     const envio = !previo.zammad_ticket_id && previo.estado === 'pendiente'
       ? await enviarPorZammad(request, b, { ...previo, correo_destino: previo.correo_destino || correo })
       : { enviado: Boolean(previo.zammad_ticket_id) };
-    return jsonResponse(200, { success: true, data: { id: previo.id, token: previo.token, estado: previo.estado, ...envio } });
+    return jsonResponse(200, { success: true, data: { id: previo.id, token: previo.token, estado: previo.estado, enlace: `${urlPublica(request)}/firmar/${previo.token}`, ...envio } });
   }
 
   const movs: any[] = await rest(b, `equipment_movements?id=in.(${ids.join(',')})&select=*`) ?? [];
@@ -328,7 +328,7 @@ async function crear(request: Request, body: any): Promise<Response> {
     }),
   }) ?? [];
   const envio = await enviarPorZammad(request, b, creado);
-  return jsonResponse(201, { success: true, data: { id: creado.id, token: creado.token, estado: creado.estado, ...envio } });
+  return jsonResponse(201, { success: true, data: { id: creado.id, token: creado.token, estado: creado.estado, enlace: `${urlPublica(request)}/firmar/${creado.token}`, ...envio } });
 }
 
 async function firmar(request: Request, body: any): Promise<Response> {

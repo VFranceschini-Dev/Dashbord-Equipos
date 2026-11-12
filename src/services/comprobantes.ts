@@ -132,6 +132,7 @@ export async function guardarCorreo(usuarioRef: string, correo: string): Promise
 export interface ComprobanteCreado {
   token: string;
   estado: string;
+  enlace?: string;     // enlace público (APP_URL), el mismo que va en el email
   enviado: boolean;
   ticket?: string;
   error?: string;

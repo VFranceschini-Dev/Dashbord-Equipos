@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, PenLine } from 'lucide-react';
+import MiFirmaModal from './MiFirmaModal';
 import { correoGuardado, guardarCorreo, crearComprobante, listarSucursales, type ComprobanteCreado } from '../../services/comprobantes';
 import ComprobanteGenerado from './ComprobanteGenerado';
 
@@ -18,6 +19,7 @@ export default function GenerarComprobanteModal({ movementId, usuarioRef, usuari
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creado, setCreado] = useState<ComprobanteCreado | null>(null);
+  const [verFirma, setVerFirma] = useState(false);
   const [sucursales, setSucursales] = useState<string[]>([]);
   const [sucursal, setSucursal] = useState('');
   const [sector, setSector] = useState(sectorSugerido ?? '');
@@ -75,7 +77,17 @@ export default function GenerarComprobanteModal({ movementId, usuarioRef, usuari
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
                 </div>
               </div>
-              {error && <div className="rounded-lg px-3 py-2 text-sm bg-red-50 text-red-700">{error}</div>}
+              {error && (
+                <div className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm bg-red-50 text-red-700">
+                  <span>{error}</span>
+                  {/firma/i.test(error) && (
+                    <button onClick={() => { setVerFirma(true); setError(null); }}
+                      className="flex items-center gap-1 font-medium hover:underline shrink-0">
+                      <PenLine size={13} /> Cargar mi firma
+                    </button>
+                  )}
+                </div>
+              )}
             </>
           )}
           <div className="flex justify-end gap-2">
@@ -91,6 +103,7 @@ export default function GenerarComprobanteModal({ movementId, usuarioRef, usuari
           </div>
         </div>
       </div>
+      {verFirma && <MiFirmaModal onClose={() => setVerFirma(false)} />}
     </div>
   );
 }

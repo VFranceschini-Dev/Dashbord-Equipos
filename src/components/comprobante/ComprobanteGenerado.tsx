@@ -25,7 +25,7 @@ export default function ComprobanteGenerado({ movementIds, correo, resultado, er
     );
   }
 
-  const enlace = enlaceComprobante(actual.token);
+  const enlace = actual.enlace || enlaceComprobante(actual.token);
   const copiar = async () => {
     try { await navigator.clipboard.writeText(enlace); setCopiado(true); } catch { /* sin portapapeles */ }
   };

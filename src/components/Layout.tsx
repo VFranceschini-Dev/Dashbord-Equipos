@@ -93,13 +93,6 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{user?.email || 'Usuario'}</p>
                 <p className="text-xs text-gray-500 dark:text-slate-400">{user?.role === 'admin' ? 'Administrador' : 'Usuario'}</p>
               </div>
-              <button
-                onClick={() => setShowFirma(true)}
-                className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-500 text-gray-400 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                title="Mi firma (comprobantes de entrega)"
-              >
-                <PenLine size={16} />
-              </button>
               <button 
                 onClick={logout} 
                 className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-500 text-gray-400 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors" 
@@ -108,6 +101,13 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <LogOut size={16} />
               </button>
             </div>
+            <button
+              onClick={() => setShowFirma(true)}
+              className="mt-2 w-full flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-white/70 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+              title="Firma que se usa en los comprobantes de entrega"
+            >
+              <PenLine size={13} /> Mi firma
+            </button>
           </div>
         </div>
       </aside>
