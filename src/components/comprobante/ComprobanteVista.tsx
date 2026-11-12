@@ -140,10 +140,10 @@ export default function ComprobanteVista({ numero, datos, hashDocumento, firmaUs
         <FirmaTipografica nombre={datos.responsable.nombre} dni={datos.responsable.dni} fuente={datos.responsable.fuente}
           rol={`Firma y aclaración quien entrega — Sistemas ${datos.empresa}`} />
         {firmaUsuario ? (
-          <FirmaTipografica nombre={firmaUsuario.nombre} dni={firmaUsuario.dni} fuente={firmaUsuario.fuente} rol="Firma y aclaración líder del sector (recibe)"
+          <FirmaTipografica nombre={firmaUsuario.nombre} dni={firmaUsuario.dni} fuente={firmaUsuario.fuente} rol="Firma y aclaración quien lo recibe"
             detalle={`Firmado electrónicamente el ${new Date(firmaUsuario.fecha).toLocaleString('es-AR')}${firmaUsuario.ip ? ` · IP ${firmaUsuario.ip}` : ''}`} />
         ) : (
-          <FirmaPendiente rol="Firma y aclaración líder del sector (recibe)" />
+          <FirmaPendiente rol="Firma y aclaración quien lo recibe" />
         )}
       </section>
 
