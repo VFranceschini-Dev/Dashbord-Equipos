@@ -1,5 +1,9 @@
-import type { DatosComprobante } from '../../services/comprobantes';
+import { equiposDe, type DatosComprobante } from '../../services/comprobantes';
 import { cssDeFuente, formatearDni } from '../../constants/firmas';
+
+// Datos legales de la empresa (diseño: aplican a todos los comprobantes, también a los ya firmados)
+const RAZON_SOCIAL = 'PABLO ELOY DONNET S.A.';
+const CUIT = '30-53845762-7';
 
 const TIPO_LABEL: Record<string, string> = {
   desktop: 'PC Escritorio', laptop: 'Notebook', server: 'Servidor',
@@ -66,23 +70,56 @@ export default function ComprobanteVista({ numero, datos, hashDocumento, firmaUs
   const fecha = new Date(datos.fecha).toLocaleString('es-AR');
   return (
     <article className="comprobante-imprimible bg-white text-gray-900 rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8 space-y-6">
-      <header className="flex items-start justify-between gap-4 border-b border-gray-200 pb-4">
-        <Logo />
-        <div className="text-right text-sm">
-          <p className="font-semibold">Comprobante de entrega de equipamiento</p>
-          <p className="text-gray-500">N.º {numero}</p>
-          <p className="text-gray-500">{fecha}</p>
+      <header className="space-y-3 border-b border-gray-200 pb-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <Logo />
+            <p className="text-xs font-semibold text-gray-800">{RAZON_SOCIAL}</p>
+            <p className="text-xs text-gray-500">C.U.I.T.: {CUIT}</p>
+          </div>
+          <div className="text-right text-sm">
+            <p className="text-gray-500">N.º {numero}</p>
+            <p className="text-gray-500">Fecha: {fecha}</p>
+            {datos.sucursal && <p className="text-gray-700">Sucursal: {datos.sucursal}</p>}
+            {datos.sector && <p className="text-gray-700">Sector que recibe: {datos.sector}</p>}
+          </div>
         </div>
+        <h2 className="bg-gray-800 text-white text-center text-xs sm:text-sm font-semibold uppercase tracking-wide py-1.5 rounded">
+          Constancia de entrega de equipamiento de trabajo
+        </h2>
       </header>
 
       <section className="space-y-1">
-        <h3 className="text-xs font-semibold uppercase text-gray-500 mb-1">Equipo entregado</h3>
-        <Dato label="Equipo" value={datos.equipo.nombre} />
-        <Dato label="Tipo" value={TIPO_LABEL[datos.equipo.tipo] ?? datos.equipo.tipo} />
-        <Dato label="Marca" value={datos.equipo.marca} />
-        <Dato label="Modelo" value={datos.equipo.modelo} />
-        <Dato label="Serial" value={datos.equipo.serial} />
-        {datos.equipo.etiqueta && <Dato label="Etiqueta" value={datos.equipo.etiqueta} />}
+        <h3 className="text-xs font-semibold uppercase text-gray-500 mb-1">Equipamiento entregado</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border border-gray-300">
+            <thead>
+              <tr className="bg-gray-100 text-left text-xs uppercase text-gray-600">
+                <th className="border border-gray-300 px-2 py-1.5 w-8 text-center">#</th>
+                <th className="border border-gray-300 px-2 py-1.5">Equipo</th>
+                <th className="border border-gray-300 px-2 py-1.5">Marca y modelo</th>
+                <th className="border border-gray-300 px-2 py-1.5">Serial</th>
+                <th className="border border-gray-300 px-2 py-1.5 w-20 text-center">Cantidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {equiposDe(datos).map((eq, i) => (
+                <tr key={i} className="align-top">
+                  <td className="border border-gray-300 px-2 py-1.5 text-center text-gray-500">{i + 1}</td>
+                  <td className="border border-gray-300 px-2 py-1.5">
+                    <p className="text-gray-900">{eq.nombre || '—'}</p>
+                    <p className="text-xs text-gray-500">{TIPO_LABEL[eq.tipo] ?? eq.tipo}{eq.etiqueta ? ` · Etiqueta ${eq.etiqueta}` : ''}</p>
+                  </td>
+                  <td className="border border-gray-300 px-2 py-1.5 text-gray-900 [overflow-wrap:anywhere]">
+                    {[eq.marca, eq.modelo].filter(Boolean).join(' ') || '—'}
+                  </td>
+                  <td className="border border-gray-300 px-2 py-1.5 text-gray-900 [overflow-wrap:anywhere]">{eq.serial || '—'}</td>
+                  <td className="border border-gray-300 px-2 py-1.5 text-center text-gray-900">1</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="space-y-1">
@@ -96,16 +133,17 @@ export default function ComprobanteVista({ numero, datos, hashDocumento, firmaUs
       <section>
         <h3 className="text-xs font-semibold uppercase text-gray-500 mb-1">Conformidad</h3>
         <p className="text-sm leading-relaxed text-gray-800">{datos.conformidad}</p>
+        {datos.resguardo && <p className="text-sm leading-relaxed text-gray-800 mt-2">{datos.resguardo}</p>}
       </section>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4">
         <FirmaTipografica nombre={datos.responsable.nombre} dni={datos.responsable.dni} fuente={datos.responsable.fuente}
-          rol={`Entrega — Sistemas ${datos.empresa}`} />
+          rol={`Firma y aclaración quien entrega — Sistemas ${datos.empresa}`} />
         {firmaUsuario ? (
-          <FirmaTipografica nombre={firmaUsuario.nombre} dni={firmaUsuario.dni} fuente={firmaUsuario.fuente} rol="Recibe"
+          <FirmaTipografica nombre={firmaUsuario.nombre} dni={firmaUsuario.dni} fuente={firmaUsuario.fuente} rol="Firma y aclaración líder del sector (recibe)"
             detalle={`Firmado electrónicamente el ${new Date(firmaUsuario.fecha).toLocaleString('es-AR')}${firmaUsuario.ip ? ` · IP ${firmaUsuario.ip}` : ''}`} />
         ) : (
-          <FirmaPendiente rol="Recibe" />
+          <FirmaPendiente rol="Firma y aclaración líder del sector (recibe)" />
         )}
       </section>
 
