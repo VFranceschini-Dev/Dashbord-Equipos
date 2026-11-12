@@ -351,6 +351,12 @@ create table if not exists public.comprobantes_entrega (
 create index if not exists comprobantes_entrega_user_idx on public.comprobantes_entrega (user_id);
 -- Columna agregada en 20261106_comprobantes_visto.sql (para bases creadas antes)
 alter table public.comprobantes_entrega add column if not exists visto_at timestamptz;
+-- Varios movimientos por constancia (20261112_constancias_varios_equipos.sql)
+alter table public.comprobantes_entrega add column if not exists movement_ids bigint[];
+update public.comprobantes_entrega set movement_ids = array[movement_id] where movement_ids is null;
+create index if not exists comprobantes_entrega_movement_ids_idx
+  on public.comprobantes_entrega using gin (movement_ids);
+-- (La política de lectura de la tabla "Ubicacion" está en esa migración: la tabla no la crea este esquema.)
 alter table public.comprobantes_entrega enable row level security;
 drop policy if exists "own_comprobantes_select" on public.comprobantes_entrega;
 create policy "own_comprobantes_select" on public.comprobantes_entrega for select

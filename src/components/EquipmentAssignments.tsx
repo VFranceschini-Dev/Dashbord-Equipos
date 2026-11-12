@@ -374,6 +374,7 @@ function MovimientosEquipos() {
       )}
       {generar && (
         <GenerarComprobanteModal movementId={Number(generar.id)} usuarioRef={generar.usuarioRef} usuarioNombre={generar.usuarioNombre}
+          sectorSugerido={equipments.find(e => e.id === generar.equipmentId)?.meshGrupo}
           onClose={() => setGenerar(null)} onGenerado={cargarComprobantes} />
       )}
 

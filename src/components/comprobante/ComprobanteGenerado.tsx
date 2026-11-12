@@ -6,8 +6,8 @@ import { enlaceComprobante, crearComprobante, type ComprobanteCreado } from '../
  * Resultado de generar un comprobante: estado del envío por email (ticket de
  * Zammad), enlace para firmar (copiar / ver) y reintento si el envío falló.
  */
-export default function ComprobanteGenerado({ movementId, correo, resultado, error }: {
-  movementId?: number;
+export default function ComprobanteGenerado({ movementIds, correo, resultado, error }: {
+  movementIds?: number | number[];
   correo: string;
   resultado?: ComprobanteCreado;
   error?: string;
@@ -30,9 +30,9 @@ export default function ComprobanteGenerado({ movementId, correo, resultado, err
     try { await navigator.clipboard.writeText(enlace); setCopiado(true); } catch { /* sin portapapeles */ }
   };
   const reintentar = async () => {
-    if (!movementId) return;
+    if (!movementIds) return;
     setReintentando(true);
-    try { setActual(await crearComprobante(movementId, correo)); } catch (err) { setActual({ ...actual, enviado: false, error: (err as Error).message }); }
+    try { setActual(await crearComprobante(movementIds, correo)); } catch (err) { setActual({ ...actual, enviado: false, error: (err as Error).message }); }
     finally { setReintentando(false); }
   };
 
@@ -59,7 +59,7 @@ export default function ComprobanteGenerado({ movementId, correo, resultado, err
       {!actual.enviado && (
         <div className="flex items-start justify-between gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
           <span className="flex items-start gap-2"><AlertTriangle size={16} className="mt-0.5 shrink-0" /> No se envió el email: {actual.error}. Podés copiar el enlace y mandarlo a mano, o reintentar.</span>
-          {movementId && (
+          {movementIds && (
             <button onClick={reintentar} disabled={reintentando} className="flex items-center gap-1 font-medium hover:underline shrink-0 disabled:opacity-60">
               {reintentando ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Reintentar
             </button>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Search, RefreshCw, Loader2, ExternalLink, Mail, FileText, AlertTriangle } from 'lucide-react';
 import {
-  listarComprobantes, crearComprobante, enlaceComprobante, estadoVisible, ESTADO_COMPROBANTE,
+  listarComprobantes, crearComprobante, enlaceComprobante, estadoVisible, equiposDe, ESTADO_COMPROBANTE,
   type ComprobanteListado, type EstadoVisible,
 } from '../../services/comprobantes';
 
@@ -47,7 +47,8 @@ export default function ListadoComprobantes() {
     if (desde && dia < desde) return false;
     if (hasta && dia > hasta) return false;
     if (buscar.trim()) {
-      const texto = norm(`${f.datos.usuario.nombre} ${f.datos.usuario.correo} ${f.datos.equipo.nombre} ${f.datos.equipo.serial}`);
+      const texto = norm([f.datos.usuario.nombre, f.datos.usuario.correo, f.datos.sucursal, f.datos.sector,
+        ...equiposDe(f.datos).flatMap(e => [e.nombre, e.serial])].filter(Boolean).join(' '));
       if (!texto.includes(norm(buscar.trim()))) return false;
     }
     return true;
@@ -57,7 +58,7 @@ export default function ListadoComprobantes() {
     setReenviando(f.id);
     setAviso(null);
     try {
-      const r = await crearComprobante(f.movement_id, f.correo_destino || f.datos.usuario.correo);
+      const r = await crearComprobante(f.movement_ids ?? f.movement_id, f.correo_destino || f.datos.usuario.correo);
       setAviso(r.enviado
         ? { ok: true, text: `Email enviado a ${f.correo_destino}${r.ticket ? ` (ticket #${r.ticket})` : ''}.` }
         : { ok: false, text: `No se envió el email: ${r.error}.` });
@@ -137,8 +138,15 @@ export default function ListadoComprobantes() {
                         <p className="text-xs text-gray-400">{f.correo_destino}</p>
                       </td>
                       <td className="px-4 py-2.5">
-                        <p className="text-gray-800">{f.datos.equipo.nombre}</p>
-                        {f.datos.equipo.serial && <p className="text-xs text-gray-400">Serial {f.datos.equipo.serial}</p>}
+                        {equiposDe(f.datos).map((eq, i) => (
+                          <div key={i}>
+                            <p className="text-gray-800">{eq.nombre}</p>
+                            {eq.serial && <p className="text-xs text-gray-400">Serial {eq.serial}</p>}
+                          </div>
+                        ))}
+                        {(f.datos.sucursal || f.datos.sector) && (
+                          <p className="text-[11px] text-gray-400 mt-0.5">{[f.datos.sucursal, f.datos.sector].filter(Boolean).join(' · ')}</p>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${e.clase}`}>{e.label}</span>

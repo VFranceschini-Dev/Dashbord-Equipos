@@ -11,11 +11,18 @@ export interface FirmaResponsable {
   fuente: string;
 }
 
+export interface EquipoComprobante { nombre: string; tipo: string; marca: string; modelo: string; serial: string; etiqueta: string }
+
+/** Contenido fijo de la constancia. Versión 1: un equipo; versión 2: varios, sucursal, sector y resguardo. */
 export interface DatosComprobante {
   version: number;
   empresa: string;
   fecha: string;
-  equipo: { nombre: string; tipo: string; marca: string; modelo: string; serial: string; etiqueta: string };
+  equipo?: EquipoComprobante;          // versión 1
+  equipos?: EquipoComprobante[];       // versión 2
+  sucursal?: string;
+  sector?: string;
+  resguardo?: string;
   usuario: { nombre: string; area: string; correo: string };
   responsable: { nombre: string; dni: string; fuente: string; correo: string };
   observaciones: string;
@@ -35,6 +42,11 @@ export interface Comprobante {
   firmado_ip: string | null;
   hash_firma: string | null;
   visto_at: string | null;
+}
+
+/** Equipos de la constancia, sea cual sea su versión. */
+export function equiposDe(datos: DatosComprobante): EquipoComprobante[] {
+  return datos.equipos ?? (datos.equipo ? [datos.equipo] : []);
 }
 
 /** Estado para mostrar: pendiente → visto (el usuario abrió el enlace) → firmado. */
@@ -62,6 +74,7 @@ export interface ResumenComprobante {
 
 /** Fila del listado de comprobantes de entrega. */
 export interface ComprobanteListado extends ResumenComprobante {
+  movement_ids: number[] | null;
   id: string;
   datos: DatosComprobante;
   zammad_ticket_id: number | null;
@@ -124,27 +137,44 @@ export interface ComprobanteCreado {
   error?: string;
 }
 
-/** Crea el comprobante y lo envía por email. Si ya existía sin enviar, reintenta el envío. */
-export async function crearComprobante(movementId: number, correo: string): Promise<ComprobanteCreado> {
+/**
+ * Crea la constancia de uno o varios movimientos (a la misma persona) y la envía
+ * por email. Si ya existía sin enviar, reintenta el envío.
+ */
+export async function crearComprobante(
+  movementIds: number | number[], correo: string, extra: { sucursal?: string; sector?: string } = {},
+): Promise<ComprobanteCreado> {
   return llamar({
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
-    body: JSON.stringify({ accion: 'crear', movementId, correo }),
+    body: JSON.stringify({ accion: 'crear', movementIds: ([] as number[]).concat(movementIds), correo, ...extra }),
   });
+}
+
+// ===== Sucursales (tabla "Ubicacion", solo lectura) =====
+export async function listarSucursales(): Promise<string[]> {
+  const { data, error } = await supabase.from('Ubicacion').select('nombre').eq('activo', true).order('nombre');
+  if (error || !data) return [];
+  return data.map(u => String(u.nombre ?? '').trim()).filter(Boolean);
 }
 
 /** Comprobantes propios, por id de movimiento (para mostrar el estado en el historial). */
 export async function comprobantesPorMovimiento(): Promise<Map<number, ResumenComprobante>> {
-  const { data, error } = await supabase.from('comprobantes_entrega').select('movement_id, token, estado, correo_destino, visto_at');
+  const { data, error } = await supabase.from('comprobantes_entrega').select('movement_id, movement_ids, token, estado, correo_destino, visto_at');
   if (error || !data) return new Map();
-  return new Map(data.map(c => [Number(c.movement_id), c as ResumenComprobante]));
+  // Una constancia puede cubrir varios movimientos: cada uno apunta a la misma.
+  const mapa = new Map<number, ResumenComprobante>();
+  for (const c of data) {
+    for (const id of (c.movement_ids as number[] | null) ?? [c.movement_id]) mapa.set(Number(id), c as ResumenComprobante);
+  }
+  return mapa;
 }
 
 /** Listado completo de los comprobantes propios, del más nuevo al más viejo. */
 export async function listarComprobantes(): Promise<ComprobanteListado[]> {
   const { data, error } = await supabase
     .from('comprobantes_entrega')
-    .select('id, movement_id, token, estado, correo_destino, visto_at, datos, zammad_ticket_id, created_at, firmado_at, firmado_nombre')
+    .select('id, movement_id, movement_ids, token, estado, correo_destino, visto_at, datos, zammad_ticket_id, created_at, firmado_at, firmado_nombre')
     .order('created_at', { ascending: false });
   if (error) throw new Error('No se pudieron cargar los comprobantes.');
   return (data ?? []) as ComprobanteListado[];

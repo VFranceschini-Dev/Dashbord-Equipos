@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
-import { correoGuardado, guardarCorreo, crearComprobante, type ComprobanteCreado } from '../../services/comprobantes';
+import { correoGuardado, guardarCorreo, crearComprobante, listarSucursales, type ComprobanteCreado } from '../../services/comprobantes';
 import ComprobanteGenerado from './ComprobanteGenerado';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /** Genera el comprobante de una asignación que no lo tiene (por ejemplo, registrada antes). */
-export default function GenerarComprobanteModal({ movementId, usuarioRef, usuarioNombre, onClose, onGenerado }: {
+export default function GenerarComprobanteModal({ movementId, usuarioRef, usuarioNombre, sectorSugerido, onClose, onGenerado }: {
   movementId: number;
   usuarioRef: string;
   usuarioNombre: string;
+  sectorSugerido?: string;
   onClose: () => void;
   onGenerado: () => void;
 }) {
@@ -17,8 +18,12 @@ export default function GenerarComprobanteModal({ movementId, usuarioRef, usuari
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creado, setCreado] = useState<ComprobanteCreado | null>(null);
+  const [sucursales, setSucursales] = useState<string[]>([]);
+  const [sucursal, setSucursal] = useState('');
+  const [sector, setSector] = useState(sectorSugerido ?? '');
 
   useEffect(() => { correoGuardado(usuarioRef).then(setCorreo).catch(() => undefined); }, [usuarioRef]);
+  useEffect(() => { listarSucursales().then(setSucursales).catch(() => undefined); }, []);
 
   const handleGenerar = async () => {
     const c = correo.trim().toLowerCase();
@@ -27,7 +32,7 @@ export default function GenerarComprobanteModal({ movementId, usuarioRef, usuari
     setError(null);
     try {
       guardarCorreo(usuarioRef, c).catch(() => undefined);
-      const r = await crearComprobante(movementId, c);
+      const r = await crearComprobante(movementId, c, { sucursal, sector: sector.trim() });
       setCreado(r);
       onGenerado();
     } catch (err) {
@@ -46,7 +51,7 @@ export default function GenerarComprobanteModal({ movementId, usuarioRef, usuari
         </div>
         <div className="p-5 space-y-4">
           {creado ? (
-            <ComprobanteGenerado movementId={movementId} resultado={creado} correo={correo.trim()} />
+            <ComprobanteGenerado movementIds={movementId} resultado={creado} correo={correo.trim()} />
           ) : (
             <>
               <p className="text-sm text-gray-600">Comprobante de entrega para <span className="font-medium text-gray-900">{usuarioNombre}</span>.</p>
@@ -54,6 +59,21 @@ export default function GenerarComprobanteModal({ movementId, usuarioRef, usuari
                 <label className="block text-sm font-medium text-gray-700 mb-1">Correo del usuario *</label>
                 <input type="email" value={correo} onChange={e => { setCorreo(e.target.value); setError(null); }}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
+                  <select value={sucursal} onChange={e => setSucursal(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm">
+                    <option value="">{sucursales.length ? 'Seleccionar...' : 'Sin sucursales'}</option>
+                    {sucursales.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sector que recibe</label>
+                  <input type="text" value={sector} onChange={e => setSector(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 outline-none text-sm" />
+                </div>
               </div>
               {error && <div className="rounded-lg px-3 py-2 text-sm bg-red-50 text-red-700">{error}</div>}
             </>

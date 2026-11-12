@@ -1,10 +1,11 @@
 /**
  * api/comprobante.ts — Comprobantes de entrega con firma electrónica.
  *
- * POST { accion: 'crear', movementId, correo }   (requiere sesión)
- *      Crea el comprobante de una asignación: guarda una copia fija del
- *      contenido (equipo, usuario, responsable y su firma), su huella SHA-256
- *      y un enlace secreto para firmar. Si ya existe, devuelve el mismo.
+ * POST { accion: 'crear', movementIds | movementId, correo, sucursal?, sector? }   (requiere sesión)
+ *      Crea la constancia de una o varias asignaciones a la misma persona:
+ *      guarda una copia fija del contenido (equipos, usuario, sucursal,
+ *      sector, responsable y su firma), su huella SHA-256 y un enlace secreto
+ *      para firmar. Si ya existe, devuelve la misma.
  * GET  ?token=...[&interno=1]                     (público, con el enlace)
  *      Devuelve el comprobante para mostrarlo y, si está firmado, la firma.
  *      La primera vez que lo abre el usuario (sin interno=1) queda registrado
@@ -26,6 +27,10 @@ import { createHash, randomBytes } from 'node:crypto';
 
 const TIMEOUT_MS = 15000;
 const FUENTES_VALIDAS = ['dancing', 'greatvibes', 'allura', 'caveat'];
+
+export const TEXTO_RESGUARDO =
+  'Se le hace saber al líder del sector y a su equipo a cargo que el equipamiento descripto en el presente '
+  + 'formulario debe estar resguardado en un espacio seguro y con llave a fin de evitar daños y pérdidas.';
 
 export const TEXTO_CONFORMIDAD =
   'Recibo el equipamiento detallado en condiciones de funcionamiento y me comprometo a darle un uso '
@@ -152,21 +157,23 @@ async function enviarPorZammad(
   if (!z) return { enviado: false, error: 'el envío por email no está configurado' };
   const enlace = `${urlPublica(request)}/firmar/${c.token}`;
   const d = c.datos;
-  const equipo = [d.equipo?.nombre, d.equipo?.marca, d.equipo?.modelo].filter(Boolean).join(' · ');
+  const equipos: any[] = Array.isArray(d.equipos) ? d.equipos : d.equipo ? [d.equipo] : [];
+  const lista = equipos.map(e => `<li><strong>${html([e.nombre, e.marca, e.modelo].filter(Boolean).join(' · '))}</strong>${e.serial ? ` — Serial: ${html(e.serial)}` : ''}</li>`).join('');
+  const titulo = equipos.length === 1 ? equipos[0].nombre : `${equipos.length} equipos`;
   const cuerpo = `<p>Hola ${html(d.usuario?.nombre || '')}:</p>
 <p>El área de Sistemas te entregó el siguiente equipamiento:</p>
-<p><strong>${html(equipo)}</strong>${d.equipo?.serial ? `<br>Serial: ${html(d.equipo.serial)}` : ''}</p>
+<ul>${lista}</ul>
 <p>Para confirmar la recepción, firmá el comprobante de entrega desde este enlace:</p>
 <p><a href="${enlace}">${enlace}</a></p>
 <p>Si tenés alguna consulta, respondé este correo.</p>
 <p>Sistemas ${html(d.empresa || '')}</p>`;
   try {
     const ticket = await llamarZammad(z, 'tickets', 'POST', {
-      title: `Comprobante de entrega – ${d.equipo?.nombre || 'equipo'} – ${d.usuario?.nombre || ''}`.slice(0, 250),
+      title: `Comprobante de entrega – ${titulo || 'equipo'} – ${d.usuario?.nombre || ''}`.slice(0, 250),
       group: z.grupo,
       customer_id: `guess:${c.correo_destino}`,
       article: {
-        subject: `Comprobante de entrega de equipamiento: ${d.equipo?.nombre || ''}`.slice(0, 250),
+        subject: `Comprobante de entrega de equipamiento: ${titulo || ''}`.slice(0, 250),
         body: cuerpo,
         content_type: 'text/html',
         type: 'email',
@@ -213,6 +220,28 @@ async function avisarFirma(ticketId: number, nombre: string, fechaIso: string): 
 }
 
 // ---------------------------------------------------------------------------
+// Versión del contenido: las constancias PENDIENTES de la versión 1 (un solo
+// equipo, sin texto de resguardo) se pasan a la versión 2 al leerlas. Las
+// firmadas no se tocan: su contenido es el que se firmó.
+// ---------------------------------------------------------------------------
+function aVersion2(datos: any): any {
+  if (!datos || datos.version >= 2) return datos;
+  const { equipo, ...resto } = datos;
+  return { ...resto, version: 2, equipos: equipo ? [equipo] : [], sucursal: '', sector: datos.usuario?.area ?? '', resguardo: TEXTO_RESGUARDO };
+}
+
+async function actualizarSiPendiente(b: NonNullable<ReturnType<typeof base>>, c: any): Promise<void> {
+  if (c.estado !== 'pendiente' || !c.datos || c.datos.version >= 2) return;
+  if (sha256(jsonEstable(c.datos)) !== c.hash_documento) return; // alterado: no se "legitima" con la actualización
+  const datos = aVersion2(c.datos);
+  const hash = sha256(jsonEstable(datos));
+  const r = await rest(b, `comprobantes_entrega?id=eq.${c.id}&estado=eq.pendiente`, {
+    method: 'PATCH', body: JSON.stringify({ datos, hash_documento: hash }),
+  }).catch(() => null);
+  if (Array.isArray(r) && r.length > 0) { c.datos = datos; c.hash_documento = hash; }
+}
+
+// ---------------------------------------------------------------------------
 // Acciones
 // ---------------------------------------------------------------------------
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -223,53 +252,75 @@ async function crear(request: Request, body: any): Promise<Response> {
   const sesion = await usuarioDeSesion(request, b);
   if (!sesion) return jsonResponse(401, { success: false, error: 'No autenticado. Se requiere una sesión válida.' });
 
-  const movementId = Number(body?.movementId);
+  const ids: number[] = [...new Set<number>(
+    (Array.isArray(body?.movementIds) ? body.movementIds : [body?.movementId]).map(Number),
+  )];
   const correo = String(body?.correo ?? '').trim().toLowerCase();
-  if (!Number.isInteger(movementId) || movementId <= 0) return jsonResponse(400, { success: false, error: 'Movimiento inválido.' });
+  const sucursal = String(body?.sucursal ?? '').trim().slice(0, 120);
+  const sector = String(body?.sector ?? '').trim().slice(0, 60);
+  if (ids.length === 0 || ids.length > 30 || ids.some(id => !Number.isInteger(id) || id <= 0)) {
+    return jsonResponse(400, { success: false, error: 'Movimiento inválido.' });
+  }
   if (!EMAIL_RE.test(correo)) return jsonResponse(400, { success: false, error: 'El correo del usuario no es válido.' });
 
-  // ¿Ya existe? (un comprobante por movimiento)
-  const existentes = await rest(b, `comprobantes_entrega?movement_id=eq.${movementId}&select=id,token,estado,datos,correo_destino,zammad_ticket_id`);
+  // ¿Alguno de estos movimientos ya está en una constancia? Se devuelve esa.
+  const existentes = await rest(b, `comprobantes_entrega?movement_ids=ov.{${ids.join(',')}}&select=id,token,estado,datos,correo_destino,zammad_ticket_id`);
   const previo = Array.isArray(existentes) ? existentes[0] : null;
   if (previo) {
-    // Ya existe: si no se pudo enviar antes y sigue pendiente, se reintenta el envío.
+    await actualizarSiPendiente(b, previo);
+    // Si no se pudo enviar antes y sigue pendiente, se reintenta el envío.
     const envio = !previo.zammad_ticket_id && previo.estado === 'pendiente'
       ? await enviarPorZammad(request, b, { ...previo, correo_destino: previo.correo_destino || correo })
       : { enviado: Boolean(previo.zammad_ticket_id) };
     return jsonResponse(200, { success: true, data: { id: previo.id, token: previo.token, estado: previo.estado, ...envio } });
   }
 
-  const [mov] = await rest(b, `equipment_movements?id=eq.${movementId}&select=*`) ?? [];
-  if (!mov || mov.user_id !== sesion.id) return jsonResponse(404, { success: false, error: 'No se encontró el movimiento.' });
-  if (mov.tipo !== 'asignacion') return jsonResponse(400, { success: false, error: 'Solo las asignaciones generan comprobante.' });
+  const movs: any[] = await rest(b, `equipment_movements?id=in.(${ids.join(',')})&select=*`) ?? [];
+  if (movs.length !== ids.length || movs.some(m => m.user_id !== sesion.id)) {
+    return jsonResponse(404, { success: false, error: 'No se encontró el movimiento.' });
+  }
+  if (movs.some(m => m.tipo !== 'asignacion')) return jsonResponse(400, { success: false, error: 'Solo las asignaciones generan comprobante.' });
+  if (new Set(movs.map(m => m.usuario_ref)).size > 1) {
+    return jsonResponse(400, { success: false, error: 'Todos los equipos de una constancia tienen que ser para la misma persona.' });
+  }
+  movs.sort((a, c) => ids.indexOf(Number(a.id)) - ids.indexOf(Number(c.id)));
+  const mov = movs[0];
 
-  const [eq] = await rest(b, `equipments?id=eq.${mov.equipment_id}&select=name,type,brand,model,serial_number,asset_tag`) ?? [];
+  const eqIds = [...new Set(movs.map(m => m.equipment_id))];
+  const eqs: any[] = await rest(b, `equipments?id=in.(${eqIds.join(',')})&select=id,name,type,brand,model,serial_number,asset_tag`) ?? [];
   const [firma] = await rest(b, `firmas_responsables?user_id=eq.${sesion.id}&select=nombre,dni,fuente`) ?? [];
   if (!firma) return jsonResponse(400, { success: false, error: 'Configurá tu firma ("Mi firma") antes de generar comprobantes.' });
 
   const datos = {
-    version: 1,
+    version: 2,
     empresa: 'Donnet',
     fecha: mov.fecha,
-    equipo: {
-      nombre: eq?.name ?? '',
-      tipo: eq?.type ?? '',
-      marca: eq?.brand ?? '',
-      modelo: eq?.model ?? '',
-      serial: eq?.serial_number ?? '',
-      etiqueta: eq?.asset_tag ?? '',
-    },
+    sucursal,
+    sector,
+    equipos: movs.map(m => {
+      const eq = eqs.find(e => e.id === m.equipment_id);
+      return {
+        nombre: eq?.name ?? '',
+        tipo: eq?.type ?? '',
+        marca: eq?.brand ?? '',
+        modelo: eq?.model ?? '',
+        serial: eq?.serial_number ?? '',
+        etiqueta: eq?.asset_tag ?? '',
+      };
+    }),
     usuario: { nombre: mov.usuario_nombre ?? '', area: mov.usuario_area ?? '', correo },
     responsable: { nombre: firma.nombre, dni: firma.dni, fuente: firma.fuente, correo: sesion.email },
-    observaciones: mov.observaciones ?? '',
+    observaciones: [...new Set(movs.map(m => (m.observaciones ?? '').trim()).filter(Boolean))].join(' · '),
     conformidad: TEXTO_CONFORMIDAD,
+    resguardo: TEXTO_RESGUARDO,
   };
 
   const [creado] = await rest(b, 'comprobantes_entrega', {
     method: 'POST',
     body: JSON.stringify({
       user_id: sesion.id,
-      movement_id: movementId,
+      movement_id: ids[0],
+      movement_ids: ids,
       token: randomBytes(24).toString('base64url'),
       datos,
       hash_documento: sha256(jsonEstable(datos)),
@@ -297,6 +348,7 @@ async function firmar(request: Request, body: any): Promise<Response> {
   const [c] = await rest(b, `comprobantes_entrega?token=eq.${token}&select=id,estado,datos,hash_documento,zammad_ticket_id`) ?? [];
   if (!c) return jsonResponse(404, { success: false, error: 'El comprobante no existe.' });
   if (c.estado !== 'pendiente') return jsonResponse(409, { success: false, error: 'Este comprobante ya fue firmado.' });
+  await actualizarSiPendiente(b, c);
   if (sha256(jsonEstable(c.datos)) !== c.hash_documento) {
     return jsonResponse(409, { success: false, error: 'El comprobante fue modificado y no se puede firmar. Contactá a Sistemas.' });
   }
@@ -334,6 +386,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const [c] = await rest(b, `comprobantes_entrega?token=eq.${token}&select=id,estado,datos,hash_documento,created_at,firmado_nombre,firmado_dni,firmado_fuente,firmado_at,firmado_ip,hash_firma,visto_at,zammad_ticket_id`) ?? [];
     if (!c) return jsonResponse(404, { success: false, error: 'El comprobante no existe.' });
+    await actualizarSiPendiente(b, c);
 
     // Primera apertura del usuario: se registra (no cuenta cuando Sistemas lo abre para verlo).
     const interno = new URL(request.url).searchParams.get('interno') === '1';
