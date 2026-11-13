@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
-  Monitor, Users, Building2, FileText, ChevronRight, Settings, Server, PenLine
+  Monitor, Users, Building2, ChevronRight, Settings, Server, PenLine
 } from 'lucide-react';
 import { useState } from 'react';
 import ThemeToggle from './ThemeToggle';
@@ -16,7 +16,6 @@ const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'movements', label: 'Movimientos', icon: <ArrowLeftRight size={20} /> },
   { page: 'collaborators', label: 'Usuarios', icon: <Users size={20} /> },
   { page: 'suppliers', label: 'Proveedores', icon: <Building2 size={20} /> },
-  { page: 'vouchers', label: 'Comprobantes', icon: <FileText size={20} /> },
   { page: 'printers', label: 'Impresoras', icon: <Printer size={20} /> },
   { page: 'inventory', label: 'Inventario', icon: <Package size={20} /> },
   { page: 'reports', label: 'Reportes', icon: <BarChart3 size={20} /> },
@@ -60,7 +59,8 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map(item => {
-            const isActive = currentPage === item.page;
+            // Facturas es una pestaña de Proveedores
+            const isActive = currentPage === item.page || (item.page === 'suppliers' && currentPage === 'vouchers');
             return (
               <button
                 key={item.page}
@@ -127,7 +127,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             </button>
             <div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                {navItems.find(n => n.page === currentPage)?.label || 'Dashboard'}
+                {navItems.find(n => n.page === (currentPage === 'vouchers' ? 'suppliers' : currentPage))?.label || 'Dashboard'}
               </h2>
               <p className="text-xs text-gray-500 dark:text-slate-400 hidden sm:block">
                 {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}

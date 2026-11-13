@@ -118,6 +118,19 @@ export interface SupabaseVoucher {
   equipment_ids: string[];
   status: 'pending' | 'approved' | 'rejected' | 'processed';
   notes: string;
+  letra?: string | null;
+  punto_venta?: string | null;
+  cuit_emisor?: string | null;
+  cae?: string | null;
+  cae_vencimiento?: string | null;
+  neto?: number | null;
+  iva?: number | null;
+  vencimiento_pago?: string | null;
+  archivo_path?: string | null;
+  archivo_nombre?: string | null;
+  origen?: 'manual' | 'zammad';
+  zammad_ticket_id?: number | null;
+  cargada_por?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -272,11 +285,11 @@ export const equipmentsService = {
 
 // ===== SUPPLIERS =====
 export const suppliersService = {
-  async getAll(userId: string) {
+  // Compartidos por todo el equipo de Sistemas (RLS equipo_sistemas_suppliers)
+  async getAll(_userId: string) {
     const { data, error } = await supabase
       .from('suppliers')
       .select('*')
-      .eq('user_id', userId)
       .order('created_at', { ascending: false });
     return { data, error };
   },
@@ -311,11 +324,11 @@ export const suppliersService = {
 
 // ===== VOUCHERS =====
 export const vouchersService = {
-  async getAll(userId: string) {
+  // Compartidas por todo el equipo de Sistemas (RLS equipo_sistemas_vouchers)
+  async getAll(_userId: string) {
     const { data, error } = await supabase
       .from('vouchers')
       .select('*')
-      .eq('user_id', userId)
       .order('created_at', { ascending: false });
     return { data, error };
   },

@@ -10,7 +10,6 @@ import Reports from './components/Reports';
 import Equipments from './components/Equipments';
 import Suppliers from './components/Suppliers';
 import Collaborators from './components/Collaborators';
-import Vouchers from './components/Vouchers';
 import ServerConfig from './components/ServerConfig';
 import EquipmentAssignments from './components/EquipmentAssignments';
 import FirmarComprobante from './components/comprobante/FirmarComprobante';
@@ -37,7 +36,7 @@ function PageRouter() {
     case 'collaborators':
       return <Collaborators />;
     case 'vouchers':
-      return <Vouchers />;
+      return <Suppliers tab="facturas" />;
     case 'server-config':
       return <ServerConfig />;
     default:

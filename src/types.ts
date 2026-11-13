@@ -95,6 +95,21 @@ export interface Voucher {
   equipmentIds: string[];
   status: 'pending' | 'approved' | 'rejected' | 'processed';
   notes: string;
+  // Datos fiscales de la factura
+  letra?: string;
+  puntoVenta?: string;
+  cuitEmisor?: string;
+  cae?: string;
+  caeVencimiento?: string;     // YYYY-MM-DD
+  neto?: number | null;
+  iva?: number | null;
+  vencimientoPago?: string;    // YYYY-MM-DD
+  // Archivo adjunto (Storage, espacio "facturas") y origen
+  archivoPath?: string;
+  archivoNombre?: string;
+  origen?: 'manual' | 'zammad';
+  zammadTicketId?: number | null;
+  cargadaPor?: string;
 }
 
 export type Page = 'dashboard' | 'asignaciones' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'server-config';

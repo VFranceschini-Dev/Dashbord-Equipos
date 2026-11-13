@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS public.suppliers (
 CREATE INDEX IF NOT EXISTS idx_suppliers_user_id ON public.suppliers (user_id);
 
 -- ============================================
--- TABLA: VOUCHERS (Comprobantes)
+-- TABLA: VOUCHERS (Facturas de proveedores; las ve todo el equipo de Sistemas)
 -- ============================================
 CREATE TABLE IF NOT EXISTS public.vouchers (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -163,16 +163,35 @@ CREATE TABLE IF NOT EXISTS public.vouchers (
   supplier_id   text NOT NULL DEFAULT '',
   supplier_name text NOT NULL DEFAULT '',
   date          text NOT NULL,
-  amount        numeric(10,2) NOT NULL DEFAULT 0,
+  amount        numeric(14,2) NOT NULL DEFAULT 0,
   currency      text NOT NULL DEFAULT 'ARS' CHECK (currency IN ('ARS', 'USD')),
   description   text NOT NULL DEFAULT '',
   equipment_ids text[] NOT NULL DEFAULT '{}',
   status        text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'processed')),
   notes         text NOT NULL DEFAULT '',
+  -- Datos fiscales
+  letra            text,
+  punto_venta      text,
+  cuit_emisor      text,
+  cae              text,
+  cae_vencimiento  date,
+  neto             numeric(14,2),
+  iva              numeric(14,2),
+  vencimiento_pago date,
+  -- Archivo adjunto (Storage, espacio privado "facturas") y origen
+  archivo_path     text,
+  archivo_nombre   text,
+  origen           text NOT NULL DEFAULT 'manual' CHECK (origen IN ('manual', 'zammad')),
+  zammad_ticket_id integer,
+  cargada_por      text,
   created_at    timestamptz DEFAULT now(),
   updated_at    timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_vouchers_user_id ON public.vouchers (user_id);
+-- Una misma factura (CUIT + letra + punto de venta + número) no se carga dos veces
+CREATE UNIQUE INDEX IF NOT EXISTS vouchers_factura_unica ON public.vouchers
+  (cuit_emisor, coalesce(letra, ''), coalesce(punto_venta, ''), number)
+  WHERE cuit_emisor IS NOT NULL AND cuit_emisor <> '';
 
 -- ============================================
 -- TABLA: EQUIPMENT_MOVEMENTS (Movimientos de equipos a usuarios)
@@ -262,9 +281,7 @@ BEGIN
       ('app_printers',     'app_printers'),
       ('toner_items',      'toner_items'),
       ('toner_movements',  'movements'),
-      ('equipments',       'equipments'),
-      ('suppliers',        'suppliers'),
-      ('vouchers',         'vouchers')
+      ('equipments',       'equipments')
     ) AS v(tabla, etiqueta)
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can view their own '   || t.etiqueta, t.tabla);
@@ -282,6 +299,26 @@ BEGIN
                    'Users can delete their own ' || t.etiqueta, t.tabla);
   END LOOP;
 END $$;
+
+-- Proveedores y facturas: compartidos por todo el equipo de Sistemas (usuarios con sesión).
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['vouchers', 'suppliers'] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can view their own '   || t, t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can insert their own ' || t, t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can update their own ' || t, t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can delete their own ' || t, t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'equipo_sistemas_' || t, t);
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (true) WITH CHECK (true)', 'equipo_sistemas_' || t, t);
+  END LOOP;
+END $$;
+
+-- Archivos de facturas: espacio privado, solo usuarios con sesión.
+INSERT INTO storage.buckets (id, name, public) VALUES ('facturas', 'facturas', false) ON CONFLICT (id) DO NOTHING;
+DROP POLICY IF EXISTS "facturas_equipo_sistemas" ON storage.objects;
+CREATE POLICY "facturas_equipo_sistemas" ON storage.objects FOR ALL TO authenticated
+  USING (bucket_id = 'facturas') WITH CHECK (bucket_id = 'facturas');
 
 -- Movimientos de equipos: una sola política FOR ALL.
 DROP POLICY IF EXISTS "own_equipment_movements" ON public.equipment_movements;
