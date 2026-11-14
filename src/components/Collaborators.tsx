@@ -9,13 +9,40 @@ import RegistrarMovimientoModal, { type TipoMovimiento, type UsuarioMovimiento }
 import type { Equipment } from '../types';
 import {
   Plus, Search, X, Users, Mail, Building, User, CheckCircle, XCircle, Monitor, Loader2, RefreshCw, AlertTriangle,
-  UserPlus, Undo2
+  UserPlus, Undo2, LayoutGrid, List, SquareUser
 } from 'lucide-react';
 
 const TU = TEXTOS_USUARIOS.usuarios;
 const TA = TEXTOS_USUARIOS.asignaciones;
 
 const LIMITE = 500;
+
+type Vista = 'columnas' | 'lista' | 'tarjetas';
+const VISTAS: { id: Vista; label: string; icon: JSX.Element }[] = [
+  { id: 'columnas', label: 'Columnas', icon: <LayoutGrid size={16} /> },
+  { id: 'lista', label: 'Lista', icon: <List size={16} /> },
+  { id: 'tarjetas', label: 'Tarjetas', icon: <SquareUser size={16} /> },
+];
+const CLAVE_VISTA = 'usuarios.vista';
+const CLAVE_AGRUPAR = 'usuarios.agrupar';
+function leer(clave: string): string | null {
+  try { return localStorage.getItem(clave); } catch { return null; }
+}
+function guardar(clave: string, valor: string) {
+  try { localStorage.setItem(clave, valor); } catch { /* sin almacenamiento */ }
+}
+
+/** Ícono del usuario, como los equipos en Mesh: color si está activo, gris si no. */
+function IconoUsuario({ activo, size = 28 }: { activo: boolean; size?: number }) {
+  return (
+    <div className={`relative shrink-0 rounded-lg p-1.5 ${activo
+      ? 'bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300'
+      : 'bg-gray-100 text-gray-400 dark:bg-slate-700 dark:text-slate-500'}`}>
+      <User size={size} strokeWidth={1.6} />
+      <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 ${activo ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-slate-500'}`} />
+    </div>
+  );
+}
 
 const emptyForm: AltaUsuarioInput = {
   nombre: '', apellido: '', usuario: '', correo: '', departamento: '', estado: 'activo',
@@ -45,6 +72,14 @@ export default function Collaborators() {
   const [loginEditado, setLoginEditado] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
   const [formMsg, setFormMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [vista, setVista] = useState<Vista>(() => {
+    const v = leer(CLAVE_VISTA);
+    return v === 'lista' || v === 'tarjetas' ? v : 'columnas';
+  });
+  const [agrupar, setAgrupar] = useState(() => leer(CLAVE_AGRUPAR) !== 'no');
+  const [abierto, setAbierto] = useState<string | null>(null);   // usuario desplegado en la vista de columnas
+  const cambiarVista = (v: Vista) => { setVista(v); guardar(CLAVE_VISTA, v); };
+  const cambiarAgrupar = (a: boolean) => { setAgrupar(a); guardar(CLAVE_AGRUPAR, a ? 'si' : 'no'); };
 
   // Lista de usuarios (con espera tras tipear, igual que Asignación de Equipos)
   useEffect(() => {
@@ -95,6 +130,21 @@ export default function Collaborators() {
   const filtered = filterDepartment === 'all'
     ? listado.data
     : listado.data.filter(u => u.departamento.trim() === filterDepartment);
+
+  // Grupos por departamento (como los grupos de Mesh), ordenados por nombre
+  const grupos: [string, typeof filtered][] = useMemo(() => {
+    const orden = (a: (typeof filtered)[number], b: (typeof filtered)[number]) =>
+      (`${a.nombre} ${a.apellido}`.trim() || a.usuario).localeCompare(`${b.nombre} ${b.apellido}`.trim() || b.usuario, 'es', { sensitivity: 'base' });
+    if (!agrupar || vista === 'tarjetas') return [['', [...filtered].sort(orden)]];
+    const mapa = new Map<string, typeof filtered>();
+    for (const u of filtered) {
+      const d = u.departamento.trim() || 'Sin departamento';
+      mapa.set(d, [...(mapa.get(d) ?? []), u]);
+    }
+    return [...mapa.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], 'es'))
+      .map(([d, lista]) => [d, [...lista].sort(orden)] as [string, typeof filtered]);
+  }, [filtered, agrupar, vista]);
 
   const updateNombre = (campo: 'nombre' | 'apellido', valor: string) => {
     const next = { ...form, [campo]: valor };
@@ -272,6 +322,114 @@ export default function Collaborators() {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-gray-500 dark:text-slate-400">
+          {filtered.length} {filtered.length === 1 ? 'usuario' : 'usuarios'}
+        </p>
+        <div className="flex items-center gap-3">
+          {vista !== 'tarjetas' && (
+            <label className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-300 cursor-pointer select-none">
+              <input type="checkbox" checked={agrupar} onChange={e => cambiarAgrupar(e.target.checked)} className="rounded" />
+              Agrupar por departamento
+            </label>
+          )}
+          <div className="inline-flex rounded-lg border border-gray-200 dark:border-slate-600 overflow-hidden" role="group" aria-label="Tipo de vista">
+            {VISTAS.map(v => (
+              <button key={v.id} onClick={() => cambiarVista(v.id)} title={v.label} aria-pressed={vista === v.id}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm ${vista === v.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                {v.icon} <span className="hidden sm:inline">{v.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {vista !== 'tarjetas' && grupos.map(([grupo, lista]) => (
+        <section key={grupo || 'todos'} className="space-y-2">
+          {grupo && (
+            <h3 className="flex items-center justify-between border-b border-gray-200 dark:border-slate-700 pb-1 text-sm font-semibold text-gray-700 dark:text-slate-200">
+              {grupo}
+              <span className="text-xs font-normal text-gray-400 dark:text-slate-500">{lista.length} {lista.length === 1 ? 'usuario' : 'usuarios'}</span>
+            </h3>
+          )}
+          <div className={vista === 'columnas' ? 'grid items-start gap-2' : 'divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800'}
+            style={vista === 'columnas' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))' } : undefined}>
+            {lista.map(u => {
+              const susEquipos = equiposDe.get(u.id) ?? [];
+              const nombre = `${u.nombre} ${u.apellido}`.trim() || u.usuario;
+              const persona: UsuarioMovimiento = { ref: u.id, nombre, area: u.departamento, correo: u.correo || undefined };
+              const activo = u.estado === 'activo';
+              const estado = (
+                <span className={activo ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-slate-500'}>
+                  {activo ? 'Activo' : 'Inactivo'}
+                </span>
+              );
+              const botonAsignar = activo && (
+                <button onClick={() => setMovimiento({ tipo: 'asignacion', usuario: persona })} title="Asignar equipo"
+                  className="flex items-center gap-1 rounded px-1.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-sky-300 dark:hover:bg-slate-700">
+                  <UserPlus size={13} /> Asignar
+                </button>
+              );
+              const equiposConDevolucion = susEquipos.map(eq => (
+                <span key={eq.id} className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 text-xs text-gray-700 dark:text-slate-200">
+                  <Monitor size={11} className="shrink-0" /> <span className="truncate max-w-[9rem]" title={eq.name}>{eq.name}</span>
+                  <button onClick={() => setMovimiento({ tipo: 'devolucion', usuario: persona, equipo: eq })} title={`Devolución de ${eq.name}`}
+                    className="text-emerald-700 dark:text-emerald-400 hover:opacity-70"><Undo2 size={12} /></button>
+                </span>
+              ));
+
+              if (vista === 'lista') {
+                return (
+                  <div key={u.id} className="flex items-center gap-3 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-slate-700/60">
+                    <IconoUsuario activo={activo} size={16} />
+                    <p className="w-52 shrink-0 truncate text-sm font-medium text-gray-800 dark:text-slate-100" title={nombre}>{nombre}</p>
+                    <p className="hidden md:block w-32 shrink-0 truncate text-xs text-gray-500 dark:text-slate-400">{u.usuario}</p>
+                    {!agrupar && <p className="hidden lg:block w-40 shrink-0 truncate text-xs text-gray-500 dark:text-slate-400">{u.departamento}</p>}
+                    <p className="w-16 shrink-0 text-xs">{estado}</p>
+                    <div className="flex flex-1 min-w-0 flex-wrap gap-1">
+                      {equiposConDevolucion.length ? equiposConDevolucion : <span className="text-xs text-gray-400 dark:text-slate-500">Sin equipos</span>}
+                    </div>
+                    <div className="shrink-0">{botonAsignar}</div>
+                  </div>
+                );
+              }
+
+              const desplegado = abierto === u.id;
+              return (
+                <div key={u.id} onClick={() => setAbierto(desplegado ? null : u.id)} title={desplegado ? undefined : 'Ver equipos y acciones'}
+                  className={`rounded-lg border bg-white px-2.5 py-2 cursor-pointer dark:bg-slate-800 ${desplegado
+                    ? 'border-blue-400 shadow-sm dark:border-sky-500'
+                    : 'border-gray-200 hover:border-blue-300 hover:shadow-sm dark:border-slate-700 dark:hover:border-sky-500/60'}`}>
+                  <div className="flex items-center gap-2.5">
+                    <IconoUsuario activo={activo} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-800 dark:text-slate-100" title={nombre}>{nombre}</p>
+                      <p className="truncate text-xs">
+                        {estado}
+                        <span className="text-gray-500 dark:text-slate-400"> · {susEquipos.length} equipo{susEquipos.length !== 1 ? 's' : ''}</span>
+                      </p>
+                      <p className="truncate text-xs text-gray-400 dark:text-slate-500">{u.usuario}{!agrupar && u.departamento ? ` · ${u.departamento}` : ''}</p>
+                    </div>
+                  </div>
+                  {desplegado && (
+                    <div className="mt-2 space-y-1.5 border-t border-gray-100 pt-2 dark:border-slate-700" onClick={e => e.stopPropagation()}>
+                      {u.correo && <p className="flex items-center gap-1.5 truncate text-xs text-gray-500 dark:text-slate-400"><Mail size={11} /> {u.correo}</p>}
+                      <div className="flex flex-wrap gap-1">
+                        {equiposConDevolucion.length ? equiposConDevolucion : <span className="text-xs text-gray-400 dark:text-slate-500">Sin equipos asignados</span>}
+                      </div>
+                      {botonAsignar && <div className="flex justify-end">{botonAsignar}</div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+
+      {vista === 'tarjetas' && (
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map(u => {
           const susEquipos = equiposDe.get(u.id) ?? [];
@@ -334,6 +492,7 @@ export default function Collaborators() {
           );
         })}
       </div>
+      )}
 
       {movimiento && (
         <RegistrarMovimientoModal tipo={movimiento.tipo} usuario={movimiento.usuario} equipo={movimiento.equipo}
