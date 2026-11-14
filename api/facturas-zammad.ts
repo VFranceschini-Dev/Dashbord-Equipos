@@ -4,7 +4,7 @@
  * Zammad (Disparador → Webhook) llama a esta función cuando entra un email al
  * grupo de soporte. Si en el asunto, el texto o el nombre de un adjunto dice
  * "factura", se leen los adjuntos (PDF o imagen), se extraen los datos
- * (QR de AFIP → texto del PDF → Claude como respaldo), se guarda el archivo en
+ * (QR de AFIP → texto del PDF → GPT de OpenAI como respaldo), se guarda el archivo en
  * Storage ("facturas") y la factura queda PENDIENTE de revisión en
  * Proveedores → Facturas. En el ticket se deja una nota interna con el resultado.
  *
@@ -19,7 +19,8 @@
  *   ZAMMAD_URL, ZAMMAD_TOKEN          (las mismas de los comprobantes)
  *   ZAMMAD_WEBHOOK_SECRET             secreto del webhook (el mismo que se carga en Zammad)
  *   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
- *   ANTHROPIC_API_KEY                 opcional: lectura con Claude si el QR y el texto no alcanzan
+ *   OPENAI_API_KEY                    opcional: lectura con GPT si el QR y el texto no alcanzan
+ *   OPENAI_MODEL                      opcional: modelo de OpenAI (por defecto gpt-5.4-mini)
  *   FACTURAS_USER_ID                  opcional: usuario dueño de las facturas automáticas
  *                                     (si falta, el administrador activo más antiguo)
  *   CUIT_EMPRESA                      opcional: CUIT propio (por defecto el de PEDSA)
@@ -242,7 +243,7 @@ export async function procesarArticulo(ticketId: number, articuloId: number): Pr
       const bytes = new Uint8Array(await res.arrayBuffer());
       if (bytes.length > MAX_ARCHIVO) { resultados.push({ archivo: nombre, estado: 'error', detalle: 'supera 10 MB' }); continue; }
       const tipo = tipoDe(a);
-      const { datos } = await extraerFactura(bytes, tipo);
+      const { datos } = await extraerFactura(bytes, tipo, nombre);
       // Un PDF que no parece factura y del que no se pudo leer nada (ej. un remito) se saltea
       if (!datos.fuentes.length) { resultados.push({ archivo: nombre, estado: 'error', detalle: 'no se pudieron leer datos de factura' }); continue; }
 

@@ -6,13 +6,14 @@
  *      fecha, total, moneda y CAE (datos firmados por AFIP, los más confiables).
  *   2. Texto del PDF: neto, IVA, vencimiento del CAE, vencimiento del pago y
  *      todo lo que falte del QR.
- *   3. Claude (solo si falta CUIT, número o total, y está ANTHROPIC_API_KEY):
- *      lee el documento y devuelve los datos como JSON.
+ *   3. GPT de OpenAI (solo si falta CUIT, número o total, y está OPENAI_API_KEY):
+ *      lee el documento y devuelve los datos como JSON. Modelo: OPENAI_MODEL
+ *      (por defecto gpt-5.4-mini).
  *
  * Las carpetas que empiezan con "_" dentro de api/ no son funciones públicas.
  */
 import jsQRModulo from 'jsqr';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 
 export interface DatosFactura {
   tipoComprobante: string;   // "Factura", "Nota de crédito", ...
@@ -29,7 +30,7 @@ export interface DatosFactura {
   iva: number | null;
   total: number | null;
   moneda: 'ARS' | 'USD';
-  fuentes: string[];         // qr / texto / claude
+  fuentes: string[];         // qr / texto / gpt
 }
 
 const vacio = (): DatosFactura => ({
@@ -279,7 +280,7 @@ export function datosDeTexto(texto: string): Partial<DatosFactura> {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Claude (respaldo)
+// 3. GPT (respaldo)
 // ---------------------------------------------------------------------------
 const ESQUEMA = {
   type: 'object',
@@ -303,49 +304,57 @@ const ESQUEMA = {
   required: ['es_factura', 'tipo_comprobante', 'letra', 'punto_venta', 'numero', 'cuit_emisor', 'razon_social_emisor',
     'fecha_emision', 'vencimiento_pago', 'cae', 'vencimiento_cae', 'neto', 'iva', 'total', 'moneda'],
   additionalProperties: false,
-} as const;
+};
 
-export function claudeDisponible(): boolean {
-  return Boolean((process.env.ANTHROPIC_API_KEY || '').trim());
+const INSTRUCCIONES = 'Extraés datos de comprobantes fiscales argentinos (AFIP/ARCA). Respondé solo con lo que figura en el documento; '
+  + 'si un dato no aparece, dejalo vacío o null. Los importes van como número, sin separador de miles. '
+  + 'El CUIT del emisor es el de quien vende, no el del cliente.';
+
+export function iaDisponible(): boolean {
+  return Boolean((process.env.OPENAI_API_KEY || '').trim());
 }
 
-/** Pide a Claude los datos de la factura. Devuelve null si no hay clave o si no es una factura. */
-export async function datosConClaude(archivo: Uint8Array, tipoMime: string): Promise<Partial<DatosFactura> | null> {
-  if (!claudeDisponible()) return null;
-  const client = new Anthropic({ timeout: 50_000, maxRetries: 1 });
-  const data = Buffer.from(archivo).toString('base64');
-  const adjunto: Anthropic.ContentBlockParam = tipoMime === 'application/pdf'
-    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }
-    : { type: 'image', source: { type: 'base64', media_type: tipoMime as 'image/png' | 'image/jpeg' | 'image/webp', data } };
-  const respuesta = await client.messages.create({
-    model: 'claude-opus-5-5',
-    max_tokens: 4000,
-    output_config: { effort: 'low', format: { type: 'json_schema', schema: ESQUEMA } },
-    system: 'Extraés datos de comprobantes fiscales argentinos (AFIP/ARCA). Respondé solo con lo que figura en el documento; '
-      + 'si un dato no aparece, dejalo vacío o null. Los importes van como número, sin separador de miles.',
-    messages: [{ role: 'user', content: [adjunto, { type: 'text', text: 'Extraé los datos de este comprobante.' }] }],
-  } as Anthropic.MessageCreateParamsNonStreaming);
-  if (respuesta.stop_reason === 'refusal') return null;
-  const texto = respuesta.content.find((b): b is Anthropic.TextBlock => b.type === 'text')?.text;
-  if (!texto) return null;
+/** Convierte la respuesta JSON del modelo en datos de factura (null si no es una factura). */
+export function datosDeRespuestaIa(texto: string): Partial<DatosFactura> | null {
   const j = JSON.parse(texto);
-  if (!j.es_factura) return null;
+  if (!j?.es_factura) return null;
+  const fechaIso = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
+  const pv = soloDigitos(j.punto_venta), nro = soloDigitos(j.numero);
   return {
-    tipoComprobante: j.tipo_comprobante || 'Factura',
-    letra: String(j.letra || '').toUpperCase().slice(0, 1),
-    puntoVenta: soloDigitos(j.punto_venta) ? soloDigitos(j.punto_venta).padStart(5, '0') : '',
-    numero: soloDigitos(j.numero) ? soloDigitos(j.numero).padStart(8, '0') : '',
+    tipoComprobante: String(j.tipo_comprobante || 'Factura').slice(0, 60),
+    letra: /^[ABCEM]$/i.test(String(j.letra || '').trim()) ? String(j.letra).trim().toUpperCase() : '',
+    puntoVenta: pv ? pv.slice(-5).padStart(5, '0') : '',
+    numero: nro ? nro.slice(-8).padStart(8, '0') : '',
     cuitEmisor: soloDigitos(j.cuit_emisor),
     razonSocial: String(j.razon_social_emisor || '').slice(0, 120),
-    fecha: /^\d{4}-\d{2}-\d{2}$/.test(j.fecha_emision) ? j.fecha_emision : '',
-    vencimientoPago: /^\d{4}-\d{2}-\d{2}$/.test(j.vencimiento_pago) ? j.vencimiento_pago : '',
+    fecha: fechaIso(j.fecha_emision),
+    vencimientoPago: fechaIso(j.vencimiento_pago),
     cae: soloDigitos(j.cae),
-    caeVencimiento: /^\d{4}-\d{2}-\d{2}$/.test(j.vencimiento_cae) ? j.vencimiento_cae : '',
-    neto: typeof j.neto === 'number' ? j.neto : null,
-    iva: typeof j.iva === 'number' ? j.iva : null,
-    total: typeof j.total === 'number' ? j.total : null,
+    caeVencimiento: fechaIso(j.vencimiento_cae),
+    neto: typeof j.neto === 'number' ? Math.round(j.neto * 100) / 100 : null,
+    iva: typeof j.iva === 'number' ? Math.round(j.iva * 100) / 100 : null,
+    total: typeof j.total === 'number' ? Math.round(j.total * 100) / 100 : null,
     moneda: j.moneda === 'USD' ? 'USD' : 'ARS',
   };
+}
+
+/** Pide a GPT los datos de la factura. Devuelve null si no hay clave o si no es una factura. */
+export async function datosConIa(archivo: Uint8Array, tipoMime: string, nombre = 'factura.pdf'): Promise<Partial<DatosFactura> | null> {
+  if (!iaDisponible()) return null;
+  const client = new OpenAI({ timeout: 50_000, maxRetries: 1 });
+  const dataUrl = `data:${tipoMime};base64,${Buffer.from(archivo).toString('base64')}`;
+  const adjunto: OpenAI.Responses.ResponseInputContent = tipoMime === 'application/pdf'
+    ? { type: 'input_file', filename: nombre.toLowerCase().endsWith('.pdf') ? nombre : `${nombre}.pdf`, file_data: dataUrl }
+    : { type: 'input_image', image_url: dataUrl, detail: 'high' };
+  const respuesta = await client.responses.create({
+    model: (process.env.OPENAI_MODEL || '').trim() || 'gpt-5.4-mini',
+    instructions: INSTRUCCIONES,
+    input: [{ role: 'user', content: [adjunto, { type: 'input_text', text: 'Extraé los datos de este comprobante.' }] }],
+    text: { format: { type: 'json_schema', name: 'factura', schema: ESQUEMA, strict: true } },
+    store: false,
+  });
+  if (respuesta.status === 'incomplete' || !respuesta.output_text) return null;
+  return datosDeRespuestaIa(respuesta.output_text);
 }
 
 // ---------------------------------------------------------------------------
@@ -365,8 +374,8 @@ function completar(base: DatosFactura, extra: Partial<DatosFactura> | null, fuen
 
 export const datosCompletos = (d: DatosFactura) => Boolean(d.cuitEmisor && d.numero && d.total != null);
 
-/** Lee la factura: QR → texto → Claude (solo si faltan datos clave). */
-export async function extraerFactura(archivo: Uint8Array, tipoMime: string): Promise<{ datos: DatosFactura; texto: string }> {
+/** Lee la factura: QR → texto → GPT (solo si faltan datos clave). */
+export async function extraerFactura(archivo: Uint8Array, tipoMime: string, nombre?: string): Promise<{ datos: DatosFactura; texto: string }> {
   const datos = vacio();
   let texto = '';
   if (tipoMime === 'application/pdf') {
@@ -382,9 +391,9 @@ export async function extraerFactura(archivo: Uint8Array, tipoMime: string): Pro
   if (datos.cuitEmisor && (!cuitValido(datos.cuitEmisor) || datos.cuitEmisor === cuitPropio())) datos.cuitEmisor = '';
   if (!datosCompletos(datos)) {
     try {
-      completar(datos, await datosConClaude(archivo, tipoMime), 'claude');
+      completar(datos, await datosConIa(archivo, tipoMime, nombre), 'gpt');
     } catch (err) {
-      console.error('[factura] Claude:', (err as Error).message);
+      console.error('[factura] GPT:', (err as Error).message);
     }
   }
   if (datos.cuitEmisor && (!cuitValido(datos.cuitEmisor) || datos.cuitEmisor === cuitPropio())) datos.cuitEmisor = '';
