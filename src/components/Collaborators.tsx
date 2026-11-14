@@ -8,8 +8,8 @@ import { asignacionesActuales, type AsignacionActual } from '../utils/asignacion
 import RegistrarMovimientoModal, { type TipoMovimiento, type UsuarioMovimiento } from './RegistrarMovimientoModal';
 import type { Equipment } from '../types';
 import {
-  Plus, Search, X, Users, Mail, Building, User, CheckCircle, XCircle, Monitor, Loader2, RefreshCw, AlertTriangle,
-  UserPlus, Undo2, LayoutGrid, List, SquareUser
+  Plus, Search, X, Users, Mail, User, Monitor, Loader2, RefreshCw, AlertTriangle,
+  UserPlus, Undo2, LayoutGrid, List
 } from 'lucide-react';
 
 const TU = TEXTOS_USUARIOS.usuarios;
@@ -17,11 +17,10 @@ const TA = TEXTOS_USUARIOS.asignaciones;
 
 const LIMITE = 500;
 
-type Vista = 'columnas' | 'lista' | 'tarjetas';
+type Vista = 'columnas' | 'lista';
 const VISTAS: { id: Vista; label: string; icon: JSX.Element }[] = [
   { id: 'columnas', label: 'Columnas', icon: <LayoutGrid size={16} /> },
   { id: 'lista', label: 'Lista', icon: <List size={16} /> },
-  { id: 'tarjetas', label: 'Tarjetas', icon: <SquareUser size={16} /> },
 ];
 const CLAVE_VISTA = 'usuarios.vista';
 const CLAVE_AGRUPAR = 'usuarios.agrupar';
@@ -74,7 +73,7 @@ export default function Collaborators() {
   const [formMsg, setFormMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [vista, setVista] = useState<Vista>(() => {
     const v = leer(CLAVE_VISTA);
-    return v === 'lista' || v === 'tarjetas' ? v : 'columnas';
+    return v === 'lista' ? 'lista' : 'columnas';
   });
   const [agrupar, setAgrupar] = useState(() => leer(CLAVE_AGRUPAR) !== 'no');
   const [abierto, setAbierto] = useState<string | null>(null);   // usuario desplegado en la vista de columnas
@@ -123,19 +122,21 @@ export default function Collaborators() {
   }, [asignaciones, equipments]);
 
   const departamentos = useMemo(
-    () => [...new Set(listado.data.map(u => u.departamento.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    () => [...new Set(listado.data.filter(u => u.estado === 'activo').map(u => u.departamento.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [listado.data],
   );
 
+  // Solo se muestran los usuarios activos (los totales de arriba siguen contando a todos)
+  const activos = useMemo(() => listado.data.filter(u => u.estado === 'activo'), [listado.data]);
   const filtered = filterDepartment === 'all'
-    ? listado.data
-    : listado.data.filter(u => u.departamento.trim() === filterDepartment);
+    ? activos
+    : activos.filter(u => u.departamento.trim() === filterDepartment);
 
   // Grupos por departamento (como los grupos de Mesh), ordenados por nombre
   const grupos: [string, typeof filtered][] = useMemo(() => {
     const orden = (a: (typeof filtered)[number], b: (typeof filtered)[number]) =>
       (`${a.nombre} ${a.apellido}`.trim() || a.usuario).localeCompare(`${b.nombre} ${b.apellido}`.trim() || b.usuario, 'es', { sensitivity: 'base' });
-    if (!agrupar || vista === 'tarjetas') return [['', [...filtered].sort(orden)]];
+    if (!agrupar) return [['', [...filtered].sort(orden)]];
     const mapa = new Map<string, typeof filtered>();
     for (const u of filtered) {
       const d = u.departamento.trim() || 'Sin departamento';
@@ -324,15 +325,13 @@ export default function Collaborators() {
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-gray-500 dark:text-slate-400">
-          {filtered.length} {filtered.length === 1 ? 'usuario' : 'usuarios'}
+          {filtered.length} {filtered.length === 1 ? 'usuario activo' : 'usuarios activos'}
         </p>
         <div className="flex items-center gap-3">
-          {vista !== 'tarjetas' && (
-            <label className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-300 cursor-pointer select-none">
-              <input type="checkbox" checked={agrupar} onChange={e => cambiarAgrupar(e.target.checked)} className="rounded" />
-              Agrupar por departamento
-            </label>
-          )}
+          <label className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-300 cursor-pointer select-none">
+            <input type="checkbox" checked={agrupar} onChange={e => cambiarAgrupar(e.target.checked)} className="rounded" />
+            Agrupar por departamento
+          </label>
           <div className="inline-flex rounded-lg border border-gray-200 dark:border-slate-600 overflow-hidden" role="group" aria-label="Tipo de vista">
             {VISTAS.map(v => (
               <button key={v.id} onClick={() => cambiarVista(v.id)} title={v.label} aria-pressed={vista === v.id}
@@ -346,7 +345,7 @@ export default function Collaborators() {
         </div>
       </div>
 
-      {vista !== 'tarjetas' && grupos.map(([grupo, lista]) => (
+      {grupos.map(([grupo, lista]) => (
         <section key={grupo || 'todos'} className="space-y-2">
           {grupo && (
             <h3 className="flex items-center justify-between border-b border-gray-200 dark:border-slate-700 pb-1 text-sm font-semibold text-gray-700 dark:text-slate-200">
@@ -428,71 +427,6 @@ export default function Collaborators() {
           </div>
         </section>
       ))}
-
-      {vista === 'tarjetas' && (
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map(u => {
-          const susEquipos = equiposDe.get(u.id) ?? [];
-          const persona: UsuarioMovimiento = {
-            ref: u.id,
-            nombre: `${u.nombre} ${u.apellido}`.trim() || u.usuario,
-            area: u.departamento,
-            correo: u.correo || undefined,
-          };
-          const activo = u.estado === 'activo';
-          return (
-            <div key={u.id} className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                    {(u.nombre.charAt(0) + u.apellido.charAt(0)).toUpperCase() || u.usuario.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{`${u.nombre} ${u.apellido}`.trim() || u.usuario}</h3>
-                    <p className="text-xs text-gray-400 flex items-center gap-1"><User size={10} /> {u.usuario}</p>
-                  </div>
-                </div>
-                {activo ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-700">
-                    <CheckCircle size={10} /> Activo
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-500">
-                    <XCircle size={10} /> Inactivo
-                  </span>
-                )}
-              </div>
-              <div className="space-y-2 mb-4">
-                {u.departamento && <p className="text-sm text-gray-600 flex items-center gap-2"><Building size={14} className="text-gray-400" /> {u.departamento}</p>}
-                {u.correo && <p className="text-sm text-gray-600 flex items-center gap-2"><Mail size={14} className="text-gray-400" /> {u.correo}</p>}
-              </div>
-              <div className="pt-3 border-t border-gray-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">
-                    <Monitor size={10} /> {susEquipos.length} equipo{susEquipos.length !== 1 ? 's' : ''}
-                  </span>
-                  {activo && (
-                    <button onClick={() => setMovimiento({ tipo: 'asignacion', usuario: persona })}
-                      className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
-                      <UserPlus size={12} /> Asignar equipo
-                    </button>
-                  )}
-                </div>
-                {susEquipos.map(eq => (
-                  <div key={eq.id} className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded-lg px-2 py-1.5">
-                    <span className="truncate">{eq.name}</span>
-                    <button onClick={() => setMovimiento({ tipo: 'devolucion', usuario: persona, equipo: eq })}
-                      className="flex items-center gap-1 font-medium text-emerald-700 hover:underline shrink-0 ml-2">
-                      <Undo2 size={12} /> Devolución
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      )}
 
       {movimiento && (
         <RegistrarMovimientoModal tipo={movimiento.tipo} usuario={movimiento.usuario} equipo={movimiento.equipo}

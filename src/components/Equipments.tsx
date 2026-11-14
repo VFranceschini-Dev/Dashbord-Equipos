@@ -7,7 +7,8 @@ import { syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
 import { asignacionesActuales, type AsignacionActual } from '../utils/asignaciones';
 import {
   Plus, Search, Edit2, Trash2, X, Monitor, Laptop, Server,
-  HardDrive, Mouse, Package, Tag, User, Upload, RefreshCw, Loader2
+  HardDrive, Mouse, Package, User, Upload, RefreshCw, Loader2,
+  LayoutGrid, List
 } from 'lucide-react';
 import { sincronizarConMesh } from '../services/mesh';
 import ImportModal from './ImportModal';
@@ -39,6 +40,48 @@ const statusConfig = {
   retired: { label: 'Retirado', color: 'bg-gray-100 text-gray-700' },
 };
 
+type Vista = 'columnas' | 'lista';
+const VISTAS: { id: Vista; label: string; icon: JSX.Element }[] = [
+  { id: 'columnas', label: 'Columnas', icon: <LayoutGrid size={16} /> },
+  { id: 'lista', label: 'Lista', icon: <List size={16} /> },
+];
+const CLAVE_VISTA = 'equipos.vista';
+const CLAVE_AGRUPAR = 'equipos.agrupar';
+function leer(clave: string): string | null {
+  try { return localStorage.getItem(clave); } catch { return null; }
+}
+function guardar(clave: string, valor: string) {
+  try { localStorage.setItem(clave, valor); } catch { /* sin almacenamiento */ }
+}
+
+const encendido = (eq: Equipment) => Boolean(eq.meshNodeId && eq.meshEnLinea);
+
+/** Ícono del equipo, como en Mesh: color si está encendido, gris si está apagado. */
+function IconoEquipo({ eq, size = 28 }: { eq: Equipment; size?: number }) {
+  const on = encendido(eq);
+  const Icono = eq.type === 'laptop' ? Laptop : eq.type === 'server' ? Server : eq.type === 'peripheral' ? Mouse
+    : eq.type === 'other' ? Package : Monitor;
+  return (
+    <div className={`relative shrink-0 rounded-lg p-1.5 ${on
+      ? 'bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300'
+      : 'bg-gray-100 text-gray-400 dark:bg-slate-700 dark:text-slate-500'}`}>
+      <Icono size={size} strokeWidth={1.6} />
+      {eq.meshNodeId && (
+        <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 ${on ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-slate-500'}`} />
+      )}
+    </div>
+  );
+}
+
+/** "Encendido" / "Apagado" para equipos de Mesh; el estado de inventario para los cargados a mano. */
+function EstadoEquipo({ eq }: { eq: Equipment }) {
+  if (!eq.meshNodeId) return <span className="text-gray-500 dark:text-slate-400">{statusConfig[eq.status].label}</span>;
+  const titulo = eq.meshUltimaConexion ? `Última conexión: ${new Date(eq.meshUltimaConexion).toLocaleString('es-AR')}` : undefined;
+  return encendido(eq)
+    ? <span className="text-emerald-600 dark:text-emerald-400" title={titulo}>Encendido</span>
+    : <span className="text-gray-400 dark:text-slate-500" title={titulo}>Apagado</span>;
+}
+
 const ESTADOS_EDITABLES: Equipment['status'][] = ['available', 'maintenance'];
 
 export default function Equipments() {
@@ -56,6 +99,11 @@ export default function Equipments() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [vista, setVista] = useState<Vista>(() => (leer(CLAVE_VISTA) === 'lista' ? 'lista' : 'columnas'));
+  const [agrupar, setAgrupar] = useState(() => leer(CLAVE_AGRUPAR) !== 'no');
+  const [filterEncendido, setFilterEncendido] = useState<'all' | 'on' | 'off'>('all');
+  const cambiarVista = (v: Vista) => { setVista(v); guardar(CLAVE_VISTA, v); };
+  const cambiarAgrupar = (a: boolean) => { setAgrupar(a); guardar(CLAVE_AGRUPAR, a ? 'si' : 'no'); };
 
   const emptyForm: Omit<Equipment, 'id'> = {
     name: '', type: 'desktop', brand: '', model: '', serialNumber: '',
@@ -73,8 +121,21 @@ export default function Equipments() {
     const matchType = filterType === 'all' || e.type === filterType;
     const matchCategory = filterCategory === 'all' || e.category === filterCategory;
     const matchStatus = filterStatus === 'all' || e.status === filterStatus;
-    return matchSearch && matchType && matchCategory && matchStatus;
-  });
+    const matchEncendido = filterEncendido === 'all' || (filterEncendido === 'on' ? encendido(e) : !encendido(e));
+    return matchSearch && matchType && matchCategory && matchStatus && matchEncendido;
+  }).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base', numeric: true }));
+
+  // Grupos de Mesh (como en Mesh); los cargados a mano van aparte
+  const grupos: [string, Equipment[]][] = (() => {
+    if (!agrupar) return [['', filtered]];
+    const mapa = new Map<string, Equipment[]>();
+    for (const e of filtered) {
+      const g = e.meshGrupo || (e.meshNodeId ? 'Mesh' : 'Cargados a mano');
+      mapa.set(g, [...(mapa.get(g) ?? []), e]);
+    }
+    return [...mapa.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es'));
+  })();
+  const encendidos = filtered.filter(encendido).length;
 
   const handleSubmit = () => {
     if (!form.name || !form.brand) return;
@@ -107,7 +168,6 @@ export default function Equipments() {
   };
   useEffect(cargarAsignaciones, []);
 
-  const getAsignadoA = (equipmentId: string) => asignaciones.get(equipmentId)?.usuarioNombre || '-';
 
   // Trae PC y notebooks del servidor de monitoreo y los guarda (nuevos + actualizados).
   const handleSincronizarMesh = async () => {
@@ -173,8 +233,8 @@ export default function Equipments() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-col lg:flex-row lg:flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[16rem]">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -199,6 +259,12 @@ export default function Equipments() {
             className="px-3 py-2 rounded-lg border border-gray-200 text-sm">
             <option value="all">Todos los estados</option>
             {Object.entries(statusConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+          <select value={filterEncendido} onChange={e => setFilterEncendido(e.target.value as typeof filterEncendido)}
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm">
+            <option value="all">Encendidos y apagados</option>
+            <option value="on">Solo encendidos</option>
+            <option value="off">Solo apagados</option>
           </select>
         </div>
         <div className="flex gap-2">
@@ -331,82 +397,94 @@ export default function Equipments() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Equipo</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Tipo</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Categoría</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Serial</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">En línea</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Asignado a</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Estado</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map(eq => (
-                <tr key={eq.id} onClick={() => setDetalleId(eq.id)} title="Ver detalle"
-                  className="hover:bg-gray-50 transition-colors cursor-pointer">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 bg-blue-50 rounded text-blue-600">{typeIcons[eq.type]}</div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{eq.name}</p>
-                        <p className="text-xs text-gray-400">
-                          {eq.meshNodeId
-                            ? [eq.meshGrupo, eq.meshIp, eq.meshSo].filter(Boolean).join(' · ')
-                            : `${eq.brand} ${eq.model}`}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{typeLabels[eq.type]}</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">
-                      <Tag size={10} /> {eq.category}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600 font-mono">{eq.serialNumber || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {eq.meshNodeId ? (
-                      <span className="inline-flex items-center gap-1.5"
-                        title={eq.meshUltimaConexion ? `Última conexión: ${new Date(eq.meshUltimaConexion).toLocaleString('es-AR')}` : undefined}>
-                        <span className={`w-2 h-2 rounded-full ${eq.meshEnLinea ? 'bg-emerald-500' : 'bg-gray-300'}`} />
-                        {eq.meshEnLinea ? 'Sí' : 'No'}
-                      </span>
-                    ) : '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1 text-sm text-gray-600">
-                      <User size={12} /> {getAsignadoA(eq.id)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig[eq.status].color}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-gray-500 dark:text-slate-400">
+          {filtered.length} {filtered.length === 1 ? 'equipo' : 'equipos'}
+          {' · '}<span className="text-emerald-600 dark:text-emerald-400">{encendidos} encendido{encendidos !== 1 ? 's' : ''}</span>
+          {' · '}{filtered.length - encendidos} apagado{filtered.length - encendidos !== 1 ? 's' : ''}
+        </p>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-300 cursor-pointer select-none">
+            <input type="checkbox" checked={agrupar} onChange={e => cambiarAgrupar(e.target.checked)} className="rounded" />
+            Agrupar por grupo
+          </label>
+          <div className="inline-flex rounded-lg border border-gray-200 dark:border-slate-600 overflow-hidden" role="group" aria-label="Tipo de vista">
+            {VISTAS.map(v => (
+              <button key={v.id} onClick={() => cambiarVista(v.id)} title={v.label} aria-pressed={vista === v.id}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm ${vista === v.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                {v.icon} <span className="hidden sm:inline">{v.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {grupos.map(([grupo, lista]) => (
+        <section key={grupo || 'todos'} className="space-y-2">
+          {grupo && (
+            <h3 className="flex items-center justify-between border-b border-gray-200 dark:border-slate-700 pb-1 text-sm font-semibold text-gray-700 dark:text-slate-200">
+              {grupo}
+              <span className="text-xs font-normal text-gray-400 dark:text-slate-500">{lista.length} {lista.length === 1 ? 'equipo' : 'equipos'}</span>
+            </h3>
+          )}
+          <div className={vista === 'columnas' ? 'grid items-start gap-2' : 'divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800'}
+            style={vista === 'columnas' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))' } : undefined}>
+            {lista.map(eq => {
+              const asignado = asignaciones.get(eq.id)?.usuarioNombre;
+              const acciones = (
+                <div className="flex shrink-0 gap-0.5" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => startEdit(eq)} title="Editar" className="rounded p-1 text-blue-600 hover:bg-blue-50 dark:text-sky-300 dark:hover:bg-slate-700"><Edit2 size={14} /></button>
+                  <button onClick={() => setDeleteConfirm(eq.id)} title="Eliminar" className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-slate-700"><Trash2 size={14} /></button>
+                </div>
+              );
+
+              if (vista === 'lista') {
+                return (
+                  <div key={eq.id} onClick={() => setDetalleId(eq.id)} title="Ver detalle"
+                    className="flex items-center gap-3 px-3 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/60">
+                    <IconoEquipo eq={eq} size={16} />
+                    <p className="w-56 shrink-0 truncate text-sm font-medium text-gray-800 dark:text-slate-100" title={eq.name}>{eq.name}</p>
+                    <p className="w-20 shrink-0 text-xs"><EstadoEquipo eq={eq} /></p>
+                    <p className="hidden md:block w-52 shrink-0 truncate text-xs text-gray-500 dark:text-slate-400">
+                      {eq.meshNodeId ? [eq.meshIp, eq.meshSo].filter(Boolean).join(' · ') : [typeLabels[eq.type], eq.brand, eq.model].filter(Boolean).join(' · ')}
+                    </p>
+                    <p className="hidden lg:block w-32 shrink-0 truncate font-mono text-xs text-gray-500 dark:text-slate-400">{eq.serialNumber || '—'}</p>
+                    <p className="flex-1 min-w-0 truncate text-xs text-gray-600 dark:text-slate-300">
+                      <User size={11} className="inline mr-1" />{asignado || 'Sin asignar'}
+                    </p>
+                    <span className={`hidden sm:inline-flex shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig[eq.status].color}`}>
                       {statusConfig[eq.status].label}
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => startEdit(eq)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600"><Edit2 size={16} /></button>
-                      <button onClick={() => setDeleteConfirm(eq.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && (
-          <div className="text-center py-12">
-            <Monitor size={48} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500">No se encontraron equipos</p>
+                    {acciones}
+                  </div>
+                );
+              }
+
+              return (
+                <div key={eq.id} onClick={() => setDetalleId(eq.id)} title="Ver detalle"
+                  className="group relative flex items-center gap-2.5 rounded-lg border border-gray-200 bg-white px-2.5 py-2 cursor-pointer hover:border-blue-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:hover:border-sky-500/60">
+                  <IconoEquipo eq={eq} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-gray-800 dark:text-slate-100" title={eq.name}>{eq.name}</p>
+                    <p className="truncate text-xs"><EstadoEquipo eq={eq} /></p>
+                    <p className="truncate text-xs text-gray-400 dark:text-slate-500" title={asignado}>{asignado || 'Sin asignar'}</p>
+                  </div>
+                  <div className="absolute right-1 top-1 hidden group-hover:flex">{acciones}</div>
+                </div>
+              );
+            })}
           </div>
-        )}
-      </div>
+        </section>
+      ))}
+
+      {filtered.length === 0 && (
+        <div className="text-center py-12">
+          <Monitor size={48} className="mx-auto text-gray-300 dark:text-slate-600 mb-3" />
+          <p className="text-gray-500 dark:text-slate-400">No se encontraron equipos</p>
+        </div>
+      )}
 
       {equipoDetalle && (
         <EquipoDetalle equipment={equipoDetalle} asignacion={asignaciones.get(equipoDetalle.id)}
