@@ -12,8 +12,11 @@
     "postbuild": "node scripts/check-internal-names.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@supabase/supabase-js": "^2.117.2",
+    "@vercel/functions": "^3.11.2",
     "date-fns": "^2.30.0",
+    "jsqr": "^1.4.0",
     "lucide-react": "^0.294.0",
     "mammoth": "^1.13.0",
     "pdfjs-dist": "^6.3.289",
