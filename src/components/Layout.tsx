@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
-  Monitor, Users, Building2, ChevronRight, Settings, Server, PenLine
+  Users, Building2, ChevronRight, Settings, Server, PenLine, Activity
 } from 'lucide-react';
 import { useState } from 'react';
 import ThemeToggle from './ThemeToggle';
@@ -12,7 +12,7 @@ import MiFirmaModal from './comprobante/MiFirmaModal';
 
 const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
-  { page: 'equipments', label: 'Equipamientos', icon: <Monitor size={20} /> },
+  { page: 'equipments', label: 'Monitoreo', icon: <Activity size={20} /> },
   { page: 'movements', label: 'Movimientos', icon: <ArrowLeftRight size={20} /> },
   { page: 'collaborators', label: 'Usuarios', icon: <Users size={20} /> },
   { page: 'suppliers', label: 'Proveedores', icon: <Building2 size={20} /> },
@@ -46,13 +46,13 @@ export default function Layout({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
-                <Printer size={20} className="text-white" />
+                <Activity size={20} className="text-white" />
               </div>
               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-800" />
             </div>
             <div>
               <h1 className="font-bold text-base text-gray-900 dark:text-white">Dashboard Control</h1>
-              <p className="text-xs text-gray-500 dark:text-slate-400">de Equipamientos</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Monitoreo de equipos</p>
             </div>
           </div>
         </div>

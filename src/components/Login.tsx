@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Printer, Eye, EyeOff, AlertCircle, Shield, Server } from 'lucide-react';
+import { Activity, Eye, EyeOff, AlertCircle, Shield, Server } from 'lucide-react';
 import LogoVLF from './LogoVLF';
 
 export default function Login() {
@@ -51,7 +51,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center mb-4">
             <div className="relative">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-2xl shadow-blue-600/30 flex items-center justify-center">
-                <Printer size={40} className="text-white" />
+                <Activity size={40} className="text-white" />
               </div>
               <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full border-4 border-slate-900 flex items-center justify-center">
                 <Server size={10} className="text-white" />
@@ -59,7 +59,7 @@ export default function Login() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">Dashboard Control</h1>
-          <p className="text-blue-200 text-sm">de Equipamientos</p>
+          <p className="text-blue-200 text-sm">Monitoreo de equipos</p>
           <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
             <Shield size={12} className="text-emerald-300" />
             <span className="text-xs text-blue-100">Conexión segura</span>
