@@ -6,12 +6,15 @@ export interface AuthUserProfile {
   email: string;
   name: string;
   role: 'admin' | 'user';
+  area?: string;
+  /** false si el perfil está desactivado en perfiles_usuarios */
+  activo: boolean;
 }
 
 /**
- * Obtiene el perfil del usuario desde la tabla `public.profiles`.
- * Si la tabla no existe o no hay registro, devuelve un perfil por defecto
- * derivado de los metadatos del usuario de Supabase Auth.
+ * Obtiene el perfil del usuario desde la tabla `public.perfiles_usuarios`
+ * (id = id del usuario de Supabase Auth). Si no tiene perfil, devuelve uno por
+ * defecto derivado de los metadatos de Supabase Auth.
  */
 async function getProfile(session: Session): Promise<AuthUserProfile> {
   const user = session.user;
@@ -23,30 +26,25 @@ async function getProfile(session: Session): Promise<AuthUserProfile> {
 
   try {
     const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, role')
+      .from('perfiles_usuarios')
+      .select('nombre, rol, area, activo')
       .eq('id', user.id)
       .maybeSingle();
 
-    // Si la consulta falla porque la tabla profiles aún no existe
-    // (code 42P01 = undefined_table en Postgres), se usa el fallback.
-    // Cualquier otro error (p. ej. RLS mal configurada) se registra para diagnóstico.
     if (error) {
-      const code = (error as { code?: string }).code;
-      if (code !== '42P01') {
-        console.warn('[authService] Error consultando profiles:', error.message);
-      }
+      console.warn('[authService] Error consultando perfiles_usuarios:', error.message);
     } else if (data) {
       return {
         id: user.id,
         email: user.email ?? '',
-        name: (data.full_name as string) || fallbackName,
-        role: data.role === 'admin' ? 'admin' : 'user',
+        name: (data.nombre as string)?.trim() || fallbackName,
+        role: String(data.rol ?? '').toLowerCase() === 'admin' ? 'admin' : 'user',
+        area: (data.area as string) || undefined,
+        activo: data.activo !== false,
       };
     }
   } catch (err) {
-    // La tabla profiles puede no existir todavía: usar metadatos de auth.
-    console.warn('[authService] Excepción consultando profiles:', err);
+    console.warn('[authService] Excepción consultando perfiles_usuarios:', err);
   }
 
   const appRole = user.app_metadata?.role;
@@ -55,6 +53,7 @@ async function getProfile(session: Session): Promise<AuthUserProfile> {
     email: user.email ?? '',
     name: fallbackName,
     role: appRole === 'admin' ? 'admin' : 'user',
+    activo: true,
   };
 }
 

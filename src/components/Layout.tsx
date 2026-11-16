@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
-  Monitor, Users, Building2, FileText, ChevronRight, Settings, Server, PenLine
+  Monitor, Users, Building2, ChevronRight, Settings, Server, PenLine
 } from 'lucide-react';
 import { useState } from 'react';
 import ThemeToggle from './ThemeToggle';
@@ -16,7 +16,6 @@ const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'movements', label: 'Movimientos', icon: <ArrowLeftRight size={20} /> },
   { page: 'collaborators', label: 'Usuarios', icon: <Users size={20} /> },
   { page: 'suppliers', label: 'Proveedores', icon: <Building2 size={20} /> },
-  { page: 'vouchers', label: 'Comprobantes', icon: <FileText size={20} /> },
   { page: 'printers', label: 'Impresoras', icon: <Printer size={20} /> },
   { page: 'inventory', label: 'Inventario', icon: <Package size={20} /> },
   { page: 'reports', label: 'Reportes', icon: <BarChart3 size={20} /> },
@@ -60,7 +59,8 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map(item => {
-            const isActive = currentPage === item.page;
+            // Facturas es una pestaña de Proveedores
+            const isActive = currentPage === item.page || (item.page === 'suppliers' && currentPage === 'vouchers');
             return (
               <button
                 key={item.page}
@@ -87,19 +87,14 @@ export default function Layout({ children }: { children: ReactNode }) {
           <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-700 dark:to-slate-600 rounded-xl p-3">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-md">
-                {user?.email?.charAt(0).toUpperCase() || 'U'}
+                {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{user?.email || 'Usuario'}</p>
-                <p className="text-xs text-gray-500 dark:text-slate-400">{user?.role === 'admin' ? 'Administrador' : 'Usuario'}</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate" title={user?.email}>{user?.name || user?.email || 'Usuario'}</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                  {user?.role === 'admin' ? 'Administrador' : 'Usuario'}{user?.area ? ` · ${user.area}` : ''}
+                </p>
               </div>
-              <button
-                onClick={() => setShowFirma(true)}
-                className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-500 text-gray-400 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                title="Mi firma (comprobantes de entrega)"
-              >
-                <PenLine size={16} />
-              </button>
               <button 
                 onClick={logout} 
                 className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-500 text-gray-400 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors" 
@@ -108,6 +103,13 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <LogOut size={16} />
               </button>
             </div>
+            <button
+              onClick={() => setShowFirma(true)}
+              className="mt-2 w-full flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-white/70 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+              title="Firma que se usa en los comprobantes de entrega"
+            >
+              <PenLine size={13} /> Mi firma
+            </button>
           </div>
         </div>
       </aside>
@@ -125,7 +127,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             </button>
             <div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                {navItems.find(n => n.page === currentPage)?.label || 'Dashboard'}
+                {navItems.find(n => n.page === (currentPage === 'vouchers' ? 'suppliers' : currentPage))?.label || 'Dashboard'}
               </h2>
               <p className="text-xs text-gray-500 dark:text-slate-400 hidden sm:block">
                 {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}

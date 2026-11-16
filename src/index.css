@@ -24,6 +24,50 @@ body {
 }
 
 /* ===================================
+   CAMPOS EN MODO OSCURO
+   Texto claro sobre fondo oscuro en buscadores, listas y campos de texto.
+   No se aplica dentro de tarjetas que siguen siendo blancas en modo oscuro
+   (bg-white sin variante dark:bg-…), porque ahí ya se leen bien.
+   =================================== */
+
+.dark :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea):not(
+    .bg-white:not([class*="dark:bg-"]),
+    .bg-white:not([class*="dark:bg-"]) *
+  ) {
+  background-color: #1e293b;   /* slate-800 */
+  color: #f1f5f9;              /* slate-100 */
+  border-color: #64748b;       /* slate-500 */
+  color-scheme: dark;          /* flecha de las listas y calendario en claro */
+}
+
+.dark :is(input, textarea):not(
+    .bg-white:not([class*="dark:bg-"]),
+    .bg-white:not([class*="dark:bg-"]) *
+  )::placeholder {
+  color: #94a3b8;              /* slate-400 */
+  opacity: 1;
+}
+
+.dark :is(input, select, textarea):not(
+    .bg-white:not([class*="dark:bg-"]),
+    .bg-white:not([class*="dark:bg-"]) *
+  ):focus {
+  border-color: #60a5fa;       /* blue-400 */
+}
+
+.dark select:not(
+    .bg-white:not([class*="dark:bg-"]),
+    .bg-white:not([class*="dark:bg-"]) *
+  ) option {
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
+.dark :is(input, select, textarea):disabled {
+  opacity: 0.6;
+}
+
+/* ===================================
    TRANSICIONES SUAVES
    =================================== */
 

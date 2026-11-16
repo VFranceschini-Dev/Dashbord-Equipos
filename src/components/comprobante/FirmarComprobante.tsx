@@ -17,7 +17,7 @@ export default function FirmarComprobante({ token }: { token: string }) {
   const [enviando, setEnviando] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const cargar = () => obtenerComprobante(token).then(setComprobante).catch(err => setError((err as Error).message));
+  const cargar = () => obtenerComprobante(token, soloVer).then(setComprobante).catch(err => setError((err as Error).message));
   useEffect(() => { cargar(); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFirmar = async () => {

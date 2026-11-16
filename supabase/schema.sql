@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS public.suppliers (
 CREATE INDEX IF NOT EXISTS idx_suppliers_user_id ON public.suppliers (user_id);
 
 -- ============================================
--- TABLA: VOUCHERS (Comprobantes)
+-- TABLA: VOUCHERS (Facturas de proveedores; las ve todo el equipo de Sistemas)
 -- ============================================
 CREATE TABLE IF NOT EXISTS public.vouchers (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -163,16 +163,35 @@ CREATE TABLE IF NOT EXISTS public.vouchers (
   supplier_id   text NOT NULL DEFAULT '',
   supplier_name text NOT NULL DEFAULT '',
   date          text NOT NULL,
-  amount        numeric(10,2) NOT NULL DEFAULT 0,
+  amount        numeric(14,2) NOT NULL DEFAULT 0,
   currency      text NOT NULL DEFAULT 'ARS' CHECK (currency IN ('ARS', 'USD')),
   description   text NOT NULL DEFAULT '',
   equipment_ids text[] NOT NULL DEFAULT '{}',
   status        text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'processed')),
   notes         text NOT NULL DEFAULT '',
+  -- Datos fiscales
+  letra            text,
+  punto_venta      text,
+  cuit_emisor      text,
+  cae              text,
+  cae_vencimiento  date,
+  neto             numeric(14,2),
+  iva              numeric(14,2),
+  vencimiento_pago date,
+  -- Archivo adjunto (Storage, espacio privado "facturas") y origen
+  archivo_path     text,
+  archivo_nombre   text,
+  origen           text NOT NULL DEFAULT 'manual' CHECK (origen IN ('manual', 'zammad')),
+  zammad_ticket_id integer,
+  cargada_por      text,
   created_at    timestamptz DEFAULT now(),
   updated_at    timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_vouchers_user_id ON public.vouchers (user_id);
+-- Una misma factura (CUIT + letra + punto de venta + número) no se carga dos veces
+CREATE UNIQUE INDEX IF NOT EXISTS vouchers_factura_unica ON public.vouchers
+  (cuit_emisor, coalesce(letra, ''), coalesce(punto_venta, ''), number)
+  WHERE cuit_emisor IS NOT NULL AND cuit_emisor <> '';
 
 -- ============================================
 -- TABLA: EQUIPMENT_MOVEMENTS (Movimientos de equipos a usuarios)
@@ -262,9 +281,7 @@ BEGIN
       ('app_printers',     'app_printers'),
       ('toner_items',      'toner_items'),
       ('toner_movements',  'movements'),
-      ('equipments',       'equipments'),
-      ('suppliers',        'suppliers'),
-      ('vouchers',         'vouchers')
+      ('equipments',       'equipments')
     ) AS v(tabla, etiqueta)
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can view their own '   || t.etiqueta, t.tabla);
@@ -282,6 +299,26 @@ BEGIN
                    'Users can delete their own ' || t.etiqueta, t.tabla);
   END LOOP;
 END $$;
+
+-- Proveedores y facturas: compartidos por todo el equipo de Sistemas (usuarios con sesión).
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['vouchers', 'suppliers'] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can view their own '   || t, t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can insert their own ' || t, t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can update their own ' || t, t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can delete their own ' || t, t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'equipo_sistemas_' || t, t);
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (true) WITH CHECK (true)', 'equipo_sistemas_' || t, t);
+  END LOOP;
+END $$;
+
+-- Archivos de facturas: espacio privado, solo usuarios con sesión.
+INSERT INTO storage.buckets (id, name, public) VALUES ('facturas', 'facturas', false) ON CONFLICT (id) DO NOTHING;
+DROP POLICY IF EXISTS "facturas_equipo_sistemas" ON storage.objects;
+CREATE POLICY "facturas_equipo_sistemas" ON storage.objects FOR ALL TO authenticated
+  USING (bucket_id = 'facturas') WITH CHECK (bucket_id = 'facturas');
 
 -- Movimientos de equipos: una sola política FOR ALL.
 DROP POLICY IF EXISTS "own_equipment_movements" ON public.equipment_movements;
@@ -345,13 +382,63 @@ create table if not exists public.comprobantes_entrega (
   firmado_ip         text,
   firmado_user_agent text,
   hash_firma         text,                                     -- SHA-256 de documento + firma
+  visto_at           timestamptz,                              -- primera vez que el usuario abrió el enlace
   created_at         timestamptz not null default now()
 );
 create index if not exists comprobantes_entrega_user_idx on public.comprobantes_entrega (user_id);
+-- Columna agregada en 20261106_comprobantes_visto.sql (para bases creadas antes)
+alter table public.comprobantes_entrega add column if not exists visto_at timestamptz;
+-- Varios movimientos por constancia (20261112_constancias_varios_equipos.sql)
+alter table public.comprobantes_entrega add column if not exists movement_ids bigint[];
+update public.comprobantes_entrega set movement_ids = array[movement_id] where movement_ids is null;
+create index if not exists comprobantes_entrega_movement_ids_idx
+  on public.comprobantes_entrega using gin (movement_ids);
+-- (La política de lectura de la tabla "Ubicacion" está en esa migración: la tabla no la crea este esquema.)
 alter table public.comprobantes_entrega enable row level security;
 drop policy if exists "own_comprobantes_select" on public.comprobantes_entrega;
 create policy "own_comprobantes_select" on public.comprobantes_entrega for select
   using (auth.uid() = user_id);
+
+-- ============================================
+-- PERFILES DE USUARIOS DE LA APP (nombre y rol de quien inicia sesión)
+-- Estructura relevada de producción; políticas de 20261112_perfiles_usuarios_politicas.sql
+-- ============================================
+create table if not exists public.perfiles_usuarios (
+  id         uuid primary key,            -- id del usuario de Supabase Auth
+  nombre     varchar not null,
+  email      varchar not null,
+  rol        varchar,                     -- 'admin' = Administrador
+  area       varchar,
+  activo     boolean,
+  created_at timestamptz not null default now()
+);
+alter table public.perfiles_usuarios enable row level security;
+
+-- ¿El usuario con sesión es administrador? Se evalúa sin aplicar las políticas
+-- de la tabla (security definer), así no se consulta a sí misma en bucle.
+create or replace function public.es_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.perfiles_usuarios
+    where id = auth.uid() and rol = 'admin' and coalesce(activo, true)
+  );
+$$;
+
+-- Modificación solo para administradores (misma regla, sin recursión)
+drop policy if exists "Permitir modificación de perfiles a administradores" on public.perfiles_usuarios;
+create policy "Permitir modificación de perfiles a administradores" on public.perfiles_usuarios
+  for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+
+-- Lectura: solo usuarios con sesión (antes, cualquiera con la clave pública)
+drop policy if exists "Permitir lectura completa de perfiles" on public.perfiles_usuarios;
+create policy "Permitir lectura completa de perfiles" on public.perfiles_usuarios
+  for select to authenticated using (true);
 
 -- ============================================
 -- RPC: registrar movimiento de equipo (transaccional)

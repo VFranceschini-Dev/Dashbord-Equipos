@@ -75,12 +75,12 @@ export default function Dashboard() {
       page: 'inventory' as const,
     },
     {
-      title: 'Comprobantes',
-      value: vouchers.length,          // ← antes: movements.length  (mostraba movimientos bajo un título de comprobantes)
-      subtitle: 'Total registrado',    // ← antes: 'Este período'    (tampoco era un dato real)
+      title: 'Facturas proveedores',
+      value: vouchers.length,
+      subtitle: `${vouchers.filter(v => v.status === 'pending').length} pendientes`,
       icon: FileText,
       color: 'emerald',
-      page: 'vouchers' as const,       // ← sin cambios: ya navegaba a la pantalla de comprobantes
+      page: 'vouchers' as const,       // abre Proveedores → pestaña Facturas
     },
     {
       title: 'Alertas Stock',
@@ -306,7 +306,7 @@ export default function Dashboard() {
                 { label: 'Equipamientos', icon: Monitor, color: 'blue' },
                 { label: 'Usuarios', icon: Users, color: 'violet' },
                 { label: 'Proveedores', icon: Building2, color: 'emerald' },
-                { label: 'Comprobantes', icon: FileText, color: 'amber' },
+                { label: 'Facturas', icon: FileText, color: 'amber' },
                 { label: 'Impresoras', icon: Printer, color: 'purple' },
               ].map((item, i) => {
                 const Icon = item.icon;

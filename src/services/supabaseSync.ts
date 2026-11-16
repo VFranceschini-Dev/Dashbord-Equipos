@@ -359,6 +359,19 @@ export async function syncVouchersFromSupabase(): Promise<Voucher[]> {
     equipmentIds: v.equipment_ids,
     status: v.status as 'pending' | 'approved' | 'rejected' | 'processed',
     notes: v.notes,
+    letra: v.letra ?? undefined,
+    puntoVenta: v.punto_venta ?? undefined,
+    cuitEmisor: v.cuit_emisor ?? undefined,
+    cae: v.cae ?? undefined,
+    caeVencimiento: v.cae_vencimiento ?? undefined,
+    neto: v.neto ?? null,
+    iva: v.iva ?? null,
+    vencimientoPago: v.vencimiento_pago ?? undefined,
+    archivoPath: v.archivo_path ?? undefined,
+    archivoNombre: v.archivo_nombre ?? undefined,
+    origen: (v.origen ?? 'manual') as 'manual' | 'zammad',
+    zammadTicketId: v.zammad_ticket_id ?? null,
+    cargadaPor: v.cargada_por ?? undefined,
   }));
 }
 
@@ -377,10 +390,23 @@ export async function syncVoucherToSupabase(voucher: Voucher): Promise<boolean> 
     equipment_ids: voucher.equipmentIds,
     status: voucher.status,
     notes: voucher.notes,
+    letra: voucher.letra || null,
+    punto_venta: voucher.puntoVenta || null,
+    cuit_emisor: (voucher.cuitEmisor || '').replace(/\D/g, '') || null,
+    cae: voucher.cae || null,
+    cae_vencimiento: voucher.caeVencimiento || null,
+    neto: voucher.neto ?? null,
+    iva: voucher.iva ?? null,
+    vencimiento_pago: voucher.vencimientoPago || null,
+    archivo_path: voucher.archivoPath || null,
+    archivo_nombre: voucher.archivoNombre || null,
+    cargada_por: voucher.cargadaPor || null,
   };
 
   if (voucher.id && voucher.id.length === 36) {
-    const { error } = await vouchersService.update(voucher.id, supabaseVoucher);
+    // Al editar no se cambia el dueño ni quién la cargó (las facturas son de todo el equipo)
+    const { user_id: _u, cargada_por: _c, ...cambios } = supabaseVoucher;
+    const { error } = await vouchersService.update(voucher.id, cambios);
     return !error;
   } else {
     const { data, error } = await vouchersService.create(supabaseVoucher);
