@@ -405,7 +405,9 @@ function completar(base: DatosFactura, extra: Partial<DatosFactura> | null, fuen
 export const datosCompletos = (d: DatosFactura) => Boolean(d.cuitEmisor && d.numero && d.total != null);
 
 /** Lee la factura: QR → texto → GPT (solo si faltan datos clave). */
-export async function extraerFactura(archivo: Uint8Array, tipoMime: string, nombre?: string): Promise<{ datos: DatosFactura; texto: string }> {
+export async function extraerFactura(
+  archivo: Uint8Array, tipoMime: string, nombre?: string, opciones: { usarIa?: boolean } = {},
+): Promise<{ datos: DatosFactura; texto: string }> {
   const datos = vacio();
   let texto = '';
   if (tipoMime === 'application/pdf') {
@@ -432,7 +434,7 @@ export async function extraerFactura(archivo: Uint8Array, tipoMime: string, nomb
   // Factura emitida por la empresa: no es de un proveedor, no hace falta seguir (ni gastar en GPT)
   if (datos.emitidaPorEmpresa) return { datos, texto };
   if (datos.cuitEmisor && (!cuitValido(datos.cuitEmisor) || datos.cuitEmisor === cuitPropio())) datos.cuitEmisor = '';
-  if (!datosCompletos(datos)) {
+  if (!datosCompletos(datos) && opciones.usarIa !== false) {
     try {
       const ia = await datosConIa(archivo, tipoMime, nombre);
       if (ia && esDeLaEmpresa(ia.cuitEmisor || '', ia.razonSocial || '')) {

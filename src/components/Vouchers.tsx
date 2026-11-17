@@ -56,7 +56,8 @@ export default function Vouchers() {
       const partes = [
         r.cargadas ? `${r.cargadas} factura${r.cargadas !== 1 ? 's' : ''} nueva${r.cargadas !== 1 ? 's' : ''}` : 'No hay facturas nuevas',
         r.duplicadas ? `${r.duplicadas} ya estaba${r.duplicadas !== 1 ? 'n' : ''} cargada${r.duplicadas !== 1 ? 's' : ''}` : '',
-        r.conError ? `${r.conError} no se pudo leer (ver la nota en el ticket)` : '',
+        r.conError ? `${r.conError} adjunto${r.conError !== 1 ? 's' : ''} no se pudo leer` : '',
+        r.noProveedor ? `${r.noProveedor} de emisores que no están en Proveedores` : '',
         r.sinAdjuntos ? `${r.sinAdjuntos} email${r.sinAdjuntos !== 1 ? 's' : ''} sin PDF` : '',
         r.reintentados ? `${r.reintentados} email${r.reintentados !== 1 ? 's' : ''} que había${r.reintentados !== 1 ? 'n' : ''} fallado se volvió a leer` : '',
         r.yaProcesados ? `${r.yaProcesados} email${r.yaProcesados !== 1 ? 's' : ''} ya procesado${r.yaProcesados !== 1 ? 's' : ''} antes` : '',

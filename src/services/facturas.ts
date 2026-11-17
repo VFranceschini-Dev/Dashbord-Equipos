@@ -44,6 +44,7 @@ export interface ResumenBusquedaZammad {
   dias: number;
   ticketsEncontrados: number;
   deLaEmpresa: number;
+  noProveedor: number;
   ticketsRevisados: number;
   emailsDeFactura: number;
   cargadas: number;
