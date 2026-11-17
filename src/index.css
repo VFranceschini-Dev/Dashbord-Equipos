@@ -24,15 +24,70 @@ body {
 }
 
 /* ===================================
+   MODO OSCURO: MISMA PALETA EN TODA LA APP
+   Todas las secciones usan los colores de Equipamientos (fondo slate-900,
+   tarjetas slate-800, bordes slate-700, texto claro). Solo se aplica a los
+   elementos que no definen su propio color oscuro (dark:…), y nunca a la
+   constancia de entrega (.comprobante-imprimible), que es un papel blanco,
+   ni a lo que tenga la clase .siempre-claro.
+   =================================== */
+
+.dark .bg-white:not([class*="dark:bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { background-color: #1e293b; color: #f1f5f9; }
+.dark .bg-gray-50:not([class*="dark:bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { background-color: rgb(51 65 85 / 0.35); }
+.dark .bg-gray-100:not([class*="dark:bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { background-color: #334155; }
+.dark .bg-gray-200:not([class*="dark:bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { background-color: #475569; }
+.dark .hover\:bg-gray-50:hover:not([class*="dark:hover:bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { background-color: rgb(51 65 85 / 0.6); }
+.dark .hover\:bg-gray-100:hover:not([class*="dark:hover:bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { background-color: #334155; }
+.dark .hover\:bg-gray-200:hover:not([class*="dark:hover:bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { background-color: #475569; }
+.dark .border-gray-100:not([class*="dark:border-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { border-color: #334155; }
+.dark .border-gray-200:not([class*="dark:border-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { border-color: #334155; }
+.dark .border-gray-300:not([class*="dark:border-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { border-color: #475569; }
+.dark :is(.divide-gray-50, .divide-gray-100) > :not(:last-child):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { border-color: #334155; }
+.dark .border-blue-100:not([class*="dark:border-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { border-color: rgb(30 58 138 / 0.45); }
+.dark .border-emerald-100:not([class*="dark:border-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { border-color: rgb(6 78 59 / 0.45); }
+.dark .border-amber-100:not([class*="dark:border-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { border-color: rgb(120 53 15 / 0.45); }
+.dark .border-red-100:not([class*="dark:border-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { border-color: rgb(127 29 29 / 0.45); }
+.dark .border-purple-100:not([class*="dark:border-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { border-color: rgb(88 28 135 / 0.45); }
+.dark .border-indigo-100:not([class*="dark:border-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { border-color: rgb(49 46 129 / 0.45); }
+.dark .border-violet-100:not([class*="dark:border-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { border-color: rgb(76 29 149 / 0.45); }
+.dark :is(.text-gray-900, .text-gray-800):not([class*="dark:text-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #f1f5f9; }
+.dark .text-gray-700:not([class*="dark:text-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #e2e8f0; }
+.dark .text-gray-600:not([class*="dark:text-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #cbd5e1; }
+.dark .text-gray-500:not([class*="dark:text-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #94a3b8; }
+.dark .text-blue-600:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #93c5fd; }
+.dark .text-blue-700:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #93c5fd; }
+.dark .text-blue-800:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #93c5fd; }
+.dark .text-emerald-600:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #6ee7b7; }
+.dark .text-emerald-700:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #6ee7b7; }
+.dark .text-emerald-800:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #6ee7b7; }
+.dark .text-amber-600:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #fcd34d; }
+.dark .text-amber-700:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #fcd34d; }
+.dark .text-amber-800:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #fcd34d; }
+.dark .text-red-600:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #fca5a5; }
+.dark .text-red-700:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #fca5a5; }
+.dark .text-red-800:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #fca5a5; }
+.dark .text-purple-600:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #d8b4fe; }
+.dark .text-purple-700:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #d8b4fe; }
+.dark .text-purple-800:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #d8b4fe; }
+.dark .text-indigo-600:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #a5b4fc; }
+.dark .text-indigo-700:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #a5b4fc; }
+.dark .text-indigo-800:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #a5b4fc; }
+.dark .text-orange-600:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #fdba74; }
+.dark .text-orange-700:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #fdba74; }
+.dark .text-orange-800:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #fdba74; }
+.dark .text-green-600:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #86efac; }
+.dark .text-green-700:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #86efac; }
+.dark .text-green-800:not([class*="dark:text-"]):not([class*="bg-"]):not(.comprobante-imprimible, .comprobante-imprimible *, .siempre-claro, .siempre-claro *) { color: #86efac; }
+
+/* ===================================
    CAMPOS EN MODO OSCURO
    Texto claro sobre fondo oscuro en buscadores, listas y campos de texto.
-   No se aplica dentro de tarjetas que siguen siendo blancas en modo oscuro
-   (bg-white sin variante dark:bg-…), porque ahí ya se leen bien.
+   No se aplica dentro de la constancia de entrega ni de .siempre-claro.
    =================================== */
 
 .dark :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea):not(
-    .bg-white:not([class*="dark:bg-"]),
-    .bg-white:not([class*="dark:bg-"]) *
+    .comprobante-imprimible *,
+    .siempre-claro *
   ) {
   background-color: #1e293b;   /* slate-800 */
   color: #f1f5f9;              /* slate-100 */
@@ -41,23 +96,23 @@ body {
 }
 
 .dark :is(input, textarea):not(
-    .bg-white:not([class*="dark:bg-"]),
-    .bg-white:not([class*="dark:bg-"]) *
+    .comprobante-imprimible *,
+    .siempre-claro *
   )::placeholder {
   color: #94a3b8;              /* slate-400 */
   opacity: 1;
 }
 
 .dark :is(input, select, textarea):not(
-    .bg-white:not([class*="dark:bg-"]),
-    .bg-white:not([class*="dark:bg-"]) *
+    .comprobante-imprimible *,
+    .siempre-claro *
   ):focus {
   border-color: #60a5fa;       /* blue-400 */
 }
 
 .dark select:not(
-    .bg-white:not([class*="dark:bg-"]),
-    .bg-white:not([class*="dark:bg-"]) *
+    .comprobante-imprimible *,
+    .siempre-claro *
   ) option {
   background-color: #1e293b;
   color: #f1f5f9;

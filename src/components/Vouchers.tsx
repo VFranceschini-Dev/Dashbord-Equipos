@@ -3,10 +3,10 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import ModuleSyncControls from './ModuleSyncControls';
 import { Voucher } from '../types';
-import { subirArchivoFactura, enlaceArchivoFactura, borrarArchivoFactura, problemaArchivo } from '../services/facturas';
+import { subirArchivoFactura, enlaceArchivoFactura, borrarArchivoFactura, problemaArchivo, buscarFacturasEnZammad } from '../services/facturas';
 import {
   Plus, Search, Edit2, Trash2, X, FileText, DollarSign, Calendar, Building, CheckCircle, Clock, XCircle, Loader2,
-  Paperclip, Mail
+  Paperclip, Mail, RefreshCw
 } from 'lucide-react';
 
 const LETRAS = ['A', 'B', 'C', 'M', 'E'];
@@ -36,7 +36,34 @@ const statusConfig = {
 
 /** Facturas de proveedores (pestaña de Proveedores). */
 export default function Vouchers() {
-  const { vouchers, addVoucher, updateVoucher, deleteVoucher, suppliers, dataLoading} = useApp();
+  const { vouchers, addVoucher, updateVoucher, deleteVoucher, suppliers, dataLoading, refreshModule } = useApp();
+  const [buscando, setBuscando] = useState(false);
+  const [avisoBusqueda, setAvisoBusqueda] = useState<{ ok: boolean; texto: string } | null>(null);
+
+  // Busca ahora en Zammad (lo mismo que se hace solo cada 30 minutos)
+  const buscarEnZammad = async () => {
+    setBuscando(true);
+    setAvisoBusqueda(null);
+    try {
+      const r = await buscarFacturasEnZammad();
+      if (r.cargadas) await refreshModule('vouchers');
+      const partes = [
+        r.cargadas ? `${r.cargadas} factura${r.cargadas !== 1 ? 's' : ''} nueva${r.cargadas !== 1 ? 's' : ''}` : 'No hay facturas nuevas',
+        r.duplicadas ? `${r.duplicadas} ya estaba${r.duplicadas !== 1 ? 'n' : ''} cargada${r.duplicadas !== 1 ? 's' : ''}` : '',
+        r.conError ? `${r.conError} no se pudo leer (ver la nota en el ticket)` : '',
+        r.sinAdjuntos ? `${r.sinAdjuntos} email${r.sinAdjuntos !== 1 ? 's' : ''} sin PDF` : '',
+      ].filter(Boolean);
+      setAvisoBusqueda({
+        ok: !r.conError,
+        texto: `${partes.join(' · ')}. Revisados ${r.ticketsRevisados} tickets de los últimos ${r.dias} días`
+          + (r.quedanPendientes ? '; quedan emails por revisar en la próxima búsqueda.' : '.'),
+      });
+    } catch (err) {
+      setAvisoBusqueda({ ok: false, texto: (err as Error).message });
+    } finally {
+      setBuscando(false);
+    }
+  };
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -189,11 +216,26 @@ export default function Vouchers() {
             <option value="zammad">Automática (email)</option>
           </select>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
-          <Plus size={16} /> Nueva factura
-        </button>
+        <div className="flex gap-2">
+          <button onClick={buscarEnZammad} disabled={buscando} title="Busca los emails a soporte@ con factura en el asunto (también se hace solo cada 30 minutos)"
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-60">
+            {buscando ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Buscar en Zammad
+          </button>
+          <button onClick={() => { resetForm(); setShowForm(true); }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
+            <Plus size={16} /> Nueva factura
+          </button>
+        </div>
       </div>
+
+      {avisoBusqueda && (
+        <div className={`flex items-start justify-between gap-2 rounded-lg px-3 py-2 text-sm ${avisoBusqueda.ok
+          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
+          : 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'}`}>
+          <span>{avisoBusqueda.texto}</span>
+          <button onClick={() => setAvisoBusqueda(null)} className="shrink-0 opacity-70 hover:opacity-100"><X size={14} /></button>
+        </div>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
