@@ -314,6 +314,16 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Emails de Zammad con factura ya procesados (búsqueda periódica). Solo servidor: sin políticas.
+CREATE TABLE IF NOT EXISTS public.facturas_zammad_procesados (
+  article_id   bigint PRIMARY KEY,
+  ticket_id    integer NOT NULL,
+  resultado    jsonb,
+  procesado_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS facturas_zammad_procesados_ticket ON public.facturas_zammad_procesados (ticket_id);
+ALTER TABLE public.facturas_zammad_procesados ENABLE ROW LEVEL SECURITY;
+
 -- Archivos de facturas: espacio privado, solo usuarios con sesión.
 INSERT INTO storage.buckets (id, name, public) VALUES ('facturas', 'facturas', false) ON CONFLICT (id) DO NOTHING;
 DROP POLICY IF EXISTS "facturas_equipo_sistemas" ON storage.objects;

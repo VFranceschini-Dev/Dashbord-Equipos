@@ -1,0 +1,41 @@
+# Busca en Zammad los emails de factura de proveedores y los carga en la app.
+# Corre cada 30 minutos (y a mano desde la pestaña Actions → "Run workflow").
+#
+# Configuración (GitHub → Settings → Secrets and variables → Actions):
+#   Variable FACTURAS_APP_URL      dirección de la app en producción, ej. https://dashboard.ejemplo.com
+#   Secreto  FACTURAS_CRON_SECRET  el mismo valor que la variable FACTURAS_CRON_SECRET de Vercel
+name: Buscar facturas en Zammad
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'   # minutos 7 y 37 de cada hora (UTC)
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: facturas-zammad
+  cancel-in-progress: false
+
+jobs:
+  buscar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Pedir a la app que busque facturas
+        env:
+          APP_URL: ${{ vars.FACTURAS_APP_URL }}
+          SECRETO: ${{ secrets.FACTURAS_CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$SECRETO" ]; then
+            echo "::warning::Falta configurar FACTURAS_APP_URL (variable) o FACTURAS_CRON_SECRET (secreto). No se buscó."
+            exit 0
+          fi
+          respuesta=$(curl -sS --max-time 90 -w '\n%{http_code}' -X POST \
+            -H "Authorization: Bearer $SECRETO" "${APP_URL%/}/api/facturas-buscar")
+          codigo=$(echo "$respuesta" | tail -n1)
+          echo "$respuesta" | sed '$d'
+          if [ "$codigo" != "200" ]; then
+            echo "::error::La app respondió HTTP $codigo"
+            exit 1
+          fi

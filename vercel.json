@@ -5,7 +5,8 @@
   "outputDirectory": "dist",
   "functions": {
     "api/mesh.ts": { "maxDuration": 30 },
-    "api/facturas-zammad.ts": { "maxDuration": 60 }
+    "api/facturas-zammad.ts": { "maxDuration": 60 },
+    "api/facturas-buscar.ts": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/((?!api/|src/|@|node_modules/|assets/|.*\\..*).*)", "destination": "/index.html" }

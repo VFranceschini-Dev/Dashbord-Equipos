@@ -38,3 +38,31 @@ export async function enlaceArchivoFactura(path: string): Promise<string> {
 export async function borrarArchivoFactura(path: string): Promise<void> {
   await supabase.storage.from(BUCKET).remove([path]);
 }
+
+// ===== Búsqueda en Zammad (la misma que corre cada 30 minutos) =====
+export interface ResumenBusquedaZammad {
+  dias: number;
+  ticketsRevisados: number;
+  emailsDeFactura: number;
+  cargadas: number;
+  duplicadas: number;
+  conError: number;
+  sinAdjuntos: number;
+  quedanPendientes: boolean;
+}
+
+/** Busca ahora en Zammad los emails de factura recientes y los carga. */
+export async function buscarFacturasEnZammad(): Promise<ResumenBusquedaZammad> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error('Sesión no válida: volvé a iniciar sesión.');
+  let res: Response;
+  try {
+    res = await fetch('/api/facturas-buscar', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+  } catch {
+    throw new Error('No se pudo conectar con el servidor.');
+  }
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) throw new Error(json?.error || `El servidor respondió HTTP ${res.status}.`);
+  return json.data as ResumenBusquedaZammad;
+}
