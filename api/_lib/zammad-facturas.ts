@@ -21,7 +21,7 @@
  *                                     (si falta, el administrador activo más antiguo)
  *   FACTURAS_CORREO                   opcional: casilla que recibe las facturas
  *                                     (por defecto soporte@donnet.com.ar; "*" = cualquiera)
- *   FACTURAS_DIAS                     opcional: días hacia atrás que revisa la búsqueda (por defecto 3)
+ *   FACTURAS_DIAS                     opcional: días hacia atrás que revisa la búsqueda automática (por defecto 7)
  *   CUIT_EMPRESA                      opcional: CUIT propio (por defecto el de PEDSA)
  *   APP_URL                           opcional: dirección de la app para el enlace de la nota
  */
@@ -357,6 +357,7 @@ async function marcarProcesado(b: Base, articuloId: number, ticketId: number, re
 // ---------------------------------------------------------------------------
 export interface ResumenBusqueda {
   dias: number;
+  ticketsEncontrados: number;   // tickets con "fact" que devolvió el buscador de Zammad
   ticketsRevisados: number;
   emailsDeFactura: number;
   cargadas: number;
@@ -369,34 +370,54 @@ export interface ResumenBusqueda {
 const fecha = (s: unknown) => { const t = Date.parse(String(s || '')); return Number.isFinite(t) ? t : 0; };
 
 /**
- * Revisa los tickets con actividad de clientes en los últimos días y procesa los
+ * Tickets que el buscador de Zammad encuentra con "fact" (el mismo buscador de la
+ * lupa). Se piden dos variantes porque, según la instalación, Zammad busca por
+ * palabra completa ("fact*" encuentra facturas, facturación…) o por texto ("fact").
+ * El orden no importa: el filtro por fecha se hace acá.
+ */
+async function ticketsConFactura(z: NonNullable<ReturnType<typeof zammad>>): Promise<any[]> {
+  const encontrados = new Map<number, any>();
+  let fallos = 0;
+  for (const consulta of ['fact*', 'fact']) {
+    try {
+      const r: any = await (await zGet(z, `tickets/search?query=${encodeURIComponent(consulta)}&limit=200&expand=true`)).json();
+      // Según la versión: lista de tickets, o { tickets: [ids], assets: { Ticket: { id: {...} } } }
+      const lista: any[] = Array.isArray(r) ? r
+        : Array.isArray(r?.tickets) ? r.tickets.map((t: any) => (typeof t === 'object' ? t : r.assets?.Ticket?.[t])).filter(Boolean)
+        : [];
+      for (const t of lista) if (t?.id) encontrados.set(Number(t.id), t);
+    } catch (err) {
+      fallos++;
+      console.error('[facturas] búsqueda en Zammad:', consulta, (err as Error).message);
+    }
+  }
+  if (fallos === 2) throw new Error('No se pudo usar el buscador de Zammad (revisar ZAMMAD_URL y ZAMMAD_TOKEN).');
+  return [...encontrados.values()];
+}
+
+/**
+ * Busca los tickets con "fact" con actividad en los últimos días y procesa los
  * emails de factura que todavía no se procesaron. Se corta antes del límite de
  * tiempo de la función: lo que falte queda para la próxima vez.
  */
-export async function buscarFacturasRecientes(limiteMs = 45_000): Promise<ResumenBusqueda> {
+export async function buscarFacturasRecientes(opciones: { dias?: number; limiteMs?: number } = {}): Promise<ResumenBusqueda> {
   const z = zammad();
   const b = base();
   if (!z || !b) throw new Error('Falta configurar Zammad o la base de datos en el servidor.');
   const inicio = Date.now();
-  const dias = Math.min(Math.max(Number(env('FACTURAS_DIAS')) || 3, 1), 30);
+  const limiteMs = opciones.limiteMs ?? 45_000;
+  const dias = Math.min(Math.max(Math.round(opciones.dias ?? (Number(env('FACTURAS_DIAS')) || 7)), 1), 60);
   const desde = inicio - dias * 86_400_000;
-  const resumen: ResumenBusqueda = {
-    dias, ticketsRevisados: 0, emailsDeFactura: 0, cargadas: 0, duplicadas: 0, conError: 0, sinAdjuntos: 0, quedanPendientes: false,
-  };
 
-  // Tickets actualizados recientemente (los más nuevos primero)
-  const tickets: any[] = [];
-  for (let pagina = 1; pagina <= 5; pagina++) {
-    const lote: any[] = await (await zGet(z, `tickets?expand=false&per_page=100&page=${pagina}&sort_by=updated_at&order_by=desc`)).json();
-    if (!Array.isArray(lote) || !lote.length) break;
-    if (pagina === 1 && lote.length > 1 && fecha(lote[0].updated_at) < fecha(lote[lote.length - 1].updated_at)) {
-      throw new Error('Zammad no devolvió los tickets ordenados por fecha: no se puede buscar facturas recientes.');
-    }
-    tickets.push(...lote.filter(t => fecha(t.updated_at) >= desde));
-    if (fecha(lote[lote.length - 1].updated_at) < desde || lote.length < 100) break;
-  }
-  // Solo los que recibieron algo del cliente en el período
-  const candidatos = tickets.filter(t => !t.last_contact_customer_at || fecha(t.last_contact_customer_at) >= desde);
+  const encontrados = await ticketsConFactura(z);
+  // Solo los que tuvieron movimiento en el período (sin fecha: se revisan igual)
+  const candidatos = encontrados
+    .filter(t => !t.updated_at || fecha(t.updated_at) >= desde)
+    .sort((a, b) => fecha(b.updated_at) - fecha(a.updated_at));
+  const resumen: ResumenBusqueda = {
+    dias, ticketsEncontrados: encontrados.length, ticketsRevisados: 0, emailsDeFactura: 0,
+    cargadas: 0, duplicadas: 0, conError: 0, sinAdjuntos: 0, quedanPendientes: false,
+  };
 
   // Emails ya procesados de esos tickets
   const procesados = new Set<number>();

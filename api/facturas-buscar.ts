@@ -3,7 +3,9 @@
  *
  * POST, con una de estas dos autorizaciones:
  *   - GitHub Actions (cada 30 minutos): Authorization: Bearer <FACTURAS_CRON_SECRET>
+ *     Revisa los últimos FACTURAS_DIAS días (por defecto 7).
  *   - Botón "Buscar en Zammad" de Proveedores → Facturas: la sesión del usuario.
+ *     Revisa los últimos 30 días (o { dias } en el cuerpo, hasta 60).
  *
  * Devuelve un resumen: tickets revisados, emails de factura, cargadas, duplicadas…
  * Cada email se procesa una sola vez, así que llamarla seguido no duplica nada.
@@ -44,7 +46,12 @@ export async function POST(request: Request): Promise<Response> {
   const quien = await autorizado(request);
   if (!quien) return jsonResponse(401, { success: false, error: 'No autorizado.' });
   try {
-    const resumen = await buscarFacturasRecientes();
+    let dias: number | undefined;
+    if (quien === 'usuario') {
+      const cuerpo = await request.json().catch(() => ({}));
+      dias = Number(cuerpo?.dias) > 0 ? Number(cuerpo.dias) : 30;
+    }
+    const resumen = await buscarFacturasRecientes({ dias });
     console.log('[api/facturas-buscar]', quien, JSON.stringify(resumen));
     return jsonResponse(200, { success: true, data: resumen });
   } catch (err) {
