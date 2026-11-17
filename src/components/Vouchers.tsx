@@ -52,6 +52,8 @@ export default function Vouchers() {
         r.duplicadas ? `${r.duplicadas} ya estaba${r.duplicadas !== 1 ? 'n' : ''} cargada${r.duplicadas !== 1 ? 's' : ''}` : '',
         r.conError ? `${r.conError} no se pudo leer (ver la nota en el ticket)` : '',
         r.sinAdjuntos ? `${r.sinAdjuntos} email${r.sinAdjuntos !== 1 ? 's' : ''} sin PDF` : '',
+        r.reintentados ? `${r.reintentados} email${r.reintentados !== 1 ? 's' : ''} que había${r.reintentados !== 1 ? 'n' : ''} fallado se volvió a leer` : '',
+        r.yaProcesados ? `${r.yaProcesados} email${r.yaProcesados !== 1 ? 's' : ''} ya procesado${r.yaProcesados !== 1 ? 's' : ''} antes` : '',
       ].filter(Boolean);
       setAvisoBusqueda({
         ok: !r.conError,

@@ -1,3 +1,4 @@
+/// <reference path="./pdfjs-worker.d.ts" />
 /**
  * api/_lib/factura.ts — Lectura de los datos de una factura (PDF o imagen).
  *
@@ -121,7 +122,16 @@ export function datosDeQrAfip(url: string): Partial<DatosFactura> | null {
 // ---------------------------------------------------------------------------
 // Lectura del PDF (texto, enlaces y QR de las imágenes)
 // ---------------------------------------------------------------------------
+/**
+ * pdf.js en el servidor necesita su "worker" (pdf.worker.mjs). pdf.js lo carga
+ * con una ruta armada en el momento, y Vercel no lo detecta al empaquetar la
+ * función: sin él no se lee ningún PDF ("Setting up fake worker failed").
+ * Se importa acá con su nombre fijo (así Vercel lo incluye) y se le pasa a pdf.js
+ * por globalThis.pdfjsWorker, que es donde lo busca antes de intentar cargarlo.
+ */
 async function pdfjs(): Promise<any> {
+  const g = globalThis as any;
+  if (!g.pdfjsWorker) g.pdfjsWorker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
   return import('pdfjs-dist/legacy/build/pdf.mjs');
 }
 

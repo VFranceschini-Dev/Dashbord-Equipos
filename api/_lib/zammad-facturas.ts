@@ -200,7 +200,9 @@ export interface ResultadoArticulo { ignorado?: string; resultados: Resultado[] 
  * pasa en "previo" para no pedirlo de nuevo. Cada email se procesa una sola vez:
  * queda registrado en facturas_zammad_procesados.
  */
-export async function procesarArticulo(ticketId: number, articuloId: number, previo?: any): Promise<ResultadoArticulo> {
+export async function procesarArticulo(
+  ticketId: number, articuloId: number, previo?: any, opciones: { reintentar?: boolean } = {},
+): Promise<ResultadoArticulo> {
   const z = zammad();
   const b = base();
   if (!z || !b) throw new Error('Falta configurar Zammad o la base de datos en el servidor.');
@@ -217,7 +219,7 @@ export async function procesarArticulo(ticketId: number, articuloId: number, pre
   if (!asuntoDeFactura(String(articulo.subject || ''))) {
     return { ignorado: 'el asunto no indica una factura', resultados: [] };
   }
-  if (await yaProcesado(b, articuloId)) return { ignorado: 'el email ya fue procesado', resultados: [] };
+  if (!opciones.reintentar && await yaProcesado(b, articuloId)) return { ignorado: 'el email ya fue procesado', resultados: [] };
 
   const tipoDe = (a: any) => String(a.preferences?.['Content-Type'] || a.preferences?.['Mime-Type'] || '').split(';')[0].trim().toLowerCase()
     || (/\.pdf$/i.test(a.filename) ? 'application/pdf' : '');
@@ -344,7 +346,8 @@ async function marcarProcesado(b: Base, articuloId: number, ticketId: number, re
   try {
     await rest(b, 'facturas_zammad_procesados?on_conflict=article_id', {
       method: 'POST',
-      headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
+      // Si se reintentó un email que había fallado, se actualiza su resultado
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({ article_id: articuloId, ticket_id: ticketId, resultado }),
     });
   } catch (err) {
@@ -364,6 +367,8 @@ export interface ResumenBusqueda {
   duplicadas: number;
   conError: number;
   sinAdjuntos: number;
+  yaProcesados: number;          // emails de factura que ya se habían procesado antes
+  reintentados: number;          // emails que habían fallado y se volvieron a leer
   quedanPendientes: boolean;   // se cortó por tiempo: sigue en la próxima búsqueda
 }
 
@@ -400,7 +405,9 @@ async function ticketsConFactura(z: NonNullable<ReturnType<typeof zammad>>): Pro
  * emails de factura que todavía no se procesaron. Se corta antes del límite de
  * tiempo de la función: lo que falte queda para la próxima vez.
  */
-export async function buscarFacturasRecientes(opciones: { dias?: number; limiteMs?: number } = {}): Promise<ResumenBusqueda> {
+export async function buscarFacturasRecientes(
+  opciones: { dias?: number; limiteMs?: number; reintentarErrores?: boolean } = {},
+): Promise<ResumenBusqueda> {
   const z = zammad();
   const b = base();
   if (!z || !b) throw new Error('Falta configurar Zammad o la base de datos en el servidor.');
@@ -416,15 +423,19 @@ export async function buscarFacturasRecientes(opciones: { dias?: number; limiteM
     .sort((a, b) => fecha(b.updated_at) - fecha(a.updated_at));
   const resumen: ResumenBusqueda = {
     dias, ticketsEncontrados: encontrados.length, ticketsRevisados: 0, emailsDeFactura: 0,
-    cargadas: 0, duplicadas: 0, conError: 0, sinAdjuntos: 0, quedanPendientes: false,
+    cargadas: 0, duplicadas: 0, conError: 0, sinAdjuntos: 0, yaProcesados: 0, reintentados: 0, quedanPendientes: false,
   };
 
   // Emails ya procesados de esos tickets
   const procesados = new Set<number>();
+  const conFallas = new Set<number>();   // procesados en los que algún adjunto no se pudo leer
   if (candidatos.length) {
     try {
-      const filas: any[] = await rest(b, `facturas_zammad_procesados?select=article_id&ticket_id=in.(${candidatos.map(t => Number(t.id)).join(',')})`) ?? [];
-      filas.forEach(f => procesados.add(Number(f.article_id)));
+      const filas: any[] = await rest(b, `facturas_zammad_procesados?select=article_id,resultado&ticket_id=in.(${candidatos.map(t => Number(t.id)).join(',')})`) ?? [];
+      for (const f of filas) {
+        procesados.add(Number(f.article_id));
+        if ((f.resultado?.resultados ?? []).some((r: any) => r?.estado === 'error')) conFallas.add(Number(f.article_id));
+      }
     } catch (err) {
       if ((err as any).status === 404 || (err as any).code === '42P01') {
         throw new Error('Falta ejecutar la migración 20261117_facturas_zammad_procesados.sql en Supabase.');
@@ -438,12 +449,16 @@ export async function buscarFacturasRecientes(opciones: { dias?: number; limiteM
     resumen.ticketsRevisados++;
     const articulos: any[] = await (await zGet(z, `ticket_articles/by_ticket/${Number(t.id)}`)).json();
     for (const a of Array.isArray(articulos) ? articulos : []) {
-      if (procesados.has(Number(a.id)) || fecha(a.created_at) < desde) continue;
+      if (fecha(a.created_at) < desde) continue;
       if (a.internal || (a.sender && a.sender !== 'Customer') || (a.type && a.type !== 'email')) continue;
       if (!dirigidoACasilla(a) || !asuntoDeFactura(String(a.subject || ''))) continue;
+      // Ya procesado: se saltea, salvo que haya fallado y se pidió reintentar (botón)
+      const reintentar = Boolean(opciones.reintentarErrores && conFallas.has(Number(a.id)));
+      if (procesados.has(Number(a.id)) && !reintentar) { resumen.yaProcesados++; continue; }
+      if (reintentar) resumen.reintentados++;
       if (Date.now() - inicio > limiteMs) { resumen.quedanPendientes = true; break; }
       resumen.emailsDeFactura++;
-      const r = await procesarArticulo(Number(t.id), Number(a.id), a);
+      const r = await procesarArticulo(Number(t.id), Number(a.id), a, { reintentar });
       if (r.ignorado === 'sin adjuntos para leer') resumen.sinAdjuntos++;
       for (const x of r.resultados) {
         if (x.estado === 'cargada') resumen.cargadas++;
