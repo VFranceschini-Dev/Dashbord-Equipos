@@ -38,6 +38,11 @@ const statusConfig = {
 export default function Vouchers() {
   const { vouchers, addVoucher, updateVoucher, deleteVoucher, suppliers, dataLoading, refreshModule } = useApp();
   const [buscando, setBuscando] = useState(false);
+  // Fecha desde la que se buscan emails en Zammad (por defecto, hace 30 días; máximo 180)
+  const fechaLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const hoy = fechaLocal(new Date());
+  const minimoDesde = fechaLocal(new Date(Date.now() - 180 * 86_400_000));
+  const [buscarDesde, setBuscarDesde] = useState(() => fechaLocal(new Date(Date.now() - 30 * 86_400_000)));
   const [avisoBusqueda, setAvisoBusqueda] = useState<{ ok: boolean; texto: string } | null>(null);
 
   // Busca ahora en Zammad (lo mismo que se hace solo cada 30 minutos)
@@ -45,7 +50,8 @@ export default function Vouchers() {
     setBuscando(true);
     setAvisoBusqueda(null);
     try {
-      const r = await buscarFacturasEnZammad();
+      const desde = buscarDesde && buscarDesde >= minimoDesde && buscarDesde <= hoy ? buscarDesde : minimoDesde;
+      const r = await buscarFacturasEnZammad(desde);
       if (r.cargadas) await refreshModule('vouchers');
       const partes = [
         r.cargadas ? `${r.cargadas} factura${r.cargadas !== 1 ? 's' : ''} nueva${r.cargadas !== 1 ? 's' : ''}` : 'No hay facturas nuevas',
@@ -54,11 +60,12 @@ export default function Vouchers() {
         r.sinAdjuntos ? `${r.sinAdjuntos} email${r.sinAdjuntos !== 1 ? 's' : ''} sin PDF` : '',
         r.reintentados ? `${r.reintentados} email${r.reintentados !== 1 ? 's' : ''} que había${r.reintentados !== 1 ? 'n' : ''} fallado se volvió a leer` : '',
         r.yaProcesados ? `${r.yaProcesados} email${r.yaProcesados !== 1 ? 's' : ''} ya procesado${r.yaProcesados !== 1 ? 's' : ''} antes` : '',
+        r.deLaEmpresa ? `${r.deLaEmpresa} salteado${r.deLaEmpresa !== 1 ? 's' : ''} por ser de Donnet (no de proveedores)` : '',
       ].filter(Boolean);
       setAvisoBusqueda({
         ok: !r.conError,
         texto: `${partes.join(' · ')}. Zammad encontró ${r.ticketsEncontrados} ticket${r.ticketsEncontrados !== 1 ? 's' : ''} con "fact"; `
-          + `revisados ${r.ticketsRevisados} con movimiento en los últimos ${r.dias} días`
+          + `revisados ${r.ticketsRevisados} con movimiento desde el ${new Date(`${desde}T12:00:00`).toLocaleDateString('es-AR')}`
           + (r.quedanPendientes ? '; quedan emails por revisar en la próxima búsqueda.' : '.'),
       });
     } catch (err) {
@@ -219,7 +226,13 @@ export default function Vouchers() {
             <option value="zammad">Automática (email)</option>
           </select>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 text-sm text-gray-600" title="Fecha desde la que se buscan emails de factura en Zammad (hasta 180 días atrás)">
+            Buscar desde
+            <input type="date" value={buscarDesde} min={minimoDesde} max={hoy}
+              onChange={e => setBuscarDesde(e.target.value)}
+              className="px-2 py-2 rounded-lg border border-gray-200 text-sm" />
+          </label>
           <button onClick={buscarEnZammad} disabled={buscando} title="Busca los emails a soporte@ con factura en el asunto (también se hace solo cada 30 minutos)"
             className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-60">
             {buscando ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Buscar en Zammad

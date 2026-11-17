@@ -43,6 +43,7 @@ export async function borrarArchivoFactura(path: string): Promise<void> {
 export interface ResumenBusquedaZammad {
   dias: number;
   ticketsEncontrados: number;
+  deLaEmpresa: number;
   ticketsRevisados: number;
   emailsDeFactura: number;
   cargadas: number;
@@ -54,8 +55,8 @@ export interface ResumenBusquedaZammad {
   quedanPendientes: boolean;
 }
 
-/** Busca ahora en Zammad los emails de factura recientes y los carga. */
-export async function buscarFacturasEnZammad(): Promise<ResumenBusquedaZammad> {
+/** Busca ahora en Zammad los emails de factura desde la fecha indicada (AAAA-MM-DD) y los carga. */
+export async function buscarFacturasEnZammad(desde: string): Promise<ResumenBusquedaZammad> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error('Sesión no válida: volvé a iniciar sesión.');
@@ -64,7 +65,7 @@ export async function buscarFacturasEnZammad(): Promise<ResumenBusquedaZammad> {
     res = await fetch('/api/facturas-buscar', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dias: 30 }),
+      body: JSON.stringify({ desde }),
     });
   } catch {
     throw new Error('No se pudo conectar con el servidor.');
