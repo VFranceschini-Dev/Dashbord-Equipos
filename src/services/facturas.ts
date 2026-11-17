@@ -42,6 +42,7 @@ export async function borrarArchivoFactura(path: string): Promise<void> {
 // ===== Búsqueda en Zammad (la misma que corre cada 30 minutos) =====
 export interface ResumenBusquedaZammad {
   dias: number;
+  ticketsEncontrados: number;
   ticketsRevisados: number;
   emailsDeFactura: number;
   cargadas: number;
@@ -58,7 +59,11 @@ export async function buscarFacturasEnZammad(): Promise<ResumenBusquedaZammad> {
   if (!token) throw new Error('Sesión no válida: volvé a iniciar sesión.');
   let res: Response;
   try {
-    res = await fetch('/api/facturas-buscar', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    res = await fetch('/api/facturas-buscar', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dias: 30 }),
+    });
   } catch {
     throw new Error('No se pudo conectar con el servidor.');
   }

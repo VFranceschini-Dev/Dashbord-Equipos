@@ -55,7 +55,8 @@ export default function Vouchers() {
       ].filter(Boolean);
       setAvisoBusqueda({
         ok: !r.conError,
-        texto: `${partes.join(' · ')}. Revisados ${r.ticketsRevisados} tickets de los últimos ${r.dias} días`
+        texto: `${partes.join(' · ')}. Zammad encontró ${r.ticketsEncontrados} ticket${r.ticketsEncontrados !== 1 ? 's' : ''} con "fact"; `
+          + `revisados ${r.ticketsRevisados} con movimiento en los últimos ${r.dias} días`
           + (r.quedanPendientes ? '; quedan emails por revisar en la próxima búsqueda.' : '.'),
       });
     } catch (err) {

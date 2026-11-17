@@ -17,7 +17,7 @@ const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'collaborators', label: 'Usuarios', icon: <Users size={20} /> },
   { page: 'suppliers', label: 'Proveedores', icon: <Building2 size={20} /> },
   { page: 'printers', label: 'Impresoras', icon: <Printer size={20} /> },
-  { page: 'inventory', label: 'Inventario', icon: <Package size={20} /> },
+  { page: 'inventory', label: 'Stock Toner', icon: <Package size={20} /> },
   { page: 'reports', label: 'Reportes', icon: <BarChart3 size={20} /> },
   { page: 'server-config', label: 'Servidores', icon: <Server size={20} /> },
 ];
