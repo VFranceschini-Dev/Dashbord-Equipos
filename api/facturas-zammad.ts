@@ -1,9 +1,9 @@
 /**
  * api/facturas-zammad.ts — Carga automática de facturas que llegan por email a Zammad.
  *
- * Zammad (Disparador → Webhook) llama a esta función cuando entra un email al
- * grupo de soporte. Si en el asunto, el texto o el nombre de un adjunto dice
- * "factura", se leen los adjuntos (PDF o imagen), se extraen los datos
+ * Zammad (Disparador → Webhook) llama a esta función cuando entra un email a
+ * soporte@donnet.com.ar. Si el ASUNTO dice "factura", "fact" o un derivado
+ * (fact., facturas, facturación…), se leen los adjuntos (PDF o imagen), se extraen los datos
  * (QR de AFIP → texto del PDF → GPT de OpenAI como respaldo), se guarda el archivo en
  * Storage ("facturas") y la factura queda PENDIENTE de revisión en
  * Proveedores → Facturas. En el ticket se deja una nota interna con el resultado.
@@ -23,6 +23,8 @@
  *   OPENAI_MODEL                      opcional: modelo de OpenAI (por defecto gpt-5.4-mini)
  *   FACTURAS_USER_ID                  opcional: usuario dueño de las facturas automáticas
  *                                     (si falta, el administrador activo más antiguo)
+ *   FACTURAS_CORREO                   opcional: casilla que recibe las facturas
+ *                                     (por defecto soporte@donnet.com.ar; "*" = cualquiera)
  *   CUIT_EMPRESA                      opcional: CUIT propio (por defecto el de PEDSA)
  *   APP_URL                           opcional: dirección de la app para el enlace de la nota
  */
@@ -99,11 +101,20 @@ async function nota(z: NonNullable<ReturnType<typeof zammad>>, ticketId: number,
 }
 
 const html = (t: string) => t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-const sinHtml = (t: string) => t.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
 
-/** ¿El email habla de una factura? (asunto, texto o nombre de algún adjunto). */
-export function mencionaFactura(asunto: string, cuerpo: string, nombres: string[]): boolean {
-  return [asunto, sinHtml(cuerpo), ...nombres].some(t => /factura/i.test(t || ''));
+/**
+ * ¿El asunto indica una factura? "Factura", "Facturas", "Fact", "Fact.", "Fact-0001",
+ * "Facturación", "Facturado"… (sin distinguir mayúsculas). No toma palabras como "factor".
+ */
+export function asuntoDeFactura(asunto: string): boolean {
+  return /\bfact(?:ura(?:s|ci[oó]n|d[oa]s?)?)?(?![a-zñáéíóú])/i.test(asunto || '');
+}
+
+/** Casilla que recibe las facturas (FACTURAS_CORREO, por defecto soporte@donnet.com.ar; "*" = cualquiera). */
+export function dirigidoACasilla(articulo: { to?: string; cc?: string }): boolean {
+  const casilla = (env('FACTURAS_CORREO') || 'soporte@donnet.com.ar').toLowerCase();
+  if (casilla === '*') return true;
+  return `${articulo.to || ''} ${articulo.cc || ''}`.toLowerCase().includes(casilla);
 }
 
 // ---------------------------------------------------------------------------
@@ -207,9 +218,11 @@ export async function procesarArticulo(ticketId: number, articuloId: number): Pr
     return { ignorado: 'no es un email recibido', resultados: [] };
   }
   const adjuntos: any[] = Array.isArray(articulo.attachments) ? articulo.attachments : [];
-  const nombres = adjuntos.map(a => String(a.filename || ''));
-  if (!mencionaFactura(String(articulo.subject || ''), String(articulo.body || ''), nombres)) {
-    return { ignorado: 'el email no menciona una factura', resultados: [] };
+  if (!dirigidoACasilla(articulo)) {
+    return { ignorado: 'el email no fue enviado a la casilla de facturas', resultados: [] };
+  }
+  if (!asuntoDeFactura(String(articulo.subject || ''))) {
+    return { ignorado: 'el asunto no indica una factura', resultados: [] };
   }
 
   const tipoDe = (a: any) => String(a.preferences?.['Content-Type'] || a.preferences?.['Mime-Type'] || '').split(';')[0].trim().toLowerCase()
@@ -218,12 +231,12 @@ export async function procesarArticulo(ticketId: number, articuloId: number): Pr
   const hayPdf = candidatos.some(a => tipoDe(a) === 'application/pdf');
   // Imágenes solo si no hay PDF o si su nombre dice "factura" (evita logos y firmas del email)
   const aLeer = candidatos
-    .filter(a => tipoDe(a) === 'application/pdf' || !hayPdf || /factura/i.test(a.filename))
+    .filter(a => tipoDe(a) === 'application/pdf' || !hayPdf || /fact/i.test(a.filename))
     .filter(a => tipoDe(a) === 'application/pdf' || Number(a.size || 0) > 15_000)
     .slice(0, MAX_ADJUNTOS);
 
   if (!aLeer.length) {
-    await nota(z, ticketId, 'El email menciona una factura pero no trae un PDF o imagen para leer. Cargala a mano en <b>Proveedores → Facturas</b>.');
+    await nota(z, ticketId, 'El asunto indica una factura pero el email no trae un PDF o imagen para leer. Cargala a mano en <b>Proveedores → Facturas</b>.');
     return { ignorado: 'sin adjuntos para leer', resultados: [] };
   }
 
