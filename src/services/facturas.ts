@@ -49,6 +49,8 @@ export interface ResumenBusquedaZammad {
   duplicadas: number;
   conError: number;
   sinAdjuntos: number;
+  yaProcesados: number;
+  reintentados: number;
   quedanPendientes: boolean;
 }
 
