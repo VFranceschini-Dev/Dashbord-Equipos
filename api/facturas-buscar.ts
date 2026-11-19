@@ -5,7 +5,7 @@
  *   - GitHub Actions (cada 30 minutos): Authorization: Bearer <FACTURAS_CRON_SECRET>
  *     Revisa los últimos FACTURAS_DIAS días (por defecto 7).
  *   - Botón "Buscar en Zammad" de Proveedores → Facturas: la sesión del usuario.
- *     Revisa los últimos 30 días (o { dias } en el cuerpo, hasta 60) y vuelve a
+ *     Revisa desde la fecha elegida ({ desde: "AAAA-MM-DD" }, hasta 180 días; por defecto 30) y vuelve a
  *     leer los emails cuyos adjuntos no se pudieron leer antes.
  *
  * Devuelve un resumen: tickets revisados, emails de factura, cargadas, duplicadas…
@@ -50,7 +50,10 @@ export async function POST(request: Request): Promise<Response> {
     let dias: number | undefined;
     if (quien === 'usuario') {
       const cuerpo = await request.json().catch(() => ({}));
-      dias = Number(cuerpo?.dias) > 0 ? Number(cuerpo.dias) : 30;
+      // "desde" (AAAA-MM-DD, elegido en la pantalla) o "dias"; por defecto 30 días
+      const desde = /^\d{4}-\d{2}-\d{2}$/.test(String(cuerpo?.desde || '')) ? Date.parse(`${cuerpo.desde}T00:00:00-03:00`) : NaN;
+      dias = Number.isFinite(desde) ? Math.ceil((Date.now() - desde) / 86_400_000)
+        : Number(cuerpo?.dias) > 0 ? Number(cuerpo.dias) : 30;
     }
     // El botón además vuelve a leer los emails que fallaron antes; la búsqueda automática no
     // (así no se repiten las notas en los tickets cada 30 minutos).

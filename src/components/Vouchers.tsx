@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import ModuleSyncControls from './ModuleSyncControls';
@@ -38,6 +38,13 @@ const statusConfig = {
 export default function Vouchers() {
   const { vouchers, addVoucher, updateVoucher, deleteVoucher, suppliers, dataLoading, refreshModule } = useApp();
   const [buscando, setBuscando] = useState(false);
+  const avisoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (avisoTimer.current) clearTimeout(avisoTimer.current); }, []);
+  // Fecha desde la que se buscan emails en Zammad (por defecto, hace 30 días; máximo 180)
+  const fechaLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const hoy = fechaLocal(new Date());
+  const minimoDesde = fechaLocal(new Date(Date.now() - 180 * 86_400_000));
+  const [buscarDesde, setBuscarDesde] = useState(() => fechaLocal(new Date(Date.now() - 30 * 86_400_000)));
   const [avisoBusqueda, setAvisoBusqueda] = useState<{ ok: boolean; texto: string } | null>(null);
 
   // Busca ahora en Zammad (lo mismo que se hace solo cada 30 minutos)
@@ -45,22 +52,20 @@ export default function Vouchers() {
     setBuscando(true);
     setAvisoBusqueda(null);
     try {
-      const r = await buscarFacturasEnZammad();
+      const desde = buscarDesde && buscarDesde >= minimoDesde && buscarDesde <= hoy ? buscarDesde : minimoDesde;
+      const r = await buscarFacturasEnZammad(desde);
       if (r.cargadas) await refreshModule('vouchers');
-      const partes = [
-        r.cargadas ? `${r.cargadas} factura${r.cargadas !== 1 ? 's' : ''} nueva${r.cargadas !== 1 ? 's' : ''}` : 'No hay facturas nuevas',
-        r.duplicadas ? `${r.duplicadas} ya estaba${r.duplicadas !== 1 ? 'n' : ''} cargada${r.duplicadas !== 1 ? 's' : ''}` : '',
-        r.conError ? `${r.conError} no se pudo leer (ver la nota en el ticket)` : '',
-        r.sinAdjuntos ? `${r.sinAdjuntos} email${r.sinAdjuntos !== 1 ? 's' : ''} sin PDF` : '',
-        r.reintentados ? `${r.reintentados} email${r.reintentados !== 1 ? 's' : ''} que había${r.reintentados !== 1 ? 'n' : ''} fallado se volvió a leer` : '',
-        r.yaProcesados ? `${r.yaProcesados} email${r.yaProcesados !== 1 ? 's' : ''} ya procesado${r.yaProcesados !== 1 ? 's' : ''} antes` : '',
-      ].filter(Boolean);
+      // Mensaje simple: solo lo que importa (las facturas de proveedores que se cargaron).
+      // El detalle técnico (adjuntos ilegibles, emails salteados…) queda en los registros del servidor.
+      const nuevas = r.cargadas;
       setAvisoBusqueda({
-        ok: !r.conError,
-        texto: `${partes.join(' · ')}. Zammad encontró ${r.ticketsEncontrados} ticket${r.ticketsEncontrados !== 1 ? 's' : ''} con "fact"; `
-          + `revisados ${r.ticketsRevisados} con movimiento en los últimos ${r.dias} días`
-          + (r.quedanPendientes ? '; quedan emails por revisar en la próxima búsqueda.' : '.'),
+        ok: true,
+        texto: nuevas
+          ? `Se cargaron ${nuevas} factura${nuevas !== 1 ? 's' : ''} nueva${nuevas !== 1 ? 's' : ''} de proveedores.`
+          : 'No hay facturas nuevas de proveedores.',
       });
+      if (avisoTimer.current) clearTimeout(avisoTimer.current);
+      avisoTimer.current = setTimeout(() => setAvisoBusqueda(null), 8000);
     } catch (err) {
       setAvisoBusqueda({ ok: false, texto: (err as Error).message });
     } finally {
@@ -219,7 +224,13 @@ export default function Vouchers() {
             <option value="zammad">Automática (email)</option>
           </select>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 text-sm text-gray-600" title="Fecha desde la que se buscan emails de factura en Zammad (hasta 180 días atrás)">
+            Buscar desde
+            <input type="date" value={buscarDesde} min={minimoDesde} max={hoy}
+              onChange={e => setBuscarDesde(e.target.value)}
+              className="px-2 py-2 rounded-lg border border-gray-200 text-sm" />
+          </label>
           <button onClick={buscarEnZammad} disabled={buscando} title="Busca los emails a soporte@ con factura en el asunto (también se hace solo cada 30 minutos)"
             className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-60">
             {buscando ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Buscar en Zammad

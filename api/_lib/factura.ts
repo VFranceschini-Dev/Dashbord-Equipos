@@ -32,12 +32,13 @@ export interface DatosFactura {
   total: number | null;
   moneda: 'ARS' | 'USD';
   fuentes: string[];         // qr / texto / gpt
+  emitidaPorEmpresa: boolean; // la emitió la propia empresa (no es de un proveedor)
 }
 
 const vacio = (): DatosFactura => ({
   tipoComprobante: '', letra: '', puntoVenta: '', numero: '', cuitEmisor: '', razonSocial: '',
   fecha: '', vencimientoPago: '', cae: '', caeVencimiento: '', neto: null, iva: null, total: null,
-  moneda: 'ARS', fuentes: [],
+  moneda: 'ARS', fuentes: [], emitidaPorEmpresa: false,
 });
 
 // Códigos de comprobante de AFIP → tipo y letra
@@ -58,6 +59,25 @@ const soloDigitos = (s: unknown) => String(s ?? '').replace(/\D/g, '');
 
 /** CUIT de la empresa (receptora de las facturas): nunca es el emisor. */
 export const cuitPropio = () => soloDigitos(process.env.CUIT_EMPRESA || '30538457627');
+
+/** Nombre de la empresa para reconocer sus propias facturas (NOMBRE_EMPRESA, por defecto "DONNET"). */
+const nombrePropio = () => (process.env.NOMBRE_EMPRESA || 'DONNET').trim().toLowerCase();
+
+/** ¿El CUIT o la razón social son de la propia empresa? */
+export function esDeLaEmpresa(cuit: string, razonSocial = ''): boolean {
+  if (cuit && soloDigitos(cuit) === cuitPropio()) return true;
+  const nombre = nombrePropio();
+  return Boolean(nombre && razonSocial.toLowerCase().includes(nombre));
+}
+
+/** Primer CUIT válido del texto (el del emisor en las facturas de AFIP), aunque sea el propio. */
+export function primerCuit(texto: string): string {
+  for (const m of texto.matchAll(/C\.?U\.?I\.?T\.?\s*(?:N[°º]|Nro\.?)?:?\s*(\d{2}-?\d{8}-?\d)/gi)) {
+    const c = soloDigitos(m[1]);
+    if (cuitValido(c)) return c;
+  }
+  return '';
+}
 
 /** Valida el dígito verificador del CUIT. */
 export function cuitValido(cuit: string): boolean {
@@ -385,23 +405,43 @@ function completar(base: DatosFactura, extra: Partial<DatosFactura> | null, fuen
 export const datosCompletos = (d: DatosFactura) => Boolean(d.cuitEmisor && d.numero && d.total != null);
 
 /** Lee la factura: QR → texto → GPT (solo si faltan datos clave). */
-export async function extraerFactura(archivo: Uint8Array, tipoMime: string, nombre?: string): Promise<{ datos: DatosFactura; texto: string }> {
+export async function extraerFactura(
+  archivo: Uint8Array, tipoMime: string, nombre?: string, opciones: { usarIa?: boolean } = {},
+): Promise<{ datos: DatosFactura; texto: string }> {
   const datos = vacio();
   let texto = '';
   if (tipoMime === 'application/pdf') {
     try {
       const leido = await leerPdf(archivo);
       texto = leido.texto;
-      for (const q of leido.qrs) { const qr = datosDeQrAfip(q); if (qr) { completar(datos, qr, 'qr'); break; } }
-      completar(datos, datosDeTexto(texto), 'texto');
+      for (const q of leido.qrs) {
+        const qr = datosDeQrAfip(q);
+        if (qr) {
+          // El CUIT del QR de AFIP es siempre el del emisor
+          if (esDeLaEmpresa(qr.cuitEmisor || '')) datos.emitidaPorEmpresa = true;
+          completar(datos, qr, 'qr');
+          break;
+        }
+      }
+      const delTexto = datosDeTexto(texto);
+      // Emisor = primer CUIT del documento o primera razón social
+      if (esDeLaEmpresa(primerCuit(texto), delTexto.razonSocial || '')) datos.emitidaPorEmpresa = true;
+      completar(datos, delTexto, 'texto');
     } catch (err) {
       console.error('[factura] no se pudo leer el PDF:', (err as Error).message);
     }
   }
+  // Factura emitida por la empresa: no es de un proveedor, no hace falta seguir (ni gastar en GPT)
+  if (datos.emitidaPorEmpresa) return { datos, texto };
   if (datos.cuitEmisor && (!cuitValido(datos.cuitEmisor) || datos.cuitEmisor === cuitPropio())) datos.cuitEmisor = '';
-  if (!datosCompletos(datos)) {
+  if (!datosCompletos(datos) && opciones.usarIa !== false) {
     try {
-      completar(datos, await datosConIa(archivo, tipoMime, nombre), 'gpt');
+      const ia = await datosConIa(archivo, tipoMime, nombre);
+      if (ia && esDeLaEmpresa(ia.cuitEmisor || '', ia.razonSocial || '')) {
+        datos.emitidaPorEmpresa = true;
+        return { datos, texto };
+      }
+      completar(datos, ia, 'gpt');
     } catch (err) {
       console.error('[factura] GPT:', (err as Error).message);
     }

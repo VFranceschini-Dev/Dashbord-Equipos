@@ -9,8 +9,9 @@
  *
  * Por cada email: se leen los adjuntos (PDF o imagen), se extraen los datos
  * (QR de AFIP → texto del PDF → GPT de OpenAI como respaldo), se guarda el archivo
- * en Storage ("facturas") y la factura queda PENDIENTE de revisión. En el ticket
- * se deja una nota interna. Cada email se procesa una sola vez.
+ * en Storage ("facturas") y la factura queda PENDIENTE de revisión. Solo se guardan
+ * facturas de proveedores cargados en la app (por CUIT del emisor o por el email del
+ * remitente). En Zammad no se escribe nada. Cada email se procesa una sola vez.
  *
  * Variables (Vercel):
  *   ZAMMAD_URL, ZAMMAD_TOKEN          (las mismas de los comprobantes)
@@ -22,8 +23,10 @@
  *   FACTURAS_CORREO                   opcional: casilla que recibe las facturas
  *                                     (por defecto soporte@donnet.com.ar; "*" = cualquiera)
  *   FACTURAS_DIAS                     opcional: días hacia atrás que revisa la búsqueda automática (por defecto 7)
+ *   FACTURAS_DOMINIOS_PROPIOS         opcional: dominios de la empresa, separados por coma (por defecto
+ *                                     donnet.com.ar). Los emails enviados desde ellos no son de proveedores.
+ *   NOMBRE_EMPRESA                    opcional: nombre para reconocer facturas propias (por defecto DONNET)
  *   CUIT_EMPRESA                      opcional: CUIT propio (por defecto el de PEDSA)
- *   APP_URL                           opcional: dirección de la app para el enlace de la nota
  */
 import { randomUUID } from 'node:crypto';
 import { extraerFactura, datosCompletos, type DatosFactura } from './factura.js';
@@ -71,23 +74,6 @@ export async function zGet(z: NonNullable<ReturnType<typeof zammad>>, path: stri
   return res;
 }
 
-async function nota(z: NonNullable<ReturnType<typeof zammad>>, ticketId: number, cuerpo: string): Promise<void> {
-  try {
-    await fetchConTimeout(`${z.url}/api/v1/ticket_articles`, {
-      method: 'POST',
-      headers: { Authorization: `Token token=${z.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ticket_id: ticketId, subject: 'Factura de proveedor', body: cuerpo,
-        content_type: 'text/html', type: 'note', internal: true,
-      }),
-    });
-  } catch (err) {
-    console.error('[facturas] nota en Zammad:', (err as Error).message);
-  }
-}
-
-const html = (t: string) => t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-
 /**
  * ¿El asunto indica una factura? "Factura", "Facturas", "Fact", "Fact.", "Fact-0001",
  * "Facturación", "Facturado"… (sin distinguir mayúsculas). No toma palabras como "factor".
@@ -97,6 +83,17 @@ export function asuntoDeFactura(asunto: string): boolean {
 }
 
 /** Casilla que recibe las facturas (FACTURAS_CORREO, por defecto soporte@donnet.com.ar; "*" = cualquiera). */
+/**
+ * ¿Lo envió alguien de afuera? Las facturas tienen que venir de proveedores externos:
+ * los emails desde dominios de la empresa (FACTURAS_DOMINIOS_PROPIOS) no cuentan.
+ */
+export function remitenteExterno(remitente: string): boolean {
+  const correo = (String(remitente || '').match(/[\w.+-]+@([\w-]+(?:\.[\w-]+)+)/)?.[1] || '').toLowerCase();
+  if (!correo) return true;   // sin dirección legible: se revisa igual (el filtro por CUIT descarta las propias)
+  const propios = (env('FACTURAS_DOMINIOS_PROPIOS') || 'donnet.com.ar').toLowerCase().split(/[,;\s]+/).filter(Boolean);
+  return !propios.some(d => correo === d || correo.endsWith(`.${d}`));
+}
+
 export function dirigidoACasilla(articulo: { to?: string; cc?: string }): boolean {
   const casilla = (env('FACTURAS_CORREO') || 'soporte@donnet.com.ar').toLowerCase();
   if (casilla === '*') return true;
@@ -161,12 +158,14 @@ async function duenio(b: Base): Promise<string | null> {
 
 interface Proveedor { id: string; name: string; cuit: string | null; email: string | null }
 
-function buscarProveedor(proveedores: Proveedor[], cuit: string, remitente: string): Proveedor | null {
+/** Proveedor cargado con ese CUIT. */
+function proveedorPorCuit(proveedores: Proveedor[], cuit: string): Proveedor | null {
   const dig = (s: string | null) => (s || '').replace(/\D/g, '');
-  if (cuit) {
-    const p = proveedores.find(x => dig(x.cuit) === cuit);
-    if (p) return p;
-  }
+  return cuit ? proveedores.find(x => dig(x.cuit) === cuit) ?? null : null;
+}
+
+/** Proveedor cargado con ese email (o, si es uno solo, con el mismo dominio no genérico). */
+function proveedorPorRemitente(proveedores: Proveedor[], remitente: string): Proveedor | null {
   const correo = (remitente.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/)?.[0] || '').toLowerCase();
   if (correo) {
     const p = proveedores.find(x => (x.email || '').toLowerCase().split(/[,;\s]+/).includes(correo));
@@ -191,7 +190,11 @@ const pesos = (n: number | null) => n == null ? '—' : n.toLocaleString('es-AR'
 // ---------------------------------------------------------------------------
 // Proceso de un email
 // ---------------------------------------------------------------------------
-export interface Resultado { archivo: string; estado: 'cargada' | 'duplicada' | 'ya_procesada' | 'error'; detalle: string }
+export interface Resultado {
+  archivo: string;
+  estado: 'cargada' | 'duplicada' | 'ya_procesada' | 'propia' | 'no_proveedor' | 'error';
+  detalle: string;
+}
 
 export interface ResultadoArticulo { ignorado?: string; resultados: Resultado[] }
 
@@ -219,6 +222,9 @@ export async function procesarArticulo(
   if (!asuntoDeFactura(String(articulo.subject || ''))) {
     return { ignorado: 'el asunto no indica una factura', resultados: [] };
   }
+  if (!remitenteExterno(String(articulo.from || ''))) {
+    return { ignorado: 'el email lo envió alguien de la empresa, no un proveedor', resultados: [] };
+  }
   if (!opciones.reintentar && await yaProcesado(b, articuloId)) return { ignorado: 'el email ya fue procesado', resultados: [] };
 
   const tipoDe = (a: any) => String(a.preferences?.['Content-Type'] || a.preferences?.['Mime-Type'] || '').split(';')[0].trim().toLowerCase()
@@ -232,7 +238,6 @@ export async function procesarArticulo(
     .slice(0, MAX_ADJUNTOS);
 
   if (!aLeer.length) {
-    await nota(z, ticketId, 'El asunto indica una factura pero el email no trae un PDF o imagen para leer. Cargala a mano en <b>Proveedores → Facturas</b>.');
     await marcarProcesado(b, articuloId, ticketId, { ignorado: 'sin adjuntos para leer' });
     return { ignorado: 'sin adjuntos para leer', resultados: [] };
   }
@@ -240,6 +245,7 @@ export async function procesarArticulo(
   const userId = await duenio(b);
   if (!userId) throw new Error('No hay un administrador activo para registrar las facturas (FACTURAS_USER_ID).');
   const proveedores: Proveedor[] = await rest(b, 'suppliers?select=id,name,cuit,email') ?? [];
+  const provRemitente = proveedorPorRemitente(proveedores, String(articulo.from || ''));
   const resultados: Resultado[] = [];
 
   for (const a of aLeer) {
@@ -253,19 +259,27 @@ export async function procesarArticulo(
       const bytes = new Uint8Array(await res.arrayBuffer());
       if (bytes.length > MAX_ARCHIVO) { resultados.push({ archivo: nombre, estado: 'error', detalle: 'supera 10 MB' }); continue; }
       const tipo = tipoDe(a);
-      const { datos } = await extraerFactura(bytes, tipo, nombre);
+      // GPT (con costo) solo si el remitente ya es un proveedor cargado
+      const { datos } = await extraerFactura(bytes, tipo, nombre, { usarIa: Boolean(provRemitente) });
       // Un PDF que no parece factura y del que no se pudo leer nada (ej. un remito) se saltea
+      // Factura emitida por la empresa (ej. una venta): no es de un proveedor, no se guarda
+      if (datos.emitidaPorEmpresa) { resultados.push({ archivo: nombre, estado: 'propia', detalle: 'la emitió la empresa: no es de un proveedor' }); continue; }
       if (!datos.fuentes.length) { resultados.push({ archivo: nombre, estado: 'error', detalle: 'no se pudieron leer datos de factura' }); continue; }
 
-      const prov = buscarProveedor(proveedores, datos.cuitEmisor, String(articulo.from || ''));
+      // Solo facturas de proveedores cargados: por el CUIT del emisor o por quién la envió
+      const prov = proveedorPorCuit(proveedores, datos.cuitEmisor) ?? provRemitente;
+      if (!prov) {
+        resultados.push({ archivo: nombre, estado: 'no_proveedor', detalle: datos.cuitEmisor ? `CUIT ${datos.cuitEmisor} sin proveedor cargado` : 'no es de un proveedor cargado' });
+        continue;
+      }
       const faltan = FALTANTES.filter(([k]) => datos[k] == null || datos[k] === '').map(([, n]) => n);
       const path = await subirArchivo(b, nombre, tipo, bytes);
       const fila = {
         user_id: userId,
         number: datos.numero || '',
         type: 'invoice',
-        supplier_id: prov?.id ?? '',
-        supplier_name: prov?.name ?? (datos.razonSocial || String(articulo.from || '').replace(/<.*>/, '').trim()),
+        supplier_id: prov.id,
+        supplier_name: prov.name,
         date: datos.fecha || new Date().toISOString().slice(0, 10),
         amount: datos.total ?? 0,
         currency: datos.moneda,
@@ -275,7 +289,6 @@ export async function procesarArticulo(
         notes: [
           `Leída automáticamente (${datos.fuentes.join(' + ')}).`,
           faltan.length ? `Revisar: falta ${faltan.join(', ')}.` : '',
-          prov ? '' : 'Proveedor no encontrado en la lista: asignarlo al revisar.',
         ].filter(Boolean).join(' '),
         letra: datos.letra || null,
         punto_venta: datos.puntoVenta || null,
@@ -314,15 +327,6 @@ export async function procesarArticulo(
     }
   }
 
-  // Nota interna en el ticket (solo si hubo algo nuevo que contar)
-  const nuevos = resultados.filter(r => r.estado !== 'ya_procesada');
-  if (nuevos.length) {
-    const app = env('APP_URL');
-    const etiqueta = { cargada: 'Cargada (pendiente de revisión)', duplicada: 'Ya estaba cargada', error: 'No se cargó', ya_procesada: '' };
-    const lineas = nuevos.map(r => `<li><b>${html(r.archivo)}</b>: ${etiqueta[r.estado]}${r.detalle ? ` — ${html(r.detalle)}` : ''}</li>`).join('');
-    await nota(z, ticketId, `<p>Facturas de este email:</p><ul>${lineas}</ul>`
-      + `<p>Revisalas en ${app ? `<a href="${html(app)}">el Dashboard</a>` : 'el Dashboard'}: <b>Proveedores → Facturas</b>.</p>`);
-  }
   await marcarProcesado(b, articuloId, ticketId, { resultados });
   return { resultados };
 }
@@ -361,6 +365,8 @@ async function marcarProcesado(b: Base, articuloId: number, ticketId: number, re
 export interface ResumenBusqueda {
   dias: number;
   ticketsEncontrados: number;   // tickets con "fact" que devolvió el buscador de Zammad
+  deLaEmpresa: number;          // emails o facturas de la propia empresa (no de proveedores), salteados
+  noProveedor: number;          // facturas de emisores que no están en Proveedores, salteadas
   ticketsRevisados: number;
   emailsDeFactura: number;
   cargadas: number;
@@ -383,14 +389,21 @@ const fecha = (s: unknown) => { const t = Date.parse(String(s || '')); return Nu
 async function ticketsConFactura(z: NonNullable<ReturnType<typeof zammad>>): Promise<any[]> {
   const encontrados = new Map<number, any>();
   let fallos = 0;
+  const POR_PAGINA = 200;
   for (const consulta of ['fact*', 'fact']) {
     try {
-      const r: any = await (await zGet(z, `tickets/search?query=${encodeURIComponent(consulta)}&limit=200&expand=true`)).json();
-      // Según la versión: lista de tickets, o { tickets: [ids], assets: { Ticket: { id: {...} } } }
-      const lista: any[] = Array.isArray(r) ? r
-        : Array.isArray(r?.tickets) ? r.tickets.map((t: any) => (typeof t === 'object' ? t : r.assets?.Ticket?.[t])).filter(Boolean)
-        : [];
-      for (const t of lista) if (t?.id) encontrados.set(Number(t.id), t);
+      // Hasta 5 páginas (1000 tickets). Si Zammad no pagina, la 2da página repite la 1ra y se corta.
+      for (let pagina = 0; pagina < 5; pagina++) {
+        const r: any = await (await zGet(z, `tickets/search?query=${encodeURIComponent(consulta)}`
+          + `&limit=${POR_PAGINA}&offset=${pagina * POR_PAGINA}&sort_by=created_at&order_by=desc&expand=true`)).json();
+        // Según la versión: lista de tickets, o { tickets: [ids], assets: { Ticket: { id: {...} } } }
+        const lista: any[] = Array.isArray(r) ? r
+          : Array.isArray(r?.tickets) ? r.tickets.map((t: any) => (typeof t === 'object' ? t : r.assets?.Ticket?.[t])).filter(Boolean)
+          : [];
+        const antes = encontrados.size;
+        for (const t of lista) if (t?.id) encontrados.set(Number(t.id), t);
+        if (lista.length < POR_PAGINA || encontrados.size === antes) break;
+      }
     } catch (err) {
       fallos++;
       console.error('[facturas] búsqueda en Zammad:', consulta, (err as Error).message);
@@ -413,7 +426,7 @@ export async function buscarFacturasRecientes(
   if (!z || !b) throw new Error('Falta configurar Zammad o la base de datos en el servidor.');
   const inicio = Date.now();
   const limiteMs = opciones.limiteMs ?? 45_000;
-  const dias = Math.min(Math.max(Math.round(opciones.dias ?? (Number(env('FACTURAS_DIAS')) || 7)), 1), 60);
+  const dias = Math.min(Math.max(Math.round(opciones.dias ?? (Number(env('FACTURAS_DIAS')) || 7)), 1), 180);
   const desde = inicio - dias * 86_400_000;
 
   const encontrados = await ticketsConFactura(z);
@@ -423,7 +436,7 @@ export async function buscarFacturasRecientes(
     .sort((a, b) => fecha(b.updated_at) - fecha(a.updated_at));
   const resumen: ResumenBusqueda = {
     dias, ticketsEncontrados: encontrados.length, ticketsRevisados: 0, emailsDeFactura: 0,
-    cargadas: 0, duplicadas: 0, conError: 0, sinAdjuntos: 0, yaProcesados: 0, reintentados: 0, quedanPendientes: false,
+    deLaEmpresa: 0, noProveedor: 0, cargadas: 0, duplicadas: 0, conError: 0, sinAdjuntos: 0, yaProcesados: 0, reintentados: 0, quedanPendientes: false,
   };
 
   // Emails ya procesados de esos tickets
@@ -434,7 +447,8 @@ export async function buscarFacturasRecientes(
       const filas: any[] = await rest(b, `facturas_zammad_procesados?select=article_id,resultado&ticket_id=in.(${candidatos.map(t => Number(t.id)).join(',')})`) ?? [];
       for (const f of filas) {
         procesados.add(Number(f.article_id));
-        if ((f.resultado?.resultados ?? []).some((r: any) => r?.estado === 'error')) conFallas.add(Number(f.article_id));
+        // Se pueden reintentar (botón): los que fallaron y los de emisores que todavía no estaban en Proveedores
+        if ((f.resultado?.resultados ?? []).some((r: any) => r?.estado === 'error' || r?.estado === 'no_proveedor')) conFallas.add(Number(f.article_id));
       }
     } catch (err) {
       if ((err as any).status === 404 || (err as any).code === '42P01') {
@@ -452,6 +466,7 @@ export async function buscarFacturasRecientes(
       if (fecha(a.created_at) < desde) continue;
       if (a.internal || (a.sender && a.sender !== 'Customer') || (a.type && a.type !== 'email')) continue;
       if (!dirigidoACasilla(a) || !asuntoDeFactura(String(a.subject || ''))) continue;
+      if (!remitenteExterno(String(a.from || ''))) { resumen.deLaEmpresa++; continue; }
       // Ya procesado: se saltea, salvo que haya fallado y se pidió reintentar (botón)
       const reintentar = Boolean(opciones.reintentarErrores && conFallas.has(Number(a.id)));
       if (procesados.has(Number(a.id)) && !reintentar) { resumen.yaProcesados++; continue; }
@@ -464,6 +479,8 @@ export async function buscarFacturasRecientes(
         if (x.estado === 'cargada') resumen.cargadas++;
         else if (x.estado === 'duplicada') resumen.duplicadas++;
         else if (x.estado === 'error') resumen.conError++;
+        else if (x.estado === 'propia') resumen.deLaEmpresa++;
+        else if (x.estado === 'no_proveedor') resumen.noProveedor++;
       }
     }
   }
