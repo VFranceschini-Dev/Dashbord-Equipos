@@ -9,9 +9,10 @@
  *
  * Por cada email: se leen los adjuntos (PDF o imagen), se extraen los datos
  * (QR de AFIP → texto del PDF → GPT de OpenAI como respaldo), se guarda el archivo
- * en Storage ("facturas") y la factura queda PENDIENTE de revisión. Solo se guardan
- * facturas de proveedores cargados en la app (por CUIT del emisor o por el email del
- * remitente). En Zammad no se escribe nada. Cada email se procesa una sola vez.
+ * en Storage ("facturas") y la factura queda PENDIENTE de revisión. Solo se leen emails
+ * enviados por proveedores dados de alta en la app (su email, o su dominio si es de un
+ * solo proveedor): los demás no se descargan. En Zammad no se escribe nada (solo
+ * lecturas GET). Cada email se procesa una sola vez.
  *
  * Variables (Vercel):
  *   ZAMMAD_URL, ZAMMAD_TOKEN          (las mismas de los comprobantes)
@@ -204,7 +205,8 @@ export interface ResultadoArticulo { ignorado?: string; resultados: Resultado[] 
  * queda registrado en facturas_zammad_procesados.
  */
 export async function procesarArticulo(
-  ticketId: number, articuloId: number, previo?: any, opciones: { reintentar?: boolean } = {},
+  ticketId: number, articuloId: number, previo?: any,
+  opciones: { reintentar?: boolean; proveedores?: Proveedor[] } = {},
 ): Promise<ResultadoArticulo> {
   const z = zammad();
   const b = base();
@@ -225,6 +227,13 @@ export async function procesarArticulo(
   if (!remitenteExterno(String(articulo.from || ''))) {
     return { ignorado: 'el email lo envió alguien de la empresa, no un proveedor', resultados: [] };
   }
+  // Solo se leen emails de proveedores dados de alta en la app (por su email o el dominio).
+  // Si no lo es, no se descarga nada y no se registra: si después se lo carga, se lee en la próxima búsqueda.
+  const proveedores: Proveedor[] = opciones.proveedores ?? await rest(b, 'suppliers?select=id,name,cuit,email') ?? [];
+  const provRemitente = proveedorPorRemitente(proveedores, String(articulo.from || ''));
+  if (!provRemitente) {
+    return { ignorado: 'el remitente no es un proveedor cargado', resultados: [] };
+  }
   if (!opciones.reintentar && await yaProcesado(b, articuloId)) return { ignorado: 'el email ya fue procesado', resultados: [] };
 
   const tipoDe = (a: any) => String(a.preferences?.['Content-Type'] || a.preferences?.['Mime-Type'] || '').split(';')[0].trim().toLowerCase()
@@ -244,8 +253,6 @@ export async function procesarArticulo(
 
   const userId = await duenio(b);
   if (!userId) throw new Error('No hay un administrador activo para registrar las facturas (FACTURAS_USER_ID).');
-  const proveedores: Proveedor[] = await rest(b, 'suppliers?select=id,name,cuit,email') ?? [];
-  const provRemitente = proveedorPorRemitente(proveedores, String(articulo.from || ''));
   const resultados: Resultado[] = [];
 
   for (const a of aLeer) {
@@ -259,19 +266,14 @@ export async function procesarArticulo(
       const bytes = new Uint8Array(await res.arrayBuffer());
       if (bytes.length > MAX_ARCHIVO) { resultados.push({ archivo: nombre, estado: 'error', detalle: 'supera 10 MB' }); continue; }
       const tipo = tipoDe(a);
-      // GPT (con costo) solo si el remitente ya es un proveedor cargado
-      const { datos } = await extraerFactura(bytes, tipo, nombre, { usarIa: Boolean(provRemitente) });
+      const { datos } = await extraerFactura(bytes, tipo, nombre);
       // Un PDF que no parece factura y del que no se pudo leer nada (ej. un remito) se saltea
       // Factura emitida por la empresa (ej. una venta): no es de un proveedor, no se guarda
       if (datos.emitidaPorEmpresa) { resultados.push({ archivo: nombre, estado: 'propia', detalle: 'la emitió la empresa: no es de un proveedor' }); continue; }
       if (!datos.fuentes.length) { resultados.push({ archivo: nombre, estado: 'error', detalle: 'no se pudieron leer datos de factura' }); continue; }
 
-      // Solo facturas de proveedores cargados: por el CUIT del emisor o por quién la envió
+      // El proveedor: el del CUIT de la factura si está cargado, si no el que la envió
       const prov = proveedorPorCuit(proveedores, datos.cuitEmisor) ?? provRemitente;
-      if (!prov) {
-        resultados.push({ archivo: nombre, estado: 'no_proveedor', detalle: datos.cuitEmisor ? `CUIT ${datos.cuitEmisor} sin proveedor cargado` : 'no es de un proveedor cargado' });
-        continue;
-      }
       const faltan = FALTANTES.filter(([k]) => datos[k] == null || datos[k] === '').map(([, n]) => n);
       const path = await subirArchivo(b, nombre, tipo, bytes);
       const fila = {
@@ -366,7 +368,7 @@ export interface ResumenBusqueda {
   dias: number;
   ticketsEncontrados: number;   // tickets con "fact" que devolvió el buscador de Zammad
   deLaEmpresa: number;          // emails o facturas de la propia empresa (no de proveedores), salteados
-  noProveedor: number;          // facturas de emisores que no están en Proveedores, salteadas
+  noProveedor: number;          // emails de remitentes que no son proveedores cargados, salteados sin leer
   ticketsRevisados: number;
   emailsDeFactura: number;
   cargadas: number;
@@ -458,6 +460,9 @@ export async function buscarFacturasRecientes(
     }
   }
 
+  // Proveedores dados de alta: solo se leen sus emails
+  const proveedores: Proveedor[] = await rest(b, 'suppliers?select=id,name,cuit,email') ?? [];
+
   for (const t of candidatos) {
     if (Date.now() - inicio > limiteMs) { resumen.quedanPendientes = true; break; }
     resumen.ticketsRevisados++;
@@ -467,13 +472,14 @@ export async function buscarFacturasRecientes(
       if (a.internal || (a.sender && a.sender !== 'Customer') || (a.type && a.type !== 'email')) continue;
       if (!dirigidoACasilla(a) || !asuntoDeFactura(String(a.subject || ''))) continue;
       if (!remitenteExterno(String(a.from || ''))) { resumen.deLaEmpresa++; continue; }
+      if (!proveedorPorRemitente(proveedores, String(a.from || ''))) { resumen.noProveedor++; continue; }
       // Ya procesado: se saltea, salvo que haya fallado y se pidió reintentar (botón)
       const reintentar = Boolean(opciones.reintentarErrores && conFallas.has(Number(a.id)));
       if (procesados.has(Number(a.id)) && !reintentar) { resumen.yaProcesados++; continue; }
       if (reintentar) resumen.reintentados++;
       if (Date.now() - inicio > limiteMs) { resumen.quedanPendientes = true; break; }
       resumen.emailsDeFactura++;
-      const r = await procesarArticulo(Number(t.id), Number(a.id), a, { reintentar });
+      const r = await procesarArticulo(Number(t.id), Number(a.id), a, { reintentar, proveedores });
       if (r.ignorado === 'sin adjuntos para leer') resumen.sinAdjuntos++;
       for (const x of r.resultados) {
         if (x.estado === 'cargada') resumen.cargadas++;
