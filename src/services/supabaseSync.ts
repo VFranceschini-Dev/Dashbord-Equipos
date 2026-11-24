@@ -565,11 +565,13 @@ export async function syncPrintersToSupabase(printers: Printer[]): Promise<{ suc
 
   for (const printer of printers) {
     try {
+      // syncPrinterToSupabase devuelve { success, error }: un objeto siempre es "verdadero",
+      // así que hay que mirar result.success o todas las filas contaban como importadas.
       const result = await syncPrinterToSupabase(printer);
-      if (result) {
+      if (result.success) {
         success++;
       } else {
-        errors.push(`Error al sincronizar impresora: ${printer.name}`);
+        errors.push(`Error al sincronizar impresora ${printer.name}${result.error ? `: ${result.error}` : ''}`);
       }
     } catch (error) {
       errors.push(`Error al sincronizar impresora ${printer.name}: ${error}`);
