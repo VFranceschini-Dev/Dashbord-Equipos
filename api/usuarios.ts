@@ -368,9 +368,13 @@ const NOMBRE_RE = /^[\p{L}\p{M} .'-]{1,80}$/u;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export async function POST(request: Request): Promise<Response> {
-  const authenticated = await validateSession(request);
-  if (!authenticated) {
+  const sesion = await sesionDeApi(request);
+  if (!sesion) {
     return jsonResponse(401, { success: false, error: 'No autenticado. Se requiere una sesión válida.' });
+  }
+  // El alta de usuarios es una acción de administración (rol en perfiles_usuarios).
+  if (sesion.rol !== 'admin') {
+    return jsonResponse(403, { success: false, error: 'No tenés permisos para dar de alta usuarios.' });
   }
 
   let input: any;
