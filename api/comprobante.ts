@@ -24,6 +24,7 @@
  *   APP_URL       opcional: dirección pública de la app para el enlace
  */
 import { createHash, randomBytes } from 'node:crypto';
+import { sesionDeApi } from './_lib/sesion.js';
 
 const TIMEOUT_MS = 15000;
 const FUENTES_VALIDAS = ['dancing', 'greatvibes', 'allura', 'caveat'];
@@ -89,17 +90,10 @@ async function rest(b: NonNullable<ReturnType<typeof base>>, path: string, init:
 }
 
 /** Devuelve el usuario de la sesión (id y email) o null. */
-async function usuarioDeSesion(request: Request, b: NonNullable<ReturnType<typeof base>>): Promise<{ id: string; email: string } | null> {
-  const token = (request.headers.get('authorization') || '').match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-  if (!token) return null;
-  try {
-    const res = await fetchConTimeout(`${b.url}/auth/v1/user`, { headers: { apikey: b.anon, Authorization: `Bearer ${token}` } });
-    if (!res.ok) return null;
-    const u = await res.json();
-    return u?.id ? { id: String(u.id), email: String(u.email || '') } : null;
-  } catch {
-    return null;
-  }
+async function usuarioDeSesion(request: Request): Promise<{ id: string; email: string } | null> {
+  // Sesión válida Y perfil activo (ver api/_lib/sesion.ts)
+  const s = await sesionDeApi(request);
+  return s ? { id: s.id, email: s.email } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,7 +243,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 async function crear(request: Request, body: any): Promise<Response> {
   const b = base();
   if (!b) return jsonResponse(500, { success: false, error: 'Falta configuración del servidor.' });
-  const sesion = await usuarioDeSesion(request, b);
+  const sesion = await usuarioDeSesion(request);
   if (!sesion) return jsonResponse(401, { success: false, error: 'No autenticado. Se requiere una sesión válida.' });
 
   const ids: number[] = [...new Set<number>(

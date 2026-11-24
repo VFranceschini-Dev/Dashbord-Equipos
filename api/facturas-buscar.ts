@@ -15,7 +15,8 @@
  * más las de api/_lib/zammad-facturas.ts.
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { env, jsonResponse, fetchConTimeout, buscarFacturasRecientes } from './_lib/zammad-facturas.js';
+import { env, jsonResponse, buscarFacturasRecientes } from './_lib/zammad-facturas.js';
+import { sesionDeApi } from './_lib/sesion.js';
 
 /** Compara secretos sin revelar por el tiempo de respuesta cuánto coinciden. */
 function mismoSecreto(a: string, b: string): boolean {
@@ -30,17 +31,7 @@ async function autorizado(request: Request): Promise<'cron' | 'usuario' | null> 
   if (!token) return null;
   const secreto = env('FACTURAS_CRON_SECRET');
   if (secreto && mismoSecreto(token, secreto)) return 'cron';
-  const url = env('SUPABASE_URL', 'VITE_SUPABASE_URL');
-  const anon = env('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
-  if (!url || !anon) return null;
-  try {
-    const res = await fetchConTimeout(`${url.replace(/\/+$/, '')}/auth/v1/user`, { headers: { apikey: anon, Authorization: `Bearer ${token}` } });
-    if (!res.ok) return null;
-    const u = await res.json();
-    return u?.id ? 'usuario' : null;
-  } catch {
-    return null;
-  }
+  return (await sesionDeApi(request)) ? 'usuario' : null;
 }
 
 export async function POST(request: Request): Promise<Response> {
