@@ -263,8 +263,9 @@ async function crear(request: Request, body: any): Promise<Response> {
   }
   if (!EMAIL_RE.test(correo)) return jsonResponse(400, { success: false, error: 'El correo del usuario no es válido.' });
 
-  // ¿Alguno de estos movimientos ya está en una constancia? Se devuelve esa.
-  const existentes = await rest(b, `comprobantes_entrega?movement_ids=ov.{${ids.join(',')}}&select=id,token,estado,datos,correo_destino,zammad_ticket_id`);
+  // ¿Alguno de estos movimientos ya está en una constancia PROPIA? Se devuelve esa.
+  // Se filtra por dueño: sin esto, el id de un movimiento ajeno devolvía el token (enlace secreto) de otra persona.
+  const existentes = await rest(b, `comprobantes_entrega?user_id=eq.${sesion.id}&movement_ids=ov.{${ids.join(',')}}&select=id,token,estado,datos,correo_destino,zammad_ticket_id`);
   const previo = Array.isArray(existentes) ? existentes[0] : null;
   if (previo) {
     await actualizarSiPendiente(b, previo);
