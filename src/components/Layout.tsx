@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { Page } from '../types';
 import {
-  LayoutDashboard, Printer, Package, ArrowLeftRight, BarChart3, Bell, Menu, X, LogOut,
+  LayoutDashboard, Printer, Package, BarChart3, Bell, Menu, X, LogOut,
   Users, Building2, ChevronRight, Settings, Server, PenLine, Activity
 } from 'lucide-react';
 import { useState } from 'react';
@@ -14,8 +14,7 @@ import LogoVLF from './LogoVLF';
 const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
   { page: 'equipments', label: 'Monitoreo', icon: <Activity size={20} /> },
-  { page: 'movements', label: 'Movimientos', icon: <ArrowLeftRight size={20} /> },
-  { page: 'collaborators', label: 'Usuarios', icon: <Users size={20} /> },
+  { page: 'collaborators', label: 'Usuarios y asignaciones', icon: <Users size={20} /> },
   { page: 'suppliers', label: 'Proveedores', icon: <Building2 size={20} /> },
   { page: 'printers', label: 'Impresoras', icon: <Printer size={20} /> },
   { page: 'inventory', label: 'Stock Toner', icon: <Package size={20} /> },
@@ -25,6 +24,10 @@ const navItems: { page: Page; label: string; icon: ReactNode }[] = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { currentPage, setCurrentPage, unreadAlerts, alerts, markAlertRead } = useApp();
+  // Facturas cuelga de Proveedores; Movimientos y asignaciones están dentro de Usuarios y asignaciones.
+  const pagina = currentPage === 'vouchers' ? 'suppliers'
+    : (currentPage === 'movements' || currentPage === 'asignaciones') ? 'collaborators'
+    : currentPage;
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
@@ -61,7 +64,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map(item => {
             // Facturas es una pestaña de Proveedores
-            const isActive = currentPage === item.page || (item.page === 'suppliers' && currentPage === 'vouchers');
+            const isActive = pagina === item.page;
             return (
               <button
                 key={item.page}
@@ -131,7 +134,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             </button>
             <div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                {navItems.find(n => n.page === (currentPage === 'vouchers' ? 'suppliers' : currentPage))?.label || 'Dashboard'}
+                {navItems.find(n => n.page === pagina)?.label || 'Dashboard'}
               </h2>
               <p className="text-xs text-gray-500 dark:text-slate-400 hidden sm:block">
                 {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}

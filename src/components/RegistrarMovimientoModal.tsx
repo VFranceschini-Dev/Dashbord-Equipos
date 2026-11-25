@@ -34,9 +34,11 @@ const TITULOS: Record<TipoMovimiento, string> = {
  * En una asignación se pueden elegir varios equipos: cada uno genera su
  * movimiento y todos van en una sola constancia de entrega.
  */
-export default function RegistrarMovimientoModal({ tipo, equipo, usuario, observacionesIniciales, onClose, onRegistrado }: {
+export default function RegistrarMovimientoModal({ tipo, equipo, equiposIniciales, usuario, observacionesIniciales, onClose, onRegistrado }: {
   tipo: TipoMovimiento;
   equipo?: Equipment;
+  /** Asignación: equipos ya elegidos (por ejemplo, los que se arrastraron sobre una persona). */
+  equiposIniciales?: Equipment[];
   usuario?: UsuarioMovimiento;
   observacionesIniciales?: string;
   onClose: () => void;
@@ -47,7 +49,7 @@ export default function RegistrarMovimientoModal({ tipo, equipo, usuario, observ
 
   const [asignaciones, setAsignaciones] = useState<Map<string, AsignacionActual> | null>(null);
   const [equipmentId, setEquipmentId] = useState(equipo?.id ?? '');           // devolución: un equipo
-  const [seleccion, setSeleccion] = useState<string[]>(equipo ? [equipo.id] : []); // asignación: uno o varios
+  const [seleccion, setSeleccion] = useState<string[]>(equiposIniciales?.length ? equiposIniciales.map(e => e.id) : equipo ? [equipo.id] : []); // asignación: uno o varios
   const [sucursales, setSucursales] = useState<string[]>([]);
   const [sucursal, setSucursal] = useState('');
   const [sector, setSector] = useState('');
