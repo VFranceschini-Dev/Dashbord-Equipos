@@ -8,7 +8,6 @@ import { asignacionesActuales } from '../utils/asignaciones';
 import { Monitor, Search, ArrowLeftRight, Loader2, AlertTriangle, CheckCircle, RefreshCw, History, UserPlus, X, FileText, Clock } from 'lucide-react';
 import RegistrarMovimientoModal, { type TipoMovimiento, type UsuarioMovimiento } from './RegistrarMovimientoModal';
 import GenerarComprobanteModal from './comprobante/GenerarComprobanteModal';
-import ListadoComprobantes from './comprobante/ListadoComprobantes';
 import { comprobantesPorMovimiento, enlaceComprobante, estadoVisible, ESTADO_COMPROBANTE, type ResumenComprobante } from '../services/comprobantes';
 
 const T = TEXTOS_USUARIOS.asignaciones;
@@ -25,22 +24,7 @@ const TIPOS_HISTORICOS: typeof TIPOS = [
   { value: 'baja', label: 'Baja', color: 'bg-red-100 text-red-700' },
 ];
 
-/** Movimientos: pestañas de movimientos de equipos y de comprobantes de entrega. */
-export default function EquipmentAssignments() {
-  const [pestana, setPestana] = useState<'movimientos' | 'comprobantes'>('movimientos');
-  const clase = (activa: boolean) => `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-    activa ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`;
-  return (
-    <div className="space-y-5">
-      <div className="flex gap-2">
-        <button onClick={() => setPestana('movimientos')} className={clase(pestana === 'movimientos')}>Movimientos</button>
-        <button onClick={() => setPestana('comprobantes')} className={clase(pestana === 'comprobantes')}>Comprobantes de entrega</button>
-      </div>
-      {pestana === 'movimientos' ? <MovimientosEquipos /> : <ListadoComprobantes />}
-    </div>
-  );
-}
-
+/** Movimientos de equipos: registro manual de asignaciones y devoluciones + historial. Se muestra en Usuarios y asignaciones. */
 export function MovimientosEquipos() {
   const { equipments } = useApp();
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
