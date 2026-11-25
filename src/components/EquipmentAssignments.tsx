@@ -41,7 +41,7 @@ export default function EquipmentAssignments() {
   );
 }
 
-function MovimientosEquipos() {
+export function MovimientosEquipos() {
   const { equipments } = useApp();
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [loadingHist, setLoadingHist] = useState(true);

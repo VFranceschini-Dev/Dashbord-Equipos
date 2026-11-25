@@ -9,9 +9,8 @@ import Inventory from './components/Inventory';
 import Reports from './components/Reports';
 import Equipments from './components/Equipments';
 import Suppliers from './components/Suppliers';
-import Collaborators from './components/Collaborators';
 import ServerConfig from './components/ServerConfig';
-import EquipmentAssignments from './components/EquipmentAssignments';
+import UsuariosAsignaciones from './components/UsuariosAsignaciones';
 import FirmarComprobante from './components/comprobante/FirmarComprobante';
 
 function PageRouter() {
@@ -24,17 +23,16 @@ function PageRouter() {
       return <Printers />;
     case 'inventory':
       return <Inventory />;
-    case 'movements':
-    case 'asignaciones': // ruta anterior: ahora es la misma pantalla
-      return <EquipmentAssignments />;
+    case 'movements':      // rutas anteriores: ahora todo está en Usuarios y asignaciones
+    case 'asignaciones':
+    case 'collaborators':
+      return <UsuariosAsignaciones />;
     case 'reports':
       return <Reports />;
     case 'equipments':
       return <Equipments />;
     case 'suppliers':
       return <Suppliers />;
-    case 'collaborators':
-      return <Collaborators />;
     case 'vouchers':
       return <Suppliers tab="facturas" />;
     case 'server-config':
