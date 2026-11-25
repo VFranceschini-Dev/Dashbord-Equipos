@@ -22,6 +22,7 @@
  *   SUPABASE_URL / SUPABASE_ANON_KEY  validación de sesión (fallback: VITE_*)
  *   SUPABASE_SERVICE_ROLE_KEY  escritura en la tabla local (solo servidor)
  */
+import { sesionDeApi } from './_lib/sesion.js';
 
 // ---------------------------------------------------------------------------
 // Perfil normalizado: ES LO ÚNICO que sale al navegador.
@@ -142,31 +143,8 @@ function splitNombre(full: string): { nombre: string; apellido: string } {
 // Validación de sesión (Bearer token → endpoint de autenticación)
 // ---------------------------------------------------------------------------
 async function validateSession(request: Request): Promise<boolean> {
-  const authHeader = request.headers.get('authorization') || '';
-  const match = authHeader.match(/^Bearer\s+(.+)$/i);
-  const token = match?.[1]?.trim();
-  if (!token) return false;
-
-  const baseUrl = env('SUPABASE_URL', 'VITE_SUPABASE_URL');
-  const anonKey = env('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
-  if (!baseUrl || !anonKey) return false;
-
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    let res: Response;
-    try {
-      res = await fetch(`${baseUrl.replace(/\/+$/, '')}/auth/v1/user`, {
-        headers: { apikey: anonKey, Authorization: `Bearer ${token}` },
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-    return res.ok;
-  } catch {
-    return false;
-  }
+  // Sesión válida Y perfil activo (ver api/_lib/sesion.ts)
+  return (await sesionDeApi(request)) !== null;
 }
 
 // ---------------------------------------------------------------------------
@@ -390,9 +368,13 @@ const NOMBRE_RE = /^[\p{L}\p{M} .'-]{1,80}$/u;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export async function POST(request: Request): Promise<Response> {
-  const authenticated = await validateSession(request);
-  if (!authenticated) {
+  const sesion = await sesionDeApi(request);
+  if (!sesion) {
     return jsonResponse(401, { success: false, error: 'No autenticado. Se requiere una sesión válida.' });
+  }
+  // El alta de usuarios es una acción de administración (rol en perfiles_usuarios).
+  if (sesion.rol !== 'admin') {
+    return jsonResponse(403, { success: false, error: 'No tenés permisos para dar de alta usuarios.' });
   }
 
   let input: any;

@@ -17,6 +17,7 @@
  *   SUPABASE_URL / SUPABASE_ANON_KEY  validación de sesión (fallback: VITE_*)
  */
 import WebSocket from 'ws';
+import { sesionDeApi } from './_lib/sesion.js';
 
 export interface EquipoMesh {
   meshNodeId: string;
@@ -55,27 +56,8 @@ function jsonResponse(status: number, payload: unknown): Response {
 // Validación de sesión (Bearer token → endpoint de autenticación)
 // ---------------------------------------------------------------------------
 async function validateSession(request: Request): Promise<boolean> {
-  const authHeader = request.headers.get('authorization') || '';
-  const token = authHeader.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-  if (!token) return false;
-
-  const baseUrl = env('SUPABASE_URL', 'VITE_SUPABASE_URL');
-  const anonKey = env('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
-  if (!baseUrl || !anonKey) return false;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/auth/v1/user`, {
-      headers: { apikey: anonKey, Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    });
-    return res.ok;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
+  // Sesión válida Y perfil activo (ver api/_lib/sesion.ts)
+  return (await sesionDeApi(request)) !== null;
 }
 
 // ---------------------------------------------------------------------------

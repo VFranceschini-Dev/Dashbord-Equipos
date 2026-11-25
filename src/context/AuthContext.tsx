@@ -49,6 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     getSessionProfile()
       .then(applyProfile)
+      .catch(err => {
+        // Sin esto, un fallo al leer la sesión quedaba como promesa rechazada sin manejar.
+        console.warn('[AuthContext] No se pudo restaurar la sesión:', err);
+        applyProfile(null);
+      })
       .finally(() => {
         if (mounted) setLoading(false);
       });
@@ -67,7 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
-        getSessionProfile().then(applyProfile);
+        getSessionProfile()
+          .then(applyProfile)
+          .catch(err => console.warn('[AuthContext] No se pudo actualizar el perfil:', err));
       }
     });
 
