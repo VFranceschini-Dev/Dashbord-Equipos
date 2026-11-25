@@ -9,6 +9,7 @@ import {
 import { useState } from 'react';
 import ThemeToggle from './ThemeToggle';
 import MiFirmaModal from './comprobante/MiFirmaModal';
+import LogoVLF from './LogoVLF';
 
 const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
@@ -110,6 +111,9 @@ export default function Layout({ children }: { children: ReactNode }) {
             >
               <PenLine size={13} /> Mi firma
             </button>
+          </div>
+          <div className="mt-3 pb-1 flex justify-center">
+            <LogoVLF size="sm" showName />
           </div>
         </div>
       </aside>
