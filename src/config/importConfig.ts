@@ -122,39 +122,6 @@ export function parseArray(value: string, separator = ','): string[] {
     .filter((item) => item.length > 0);
 }
 
-// ============== Plantilla y exportación (mismo formato que la importación) ==============
-// La plantilla descargable y la exportación de registros usan EXACTAMENTE estas
-// columnas y estos textos, de modo que un Excel exportado se puede volver a importar.
-
-/** Encabezados del Excel: los nombres de columna de la configuración. */
-export function encabezadosExcel(config: TableImportConfig): string[] {
-  return config.columns.map((c) => c.column);
-}
-
-/** Texto con el que cada tipo de columna se escribe en el Excel (lo inverso de lo que lee el importador). */
-export function valorParaExcel(col: ImportColumnConfig, value: unknown): string {
-  switch (col.kind) {
-    case 'boolean':
-      return value === false ? 'Inactivo' : 'Activo';
-    case 'array':
-      return Array.isArray(value) ? value.join(`${col.arraySeparator ?? ','} `) : norm(value);
-    default:
-      return norm(value);
-  }
-}
-
-/** Fila de ejemplo de la plantilla. */
-export function ejemploParaExcel(config: TableImportConfig): string[] {
-  return config.columns.map((c) =>
-    c.kind === 'boolean' ? 'Activo' : c.kind === 'array' ? 'Hardware, Servicios' : c.kind === 'cuit' ? '30123456789' : '',
-  );
-}
-
-/** Filas de datos para exportar, con las mismas columnas que la plantilla. */
-export function filasParaExcel(config: TableImportConfig, rows: Record<string, unknown>[]): string[][] {
-  return rows.map((row) => config.columns.map((c) => valorParaExcel(c, row[c.column])));
-}
-
 // ============================ PROVEEDORES ============================
 
 import { supabase, suppliersService } from '../services/supabase';

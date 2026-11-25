@@ -4,9 +4,9 @@ import {
   MinusCircle, AlertCircle, Download, Loader2, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import type { TableImportConfig, ImportRowResult, RowStatus } from '../config/importConfig';
-import { validateCuit, validateEmail, parseBoolean, parseArray, fieldChanged, encabezadosExcel, ejemploParaExcel } from '../config/importConfig';
+import { validateCuit, validateEmail, parseBoolean, parseArray, fieldChanged } from '../config/importConfig';
 import {
-  readWorkbook, sheetNames, sheetToData, toCsv, downloadTextFile, downloadXlsxFile, toSqlDateTime,
+  readWorkbook, sheetNames, sheetToData, toCsv, downloadTextFile, toSqlDateTime,
   parseCsv,
 } from '../utils/excelToCsv';
 
@@ -273,10 +273,12 @@ export default function DataImportWizard({
   }, [config]);
 
   // ---------------- Plantilla ----------------
-  // La plantilla es un .xlsx (el mismo formato que se acepta al importar) con los mismos
-  // encabezados que usa la exportación de registros.
   const downloadTemplate = () => {
-    downloadXlsxFile(`plantilla_${config.table}.xlsx`, encabezadosExcel(config), [ejemploParaExcel(config)], 'Plantilla');
+    const headers = config.columns.map((c) => c.column);
+    const example = config.columns.map((c) =>
+      c.kind === 'boolean' ? 'Activo' : c.kind === 'array' ? 'Hardware, Servicios' : c.kind === 'cuit' ? '30123456789' : '',
+    );
+    downloadTextFile(`plantilla_${config.table}.csv`, toCsv(headers, [example]));
   };
 
   // ---------------- Paso 3: grabar ----------------

@@ -621,15 +621,67 @@ export async function syncEquipmentsToSupabase(equipments: Equipment[]): Promise
   return { success, errors };
 }
 
+// Nombre comparable: sin tildes, sin mayúsculas y con espacios simples.
+const claveProveedor = (v: unknown): string =>
+  String(v ?? '').trim().normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ');
+
+/**
+ * Convierte una fila importada (todo texto: "Activo", "Hardware, Servicios", "30-12345678-9")
+ * en un Supplier con los tipos correctos.
+ */
+function proveedorDesdeImportacion(row: any): Supplier {
+  const txt = (v: unknown) => String(v ?? '').trim();
+  const estado = txt(row.active).toLowerCase();
+  const category: string[] = Array.isArray(row.category)
+    ? row.category
+    : txt(row.category).split(',').map(c => c.trim()).filter(Boolean);
+  return {
+    id: '',
+    name: txt(row.name),
+    cuit: txt(row.cuit).replace(/[.\-\s]/g, ''),
+    contact: txt(row.contact),
+    email: txt(row.email),
+    phone: txt(row.phone),
+    address: txt(row.address),
+    category,
+    // Vacío o desconocido => activo, igual que el resto del importador
+    active: typeof row.active === 'boolean' ? row.active : !['no', 'inactivo', 'false', '0', 'baja'].includes(estado),
+    notes: txt(row.notes),
+  };
+}
+
+/**
+ * Guarda proveedores importados. Un proveedor cuyo nombre ya existe se ACTUALIZA en vez de
+ * duplicarse, así un Excel exportado se puede editar y volver a importar.
+ */
 export async function syncSuppliersToSupabase(suppliers: Supplier[]): Promise<{ success: number; errors: string[] }> {
   let success = 0;
   const errors: string[] = [];
 
-  for (const supplier of suppliers) {
+  const porNombre = new Map<string, string>();
+  try {
+    const { data, error } = await suppliersService.getAll(getCurrentUserId());
+    if (error) throw new Error(error.message);
+    (data || []).forEach(s => porNombre.set(claveProveedor(s.name), s.id as string));
+  } catch (error) {
+    // Sin la lista no se puede detectar duplicados: mejor no importar que duplicar todo.
+    return { success: 0, errors: [`No se pudo leer los proveedores existentes: ${error}`] };
+  }
+
+  for (const row of suppliers) {
+    const supplier = proveedorDesdeImportacion(row);
     try {
+      if (!supplier.name) {
+        errors.push('Proveedor sin nombre');
+        continue;
+      }
+      const clave = claveProveedor(supplier.name);
+      const existente = porNombre.get(clave);
+      if (existente) supplier.id = existente; // -> update
       const result = await syncSupplierToSupabase(supplier);
       if (result) {
         success++;
+        if (supplier.id) porNombre.set(clave, supplier.id); // evita duplicar filas repetidas dentro del mismo archivo
       } else {
         errors.push(`Error al sincronizar proveedor: ${supplier.name}`);
       }

@@ -15,6 +15,8 @@ interface ImportModalProps {
   onImport: (data: any[]) => void;
   title: string;
   templateHeaders: string[];
+  /** Valores de la fila de ejemplo de la plantilla Excel (por encabezado). Si falta, se usan los valores genéricos. */
+  templateExample?: Record<string, string>;
   mapping: Record<string, string>;
   validator?: (row: any) => string | null;
   entityType?: 'printers' | 'toners' | 'equipments' | 'suppliers';
@@ -28,6 +30,7 @@ export default function ImportModal({
   onImport,
   title,
   templateHeaders,
+  templateExample,
   mapping,
   validator,
   entityType,
@@ -163,7 +166,9 @@ export default function ImportModal({
         const exampleRow: any = {};
         templateHeaders.forEach(header => {
           const lowerHeader = header.toLowerCase();
-          if (lowerHeader.includes('nombre') || lowerHeader.includes('name')) {
+          if (templateExample && header in templateExample) {
+            exampleRow[header] = templateExample[header];
+          } else if (lowerHeader.includes('nombre') || lowerHeader.includes('name')) {
             exampleRow[header] = 'Ejemplo';
           } else if (lowerHeader.includes('modelo') || lowerHeader.includes('model')) {
             exampleRow[header] = 'Modelo Ejemplo';
