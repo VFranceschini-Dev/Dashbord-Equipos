@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import ModuleSyncControls from './ModuleSyncControls';
 import { Supplier } from '../types';
 import { SUPPLIER_CATEGORIES } from '../data';
 import {
-  Plus, Search, Edit2, Trash2, X, Building2, Phone, Mail, MapPin, Tag, CheckCircle, XCircle, User, Upload, Loader2
+  Plus, Search, Edit2, Trash2, X, Building2, Phone, Mail, MapPin, Tag, CheckCircle, XCircle, User, Upload, Loader2, Download
 } from 'lucide-react';
-import DataImportWizard from './DataImportWizard';
-import { buildSuppliersConfig } from '../config/importConfig';
+import ImportModal from './ImportModal';
+import {
+  SUPPLIER_TEMPLATE_HEADERS, SUPPLIER_TEMPLATE_EXAMPLE, SUPPLIER_IMPORT_MAPPING,
+  validarProveedorImportado, proveedoresAFilas,
+} from '../config/supplierImport';
+import { downloadXlsxFile } from '../utils/excelToCsv';
 import Facturas from './Vouchers';
 
 type Pestana = 'proveedores' | 'facturas';
@@ -57,13 +61,19 @@ function ListaProveedores() {
     return matchSearch && matchCategory;
   });
 
-  const importConfig = useMemo(() => buildSuppliersConfig(), []);
-
-  // Tras una importación exitosa en Supabase, recarga el listado desde la base
-  // usando reload del contexto ('suppliers'), sin recargar la página.
-  const handleImportSaved = async () => {
+  // El modal de importación guarda en Supabase por su cuenta (paso 3, con detección de duplicados
+  // por nombre en syncSuppliersToSupabase). Al paso 1 no hay que agregar nada a la lista local:
+  // hacerlo acá guardaría cada proveedor dos veces. Al cerrar se recarga el listado desde la base.
+  const handleCloseImport = async () => {
     setShowImport(false);
     await refreshModule('suppliers');
+  };
+
+  // Exporta TODOS los proveedores cargados con las mismas columnas que la plantilla de
+  // importación: el archivo exportado se puede editar y volver a importar tal cual.
+  const handleExport = () => {
+    const fecha = new Date().toISOString().slice(0, 10);
+    downloadXlsxFile(`proveedores_${fecha}.xlsx`, SUPPLIER_TEMPLATE_HEADERS, proveedoresAFilas(suppliers), 'Proveedores');
   };
   const toggleCategory = (category: string) => {
     if (form.category.includes(category)) {
@@ -114,6 +124,11 @@ function ListaProveedores() {
           </select>
         </div>
         <div className="flex gap-2">
+          <button onClick={handleExport} disabled={suppliers.length === 0}
+            title={suppliers.length === 0 ? 'No hay proveedores para exportar' : 'Descargar todos los proveedores en Excel (mismo formato que la importación)'}
+            className="flex items-center gap-2 bg-white text-gray-700 border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+            <Download size={16} /> Exportar
+          </button>
           <button onClick={() => setShowImport(true)}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium">
             <Upload size={16} /> Importar
@@ -310,12 +325,17 @@ function ListaProveedores() {
         )
       )}
 
-      {showImport && (
-        <DataImportWizard
-          config={importConfig}
-          onClose={() => setShowImport(false)}
-          onSaved={handleImportSaved}
-        />
-      )}    </div>
+      <ImportModal
+        isOpen={showImport}
+        onClose={handleCloseImport}
+        onImport={() => { /* el guardado lo hace el paso 3 del modal */ }}
+        title="Proveedores"
+        entityType="suppliers"
+        templateHeaders={SUPPLIER_TEMPLATE_HEADERS}
+        templateExample={SUPPLIER_TEMPLATE_EXAMPLE}
+        mapping={SUPPLIER_IMPORT_MAPPING}
+        validator={validarProveedorImportado}
+      />
+    </div>
   );
 }

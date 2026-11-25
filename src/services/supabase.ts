@@ -27,6 +27,7 @@ export interface SupabasePrinter {
   toner_model: string;
   last_maintenance: string;
   total_pages: number;
+  inventory_code?: string;
   created_at?: string;
   updated_at?: string;
 }
