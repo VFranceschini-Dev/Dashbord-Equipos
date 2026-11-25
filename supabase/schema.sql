@@ -51,10 +51,14 @@ CREATE TABLE IF NOT EXISTS public.app_printers (
   toner_model      text NOT NULL DEFAULT '',
   last_maintenance text NOT NULL DEFAULT '',
   total_pages      integer NOT NULL DEFAULT 0,
+  inventory_code   text NOT NULL DEFAULT '',
   created_at       timestamptz DEFAULT now(),
   updated_at       timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_app_printers_user_id ON public.app_printers (user_id);
+-- Código de inventario: opcional, único por usuario solo cuando no está vacío
+CREATE UNIQUE INDEX IF NOT EXISTS uq_app_printers_inventory_code
+  ON public.app_printers (user_id, lower(inventory_code)) WHERE inventory_code <> '';
 
 -- ============================================
 -- TABLA: TONER_ITEMS (Inventario de tóner)

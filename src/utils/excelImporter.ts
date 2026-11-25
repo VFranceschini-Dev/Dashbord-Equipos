@@ -144,25 +144,25 @@ export function downloadExcelTemplate(filename: string, headers: string[], examp
 }
 
 export function downloadPrinterTemplate() {
-  const headers = ['nombre', 'modelo', 'ubicacion', 'departamento', 'toner', 'estado', 'paginas'];
+  const headers = ['nombre', 'modelo', 'codigo_inventario', 'ubicacion', 'departamento', 'toner', 'estado'];
   const exampleData = [
     {
       nombre: 'Impresora HP LaserJet',
       modelo: 'HP LaserJet Pro M404',
+      codigo_inventario: 'IMP-0001',
       ubicacion: 'Oficina Principal',
       departamento: 'Administración',
       toner: 'CF258A',
       estado: 'active',
-      paginas: '1500',
     },
     {
       nombre: 'Impresora Epson',
       modelo: 'Epson EcoTank L3250',
+      codigo_inventario: 'IMP-0002',
       ubicacion: 'Sala de Reuniones',
       departamento: 'RRHH',
       toner: 'T544',
       estado: 'active',
-      paginas: '800',
     },
   ];
   

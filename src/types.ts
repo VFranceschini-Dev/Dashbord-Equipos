@@ -8,6 +8,7 @@ export interface Printer {
   tonerModel: string;
   lastMaintenance: string;
   totalPages: number;
+  inventoryCode?: string; // Código de inventario (opcional, único cuando se carga)
 }
 
 export interface TonerItem {

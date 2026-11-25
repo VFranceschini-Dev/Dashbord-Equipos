@@ -39,6 +39,7 @@ export async function syncPrintersFromSupabase(): Promise<Printer[]> {
     tonerModel: p.toner_model,
     lastMaintenance: p.last_maintenance,
     totalPages: p.total_pages,
+    inventoryCode: p.inventory_code || '',
   }));
 }
 
@@ -61,6 +62,7 @@ export async function syncPrinterToSupabase(printer: Printer): Promise<{ success
       toner_model: printer.tonerModel || '',
       last_maintenance: printer.lastMaintenance || '',
       total_pages: printer.totalPages || 0,
+      inventory_code: (printer.inventoryCode || '').trim(),
     };
 
     // Verificar si ya existe en Supabase

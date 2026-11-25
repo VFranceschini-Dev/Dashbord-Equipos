@@ -175,6 +175,8 @@ export default function ImportModal({
             exampleRow[header] = 'active';
           } else if (lowerHeader.includes('toner')) {
             exampleRow[header] = 'CF258A';
+          } else if (lowerHeader.includes('inventario')) {
+            exampleRow[header] = 'IMP-0001';
           } else if (lowerHeader.includes('pagina')) {
             exampleRow[header] = '1000';
           } else {

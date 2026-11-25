@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import ModuleSyncControls from './ModuleSyncControls';
 import { Printer as PrinterType } from '../types';
 import {
-  Plus, Search, Edit2, Trash2, X, CheckCircle, AlertCircle, Wrench, MapPin, Building, FileText, Printer as PrinterIcon, Upload
+  Plus, Search, Edit2, Trash2, X, CheckCircle, AlertCircle, Wrench, MapPin, Building, FileText, Printer as PrinterIcon, Upload, Hash
 } from 'lucide-react';
 import ImportModal from './ImportModal';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,13 +19,14 @@ export default function Printers() {
 
   const [form, setForm] = useState<Omit<PrinterType, 'id'>>({
     name: '', location: '', department: '', model: '', status: 'active',
-    tonerModel: '', lastMaintenance: '', totalPages: 0,
+    tonerModel: '', lastMaintenance: '', totalPages: 0, inventoryCode: '',
   });
 
   const filtered = printers.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.model.toLowerCase().includes(search.toLowerCase()) ||
-      p.department.toLowerCase().includes(search.toLowerCase());
+      p.department.toLowerCase().includes(search.toLowerCase()) ||
+      (p.inventoryCode || '').toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === 'all' || p.status === filter;
     return matchesSearch && matchesFilter;
   });
@@ -55,6 +56,7 @@ export default function Printers() {
         status: status,
         lastMaintenance: item.lastMaintenance || new Date().toISOString().split('T')[0],
         totalPages: parseInt(item.totalPages) || 0,
+        inventoryCode: (item.inventoryCode ?? '').toString().trim(),
       } as PrinterType);
     });
     setShowImport(false);
@@ -71,13 +73,13 @@ export default function Printers() {
   };
 
   const resetForm = () => {
-    setForm({ name: '', location: '', department: '', model: '', status: 'active', tonerModel: '', lastMaintenance: '', totalPages: 0 });
+    setForm({ name: '', location: '', department: '', model: '', status: 'active', tonerModel: '', lastMaintenance: '', totalPages: 0, inventoryCode: '' });
     setShowForm(false);
     setEditingId(null);
   };
 
   const startEdit = (p: PrinterType) => {
-    setForm({ name: p.name, location: p.location, department: p.department, model: p.model, status: p.status, tonerModel: p.tonerModel, lastMaintenance: p.lastMaintenance, totalPages: p.totalPages });
+    setForm({ name: p.name, location: p.location, department: p.department, model: p.model, status: p.status, tonerModel: p.tonerModel, lastMaintenance: p.lastMaintenance, totalPages: p.totalPages, inventoryCode: p.inventoryCode || '' });
     setEditingId(p.id);
     setShowForm(true);
   };
@@ -174,6 +176,16 @@ export default function Printers() {
                     placeholder="Ej: CF258A"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Código de inventario</label>
+                <input
+                  type="text"
+                  value={form.inventoryCode || ''}
+                  onChange={e => setForm({ ...form, inventoryCode: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+                  placeholder="Ej: IMP-0001"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -278,6 +290,12 @@ export default function Printers() {
                 <FileText size={14} className="text-gray-400" />
                 <span>Tóner: {printer.tonerModel}</span>
               </div>
+              {printer.inventoryCode && (
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Hash size={14} className="text-gray-400" />
+                  <span>Inventario: {printer.inventoryCode}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-gray-100">
@@ -310,7 +328,7 @@ export default function Printers() {
         onImport={handleImport}
         title="Impresoras"
         entityType="printers"
-        templateHeaders={['nombre', 'modelo', 'ubicacion', 'departamento', 'toner', 'estado', 'paginas']}
+        templateHeaders={['nombre', 'modelo', 'codigo_inventario', 'ubicacion', 'departamento', 'toner', 'estado']}
         mapping={{
           // Nombre
           'nombre': 'name',
@@ -358,13 +376,18 @@ export default function Printers() {
           'activo': 'status',
           'active': 'status',
           
-          // Páginas
-          'paginas': 'totalPages',
-          'páginas': 'totalPages',
-          'total pages': 'totalPages',
-          'total paginas': 'totalPages',
-          'total páginas': 'totalPages',
-          'pages': 'totalPages',
+          // Código de inventario
+          'codigo_inventario': 'inventoryCode',
+          'codigo inventario': 'inventoryCode',
+          'código inventario': 'inventoryCode',
+          'código de inventario': 'inventoryCode',
+          'codigo de inventario': 'inventoryCode',
+          'cod inventario': 'inventoryCode',
+          'cod. inventario': 'inventoryCode',
+          'inventario': 'inventoryCode',
+          'nro inventario': 'inventoryCode',
+          'inventory code': 'inventoryCode',
+          'inventorycode': 'inventoryCode',
         }}
         validator={(row) => {
           if (!row.name || row.name.trim() === '') return 'Nombre es obligatorio';
