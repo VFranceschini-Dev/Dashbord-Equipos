@@ -4,12 +4,15 @@ import { useAuth } from '../context/AuthContext';
 import { Page } from '../types';
 import {
   LayoutDashboard, Printer, Package, BarChart3, Bell, Menu, X, LogOut,
-  Users, Building2, ChevronRight, Settings, Server, PenLine, Activity
+  Users, Building2, ChevronRight, Settings, Server, PenLine, Activity, ShieldCheck, KeyRound
 } from 'lucide-react';
 import { useState } from 'react';
 import ThemeToggle from './ThemeToggle';
 import MiFirmaModal from './comprobante/MiFirmaModal';
+import CambiarContrasenaModal from './CambiarContrasenaModal';
 import LogoVLF from './LogoVLF';
+import { MODULO_DE_PAGINA } from '../config/accesoPaginas';
+import { ROLES } from '../config/permisos';
 
 const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
@@ -20,6 +23,7 @@ const navItems: { page: Page; label: string; icon: ReactNode }[] = [
   { page: 'inventory', label: 'Stock Toner', icon: <Package size={20} /> },
   { page: 'reports', label: 'Reportes', icon: <BarChart3 size={20} /> },
   { page: 'server-config', label: 'Servidores', icon: <Server size={20} /> },
+  { page: 'admin-usuarios', label: 'Administración', icon: <ShieldCheck size={20} /> },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -28,10 +32,16 @@ export default function Layout({ children }: { children: ReactNode }) {
   const pagina = currentPage === 'vouchers' ? 'suppliers'
     : (currentPage === 'movements' || currentPage === 'asignaciones') ? 'collaborators'
     : currentPage;
-  const { user, logout } = useAuth();
+  const { user, logout, can, esAdmin } = useAuth();
+  // Solo se muestran las secciones que el usuario puede ver
+  const itemsVisibles = navItems.filter(item => {
+    const requerido = MODULO_DE_PAGINA[item.page];
+    return requerido === 'admin' ? esAdmin : requerido === null || can(requerido);
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
   const [showFirma, setShowFirma] = useState(false);
+  const [showClave, setShowClave] = useState(false);
 
   const unreadAlertList = alerts.filter(a => !a.read);
 
@@ -62,7 +72,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map(item => {
+          {itemsVisibles.map(item => {
             // Facturas es una pestaña de Proveedores
             const isActive = pagina === item.page;
             return (
@@ -96,7 +106,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 dark:text-white truncate" title={user?.email}>{user?.name || user?.email || 'Usuario'}</p>
                 <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
-                  {user?.role === 'admin' ? 'Administrador' : 'Usuario'}{user?.area ? ` · ${user.area}` : ''}
+                  {ROLES.find(r => r.id === user?.role)?.label ?? 'Usuario'}{user?.area ? ` · ${user.area}` : ''}
                 </p>
               </div>
               <button 
@@ -107,13 +117,22 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <LogOut size={16} />
               </button>
             </div>
-            <button
-              onClick={() => setShowFirma(true)}
-              className="mt-2 w-full flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-white/70 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 transition-colors"
-              title="Firma que se usa en los comprobantes de entrega"
-            >
-              <PenLine size={13} /> Mi firma
-            </button>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setShowFirma(true)}
+                className="flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-white/70 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                title="Firma que se usa en los comprobantes de entrega"
+              >
+                <PenLine size={13} /> Mi firma
+              </button>
+              <button
+                onClick={() => setShowClave(true)}
+                className="flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-white/70 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                title="Cambiar mi contraseña"
+              >
+                <KeyRound size={13} /> Contraseña
+              </button>
+            </div>
           </div>
           <div className="mt-3 pb-1 flex justify-center">
             <LogoVLF size="sm" showName />
@@ -122,6 +141,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       {showFirma && <MiFirmaModal onClose={() => setShowFirma(false)} />}
+      {showClave && <CambiarContrasenaModal onClose={() => setShowClave(false)} />}
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm">

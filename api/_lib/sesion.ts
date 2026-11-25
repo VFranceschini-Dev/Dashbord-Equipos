@@ -9,12 +9,21 @@
  * Misma regla que src/services/authService.ts: sin fila en perfiles_usuarios se
  * usa app_metadata.role y el usuario se considera activo.
  */
+import { normalizarRol, puede, sanearPermisos, type Accion, type Modulo, type Permisos, type Rol } from './permisos.js';
+
 const TIMEOUT_MS = 15000;
 
 export interface SesionApi {
   id: string;
   email: string;
+  /** 'admin' o 'user' (cualquier otro rol). Se conserva para el código que solo distingue administradores. */
   rol: 'admin' | 'user';
+  /** Rol del sistema: admin, operador o lectura. */
+  rolSistema: Rol;
+  /** Ajustes por usuario (solo módulos y acciones conocidos). */
+  permisos: Permisos;
+  /** ¿Puede esta sesión hacer esta acción en este módulo? */
+  puede: (modulo: Modulo, accion: Accion) => boolean;
 }
 
 function env(name: string, fallbackName?: string): string | undefined {
@@ -49,19 +58,28 @@ export async function sesionDeApi(request: Request): Promise<SesionApi | null> {
     if (!u?.id) return null;
     const id = String(u.id);
 
-    let rol: SesionApi['rol'] = u.app_metadata?.role === 'admin' ? 'admin' : 'user';
-    const resPerfil = await fetchConTimeout(
-      `${baseUrl}/rest/v1/perfiles_usuarios?id=eq.${encodeURIComponent(id)}&select=rol,activo`,
-      { headers },
-    );
+    let rolSistema: Rol = normalizarRol(u.app_metadata?.role);
+    let permisos: Permisos = {};
+    const urlPerfil = `${baseUrl}/rest/v1/perfiles_usuarios?id=eq.${encodeURIComponent(id)}`;
+    let resPerfil = await fetchConTimeout(`${urlPerfil}&select=rol,activo,permisos`, { headers });
+    // Si todavía no se ejecutó la migración de permisos, la columna no existe: se lee sin ella.
+    if (!resPerfil.ok) resPerfil = await fetchConTimeout(`${urlPerfil}&select=rol,activo`, { headers });
     if (resPerfil.ok) {
-      const [perfil] = (await resPerfil.json()) as { rol?: string; activo?: boolean }[];
+      const [perfil] = (await resPerfil.json()) as { rol?: string; activo?: boolean; permisos?: unknown }[];
       if (perfil) {
         if (perfil.activo === false) return null;
-        rol = String(perfil.rol ?? '').toLowerCase() === 'admin' ? 'admin' : 'user';
+        rolSistema = normalizarRol(perfil.rol);
+        permisos = sanearPermisos(perfil.permisos);
       }
     }
-    return { id, email: String(u.email || ''), rol };
+    return {
+      id,
+      email: String(u.email || ''),
+      rol: rolSistema === 'admin' ? 'admin' : 'user',
+      rolSistema,
+      permisos,
+      puede: (modulo, accion) => puede(rolSistema, permisos, modulo, accion),
+    };
   } catch {
     return null;
   }

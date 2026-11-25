@@ -113,7 +113,7 @@ export interface Voucher {
   cargadaPor?: string;
 }
 
-export type Page = 'dashboard' | 'asignaciones' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'server-config';
+export type Page = 'dashboard' | 'asignaciones' | 'printers' | 'inventory' | 'movements' | 'reports' | 'equipments' | 'suppliers' | 'collaborators' | 'vouchers' | 'server-config' | 'admin-usuarios';
 
 export interface ExternalServer {
   id: string;

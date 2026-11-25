@@ -6,6 +6,7 @@ import {
   getSessionProfile,
   onAuthStateChange,
 } from '../services/authService';
+import { puede, type Accion, type Modulo } from '../config/permisos';
 
 interface AuthContextType {
   user: AuthUserProfile | null;
@@ -13,6 +14,10 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  /** ¿El usuario actual puede hacer esta acción en este módulo? (por defecto, verlo) */
+  can: (modulo: Modulo, accion?: Accion) => boolean;
+  /** Es administrador (gestiona usuarios y permisos). */
+  esAdmin: boolean;
   /** Motivo por el que se cerró la sesión (p. ej. usuario desactivado), para mostrar en el login. */
   aviso: string | null;
 }
@@ -106,8 +111,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
+  const can = useCallback(
+    (modulo: Modulo, accion: Accion = 'ver') => (user ? puede(user.role, user.permisos, modulo, accion) : false),
+    [user],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user, aviso }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user, aviso, can, esAdmin: user?.role === 'admin' }}>
       {children}
     </AuthContext.Provider>
   );

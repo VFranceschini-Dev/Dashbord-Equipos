@@ -424,6 +424,7 @@ create table if not exists public.perfiles_usuarios (
   rol        varchar,                     -- 'admin' = Administrador
   area       varchar,
   activo     boolean,
+  permisos   jsonb not null default '{}'::jsonb,  -- ajustes por módulo sobre el rol (20261126_permisos_usuarios.sql)
   created_at timestamptz not null default now()
 );
 alter table public.perfiles_usuarios enable row level security;
@@ -453,6 +454,74 @@ create policy "Permitir modificación de perfiles a administradores" on public.p
 drop policy if exists "Permitir lectura completa de perfiles" on public.perfiles_usuarios;
 create policy "Permitir lectura completa de perfiles" on public.perfiles_usuarios
   for select to authenticated using (true);
+
+-- Permisos por usuario: funciones usadas por las políticas de datos (ver 20261126_permisos_usuarios.sql)
+-- Lo que permite el rol por sí solo
+CREATE OR REPLACE FUNCTION public.permiso_base(p_rol text, p_modulo text, p_accion text)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT CASE
+    WHEN p_modulo NOT IN ('equipos', 'proveedores', 'impresoras', 'reportes', 'servidores') THEN false
+    WHEN p_accion NOT IN ('ver', 'crear', 'editar', 'eliminar') THEN false
+    WHEN lower(coalesce(p_rol, '')) = 'admin' THEN true
+    WHEN p_accion = 'ver' THEN true
+    WHEN lower(coalesce(p_rol, '')) IN ('lectura', 'solo lectura', 'solo_lectura') THEN false
+    ELSE p_modulo IN ('equipos', 'proveedores', 'impresoras')
+  END;
+$$;
+
+-- ¿El usuario con sesión puede hacer esta acción en este módulo?
+-- security definer: lee su propio perfil sin depender de las políticas de la tabla.
+CREATE OR REPLACE FUNCTION public.tiene_permiso(p_modulo text, p_accion text)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_rol    text;
+  v_activo boolean;
+  v_perm   jsonb;
+  v_ver    boolean;
+BEGIN
+  IF auth.uid() IS NULL THEN RETURN false; END IF;
+  IF p_modulo NOT IN ('equipos', 'proveedores', 'impresoras', 'reportes', 'servidores')
+     OR p_accion NOT IN ('ver', 'crear', 'editar', 'eliminar') THEN
+    RETURN false;
+  END IF;
+
+  SELECT lower(coalesce(rol, '')), coalesce(activo, true), coalesce(permisos, '{}'::jsonb)
+    INTO v_rol, v_activo, v_perm
+    FROM public.perfiles_usuarios
+   WHERE id = auth.uid();
+
+  -- Sin perfil: igual que la app, se lo trata como operador activo
+  IF NOT FOUND THEN
+    v_rol := ''; v_activo := true; v_perm := '{}'::jsonb;
+  END IF;
+
+  IF NOT v_activo THEN RETURN false; END IF;
+  IF v_rol = 'admin' THEN RETURN true; END IF;
+
+  v_ver := coalesce(
+    CASE WHEN jsonb_typeof(v_perm #> ARRAY[p_modulo, 'ver']) = 'boolean'
+         THEN (v_perm #>> ARRAY[p_modulo, 'ver'])::boolean END,
+    public.permiso_base(v_rol, p_modulo, 'ver'));
+  IF NOT v_ver THEN RETURN false; END IF;
+  IF p_accion = 'ver' THEN RETURN true; END IF;
+
+  RETURN coalesce(
+    CASE WHEN jsonb_typeof(v_perm #> ARRAY[p_modulo, p_accion]) = 'boolean'
+         THEN (v_perm #>> ARRAY[p_modulo, p_accion])::boolean END,
+    public.permiso_base(v_rol, p_modulo, p_accion));
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.permiso_base(text, text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.tiene_permiso(text, text) TO authenticated;
 
 -- ============================================
 -- RPC: registrar movimiento de equipo (transaccional)
