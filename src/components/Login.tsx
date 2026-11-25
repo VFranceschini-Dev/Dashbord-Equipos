@@ -147,13 +147,10 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="text-center mt-6 space-y-2">
+        <div className="text-center mt-6 space-y-3">
           <div className="flex justify-center">
-            <LogoVLF size="md" />
+            <LogoVLF size="md" showName tone="onDark" />
           </div>
-          <p className="text-blue-200 text-xs">
-            Desarrollado por <span className="font-semibold text-white">&nbsp;&nbsp;&nbsp;&nbsp;&gt;vlf_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;VLFranceschini Dev</span>
-          </p>
           <p className="text-blue-300 text-xs">
             © 2024 VLF dev
           </p>
