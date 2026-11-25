@@ -3,7 +3,7 @@
 // así un Excel exportado se puede editar y volver a importar tal cual.
 
 import type { Supplier } from '../types';
-import { validateCuit, validateEmail } from './importConfig';
+import { validateCuit, validateEmail } from '../utils/validaciones';
 
 /** Encabezados de la plantilla y de la exportación (en este orden). */
 export const SUPPLIER_TEMPLATE_HEADERS = [
