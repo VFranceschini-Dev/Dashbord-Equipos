@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import ModuleSyncControls from './ModuleSyncControls';
 import { Voucher } from '../types';
+import { totalesFacturas } from '../utils/totalesFacturas';
 import { subirArchivoFactura, enlaceArchivoFactura, borrarArchivoFactura, problemaArchivo, buscarFacturasEnZammad } from '../services/facturas';
 import {
   Plus, Search, Edit2, Trash2, X, FileText, DollarSign, Calendar, Building, CheckCircle, Clock, XCircle, Loader2,
@@ -103,10 +104,8 @@ export default function Vouchers() {
     return matchSearch && matchType && matchStatus && matchOrigen;
   });
 
-  const totalAmountARS = vouchers.filter(v => v.currency === 'ARS').reduce((sum, v) => sum + v.amount, 0);
-  const totalAmountUSD = vouchers.filter(v => v.currency === 'USD').reduce((sum, v) => sum + v.amount, 0);
-  const pendingAmountARS = vouchers.filter(v => v.status === 'pending' && v.currency === 'ARS').reduce((sum, v) => sum + v.amount, 0);
-  const pendingAmountUSD = vouchers.filter(v => v.status === 'pending' && v.currency === 'USD').reduce((sum, v) => sum + v.amount, 0);
+  // Totales sin rechazadas y con las notas de crédito restando
+  const { totalARS: totalAmountARS, totalUSD: totalAmountUSD, pendienteARS: pendingAmountARS, pendienteUSD: pendingAmountUSD } = totalesFacturas(vouchers);
 
   const handleSubmit = async () => {
     setFormError(null);
