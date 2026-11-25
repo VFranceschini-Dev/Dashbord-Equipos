@@ -7,7 +7,6 @@ import {
   Activity, Shield, Clock, ChevronRight
 } from 'lucide-react';
 import LowStockAlerts from './LowStockAlerts';
-import LogoVLF from './LogoVLF';
 
 export default function Dashboard() {
   const { printers, toners, movements, alerts, equipments, suppliers, vouchers, setCurrentPage, dataLoading } = useApp();
@@ -326,10 +325,7 @@ export default function Dashboard() {
       <div className="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl shadow-md dark:shadow-xl border border-gray-200 dark:border-slate-700">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 opacity-[0.02] dark:opacity-[0.05]" />
         <div className="relative p-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <LogoVLF size="md" showName={true} />
-            </div>
+          <div className="flex flex-col md:flex-row items-center justify-center md:justify-end gap-4">
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-xs text-gray-500 dark:text-slate-400">Versión</p>
