@@ -4,7 +4,8 @@ import { enlaceComprobante, crearComprobante, type ComprobanteCreado } from '../
 
 /**
  * Resultado de generar un comprobante: estado del envío por email (ticket de
- * Zammad), enlace para firmar (copiar / ver) y reintento si el envío falló.
+ * Zammad) y botón para ver el comprobante. Si el envío falló, se muestra además el
+ * enlace para copiar y un reintento.
  */
 export default function ComprobanteGenerado({ movementIds, correo, resultado, error }: {
   movementIds?: number | number[];
@@ -46,10 +47,15 @@ export default function ComprobanteGenerado({ movementIds, correo, resultado, er
           <p>Enlace para que {correo} lo firme:</p>
         )}
         <div className="flex items-center gap-2">
-          <input readOnly value={enlace} className="flex-1 min-w-0 px-2 py-1 rounded border border-emerald-200 bg-white text-xs text-gray-700" />
-          <button onClick={copiar} className="flex items-center gap-1 px-2 py-1 rounded border border-emerald-300 bg-white hover:bg-emerald-100 text-xs">
-            <Copy size={12} /> {copiado ? 'Copiado' : 'Copiar'}
-          </button>
+          {/* Si el email salió, alcanza con "Ver". El enlace y "Copiar" quedan solo si falló el envío (para mandarlo a mano). */}
+          {!actual.enviado && (
+            <>
+              <input readOnly value={enlace} className="flex-1 min-w-0 px-2 py-1 rounded border border-emerald-200 bg-white text-xs text-gray-700" />
+              <button onClick={copiar} className="flex items-center gap-1 px-2 py-1 rounded border border-emerald-300 bg-white hover:bg-emerald-100 text-xs">
+                <Copy size={12} /> {copiado ? 'Copiado' : 'Copiar'}
+              </button>
+            </>
+          )}
           <a href={`${enlace}?ver=1`} target="_blank" rel="noreferrer"
             className="flex items-center gap-1 px-2 py-1 rounded border border-emerald-300 bg-white hover:bg-emerald-100 text-xs">
             <ExternalLink size={12} /> Ver
