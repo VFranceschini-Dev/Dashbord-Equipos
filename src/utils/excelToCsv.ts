@@ -178,6 +178,20 @@ export function normalizeName(value: string): string {
     .trim();
 }
 
+/**
+ * Descarga un Excel (.xlsx) con una sola hoja: encabezados + filas.
+ * Todo se escribe como texto, así CUIT y teléfonos no pierden ceros ni se pasan a notación científica.
+ */
+export function downloadXlsxFile(filename: string, headers: string[], rows: string[][], sheetName = 'Datos'): void {
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = headers.map((h, i) => ({
+    wch: Math.min(45, Math.max(h.length + 2, 14, ...rows.map((r) => String(r[i] ?? '').length + 2))),
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename);
+}
+
 /** Dispara la descarga de un archivo de texto en el navegador. */
 export function downloadTextFile(filename: string, content: string, mime = 'text/csv;charset=utf-8'): void {
   const blob = new Blob(['\uFEFF' + content], { type: mime });

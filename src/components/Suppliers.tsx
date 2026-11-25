@@ -4,10 +4,11 @@ import ModuleSyncControls from './ModuleSyncControls';
 import { Supplier } from '../types';
 import { SUPPLIER_CATEGORIES } from '../data';
 import {
-  Plus, Search, Edit2, Trash2, X, Building2, Phone, Mail, MapPin, Tag, CheckCircle, XCircle, User, Upload, Loader2
+  Plus, Search, Edit2, Trash2, X, Building2, Phone, Mail, MapPin, Tag, CheckCircle, XCircle, User, Upload, Loader2, Download
 } from 'lucide-react';
 import DataImportWizard from './DataImportWizard';
-import { buildSuppliersConfig } from '../config/importConfig';
+import { buildSuppliersConfig, encabezadosExcel, filasParaExcel } from '../config/importConfig';
+import { downloadXlsxFile } from '../utils/excelToCsv';
 import Facturas from './Vouchers';
 
 type Pestana = 'proveedores' | 'facturas';
@@ -65,7 +66,19 @@ function ListaProveedores() {
     setShowImport(false);
     await refreshModule('suppliers');
   };
-  const toggleCategory = (category: string) => {
+
+  // Exporta TODOS los proveedores cargados con las mismas columnas que la plantilla de
+  // importación: el archivo exportado se puede editar y volver a importar tal cual.
+  const handleExport = () => {
+    const fecha = new Date().toISOString().slice(0, 10);
+    downloadXlsxFile(
+      `proveedores_${fecha}.xlsx`,
+      encabezadosExcel(importConfig),
+      filasParaExcel(importConfig, suppliers as unknown as Record<string, unknown>[]),
+      'Proveedores',
+    );
+  };
+  const toggleCategory =(category: string) => {
     if (form.category.includes(category)) {
       // Si ya está seleccionada, quitarla (pero mantener al menos una)
       if (form.category.length > 1) {
@@ -114,6 +127,11 @@ function ListaProveedores() {
           </select>
         </div>
         <div className="flex gap-2">
+          <button onClick={handleExport} disabled={suppliers.length === 0}
+            title={suppliers.length === 0 ? 'No hay proveedores para exportar' : 'Descargar todos los proveedores en Excel (mismo formato que la importación)'}
+            className="flex items-center gap-2 bg-white text-gray-700 border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+            <Download size={16} /> Exportar
+          </button>
           <button onClick={() => setShowImport(true)}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium">
             <Upload size={16} /> Importar
