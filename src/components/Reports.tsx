@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import ImpresorasCompatibles from './ImpresorasCompatibles';
 import {
@@ -22,32 +23,57 @@ import {
   Printer,
   Calendar,
 } from 'lucide-react';
+import {
+  consumoPorDepartamento,
+  enPeriodo,
+  entregasPorToner,
+  etiquetaPeriodo,
+  formatoPesos,
+  gastoMensual,
+  periodoMesActual,
+  type Periodo,
+} from '../utils/reportes';
+
+const claseFecha =
+  'px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 text-sm outline-none focus:border-blue-400';
+
+/** Rótulo para lo que no depende del período (stock y contadores acumulados). */
+function EstadoActual() {
+  return (
+    <span className="ml-2 text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-300 align-middle">
+      Estado actual
+    </span>
+  );
+}
 
 export default function Reports() {
   const { printers, toners, movements } = useApp();
+  const [periodo, setPeriodo] = useState<Periodo>(() => periodoMesActual());
+  const esMesActual = useMemo(() => {
+    const actual = periodoMesActual();
+    return periodo.desde === actual.desde && periodo.hasta === actual.hasta;
+  }, [periodo]);
+  const rangoInvalido = Boolean(periodo.desde && periodo.hasta && periodo.desde > periodo.hasta);
 
+  // Todo lo que se calcula a partir de movimientos respeta el período elegido
+  const movimientosPeriodo = useMemo(() => movements.filter(m => enPeriodo(m.date, periodo)), [movements, periodo]);
+  const totalDelivered = movimientosPeriodo.filter(m => m.type === 'delivery').reduce((sum, m) => sum + m.quantity, 0);
+  const totalRestocked = movimientosPeriodo.filter(m => m.type === 'restock').reduce((sum, m) => sum + m.quantity, 0);
+  const totalDisposed = movimientosPeriodo.filter(m => m.type === 'disposal').reduce((sum, m) => sum + m.quantity, 0);
+
+  // Stock actual (no depende del período)
   const totalInventoryValue = toners.reduce((sum, t) => sum + t.stock * t.unitPrice, 0);
-  const totalDelivered = movements.filter(m => m.type === 'delivery').reduce((sum, m) => sum + m.quantity, 0);
-  const totalRestocked = movements.filter(m => m.type === 'restock').reduce((sum, m) => sum + m.quantity, 0);
-  const totalDisposed = movements.filter(m => m.type === 'disposal').reduce((sum, m) => sum + m.quantity, 0);
 
-  const deptUsage = printers.reduce((acc, p) => {
-    const dept = p.department;
-    if (!acc[dept]) acc[dept] = { name: dept, pages: 0, printers: 0 };
-    acc[dept].pages += p.totalPages;
-    acc[dept].printers += 1;
-    return acc;
-  }, {} as Record<string, { name: string; pages: number; printers: number }>);
-  const deptData = Object.values(deptUsage).sort((a, b) => b.pages - a.pages);
+  const deptData = useMemo(
+    () => consumoPorDepartamento(movements, printers, toners, periodo),
+    [movements, printers, toners, periodo],
+  );
+  const totalConsumo = deptData.reduce((s, d) => s + d.toners, 0);
+  const totalCosto = deptData.reduce((s, d) => s + d.costo, 0);
 
-  const monthlySpending = [
-    { month: 'Ago', gasto: 420, entregas: 3 },
-    { month: 'Sep', gasto: 580, entregas: 5 },
-    { month: 'Oct', gasto: 310, entregas: 2 },
-    { month: 'Nov', gasto: 690, entregas: 6 },
-    { month: 'Dic', gasto: 850, entregas: 7 },
-    { month: 'Ene', gasto: 520, entregas: 4 },
-  ];
+  const monthlySpending = useMemo(() => gastoMensual(movements, toners, periodo), [movements, toners, periodo]);
+  const topToners = useMemo(() => entregasPorToner(movements, toners, periodo).slice(0, 5), [movements, toners, periodo]);
+  const maxEntregas = Math.max(1, ...topToners.map(t => t.entregas));
 
   const brandData = toners.reduce((acc, t) => {
     const existing = acc.find(a => a.name === t.brand);
@@ -74,20 +100,25 @@ export default function Reports() {
   const handleExport = () => {
     const report = {
       fecha: new Date().toISOString(),
+      periodo: { desde: periodo.desde || null, hasta: periodo.hasta || null },
       resumen: {
         totalImpresoras: printers.length,
         impresorasActivas: printers.filter(p => p.status === 'active').length,
         totalToners: toners.length,
         stockTotal: toners.reduce((s, t) => s + t.stock, 0),
         valorInventario: totalInventoryValue,
-        movimientosTotales: movements.length,
+        movimientosEnPeriodo: movimientosPeriodo.length,
         entregas: totalDelivered,
         reposiciones: totalRestocked,
         desechos: totalDisposed,
+        tonerConsumido: totalConsumo,
+        costoConsumo: totalCosto,
       },
+      consumoPorDepartamento: deptData,
+      comprasPorMes: monthlySpending,
       impresoras: printers,
       inventario: toners,
-      movimientos: movements,
+      movimientos: movimientosPeriodo,
     };
 
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
@@ -101,7 +132,29 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label htmlFor="rep-desde" className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Desde</label>
+            <input id="rep-desde" type="date" value={periodo.desde} max={periodo.hasta || undefined}
+              onChange={e => setPeriodo(p => ({ ...p, desde: e.target.value }))} className={claseFecha} />
+          </div>
+          <div>
+            <label htmlFor="rep-hasta" className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Hasta</label>
+            <input id="rep-hasta" type="date" value={periodo.hasta} min={periodo.desde || undefined}
+              onChange={e => setPeriodo(p => ({ ...p, hasta: e.target.value }))} className={claseFecha} />
+          </div>
+          <button
+            onClick={() => setPeriodo(periodoMesActual())}
+            disabled={esMesActual}
+            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-600 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-default"
+          >
+            Mes actual
+          </button>
+          <p className="text-sm text-gray-500 dark:text-slate-400 pb-2">
+            Período: <span className="font-medium">{etiquetaPeriodo(periodo)}</span>
+          </p>
+        </div>
         <button
           onClick={handleExport}
           className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium shadow-sm"
@@ -110,13 +163,18 @@ export default function Reports() {
           Exportar Reporte
         </button>
       </div>
+      {rangoInvalido && (
+        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          La fecha "desde" es posterior a "hasta": no hay datos para mostrar. Corregí el rango.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-xs font-medium">Valor Inventario</p>
-              <p className="text-2xl font-bold mt-1">${totalInventoryValue.toFixed(0)}</p>
+              <p className="text-blue-100 text-xs font-medium">Valor Inventario (estado actual)</p>
+              <p className="text-2xl font-bold mt-1">{formatoPesos(totalInventoryValue)}</p>
             </div>
             <DollarSign size={28} className="text-blue-200" />
           </div>
@@ -143,7 +201,7 @@ export default function Reports() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-amber-100 text-xs font-medium">Total Movimientos</p>
-              <p className="text-2xl font-bold mt-1">{movements.length}</p>
+              <p className="text-2xl font-bold mt-1">{movimientosPeriodo.length}</p>
             </div>
             <Calendar size={28} className="text-amber-200" />
           </div>
@@ -152,25 +210,33 @@ export default function Reports() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+          <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
             <DollarSign size={18} className="text-emerald-500" />
             Gasto Mensual en Tóner
           </h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={monthlySpending}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" fontSize={12} />
-              <YAxis fontSize={12} />
-              <Tooltip formatter={(value) => [`$${Number(value).toLocaleString('es-AR')}`, 'Gasto']} />
-              <Area type="monotone" dataKey="gasto" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <p className="text-xs text-gray-400 mb-3">Compras (reposiciones) del período, valuadas al precio unitario actual.</p>
+          {monthlySpending.every(m => m.unidades === 0) ? (
+            <p className="text-sm text-gray-500 text-center py-16">Sin compras en el período</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={monthlySpending}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="etiqueta" fontSize={12} />
+                <YAxis fontSize={12} />
+                <Tooltip
+                  formatter={(value, name) => (name === 'gasto' ? [formatoPesos(Number(value)), 'Gasto'] : [String(value), 'Unidades'])}
+                />
+                <Area type="monotone" dataKey="gasto" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
             <Package size={18} className="text-blue-500" />
             Distribución por Marca
+            <EstadoActual />
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
@@ -195,25 +261,38 @@ export default function Reports() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+          <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
             <Printer size={18} className="text-purple-500" />
             Uso por Departamento
           </h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={deptData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis type="number" fontSize={12} />
-              <YAxis dataKey="name" type="category" fontSize={11} width={100} />
-              <Tooltip />
-              <Bar dataKey="pages" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <p className="text-xs text-gray-400 mb-3">
+            Costo del tóner consumido en el período (entregas menos devoluciones, al precio unitario actual).
+          </p>
+          {totalConsumo === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-16">Sin consumo de tóner en el período</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={Math.max(200, deptData.filter(d => d.toners > 0).length * 34 + 40)}>
+              <BarChart data={deptData.filter(d => d.toners > 0)} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis type="number" fontSize={12} tickFormatter={v => formatoPesos(Number(v))} />
+                <YAxis dataKey="name" type="category" fontSize={11} width={110} />
+                <Tooltip
+                  formatter={(value, _n, item) => [
+                    `${formatoPesos(Number(value))} · ${item?.payload?.toners ?? 0} tóner`,
+                    'Costo',
+                  ]}
+                />
+                <Bar dataKey="costo" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
             <TrendingUp size={18} className="text-amber-500" />
             Eficiencia de Impresoras
+            <EstadoActual />
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={printerEfficiency}>
@@ -231,17 +310,12 @@ export default function Reports() {
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-gray-800 mb-4">Tóners Más Utilizados</h3>
           <div className="space-y-3">
-            {toners.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">Sin datos disponibles</p>
+            {topToners.every(t => t.entregas === 0) ? (
+              <p className="text-sm text-gray-500 text-center py-4">Sin entregas en el período</p>
             ) : (
-              toners
-                .map(t => ({
-                  ...t,
-                  deliveries: movements.filter(m => m.tonerModel === t.model && m.type === 'delivery').reduce((s, m) => s + m.quantity, 0),
-                }))
-                .sort((a, b) => b.deliveries - a.deliveries)
-                .slice(0, 5)
-                .map((toner, i) => (
+              topToners
+                .filter(t => t.entregas > 0)
+                .map(({ toner, entregas }, i) => (
                   <div key={toner.id} className="flex items-center gap-3">
                     <span className="text-sm font-bold text-gray-400 w-6">#{i + 1}</span>
                     <div className="flex-1">
@@ -250,13 +324,13 @@ export default function Reports() {
                           {toner.model}
                           <span className="ml-2 text-xs font-normal text-gray-400">{toner.brand}</span>
                         </span>
-                        <span className="text-sm text-gray-500">{toner.deliveries} entregas</span>
+                        <span className="text-sm text-gray-500">{entregas} entregas</span>
                       </div>
                       <ImpresorasCompatibles modeloToner={toner.model} printers={printers} className="mt-0.5" />
                       <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1">
                         <div
                           className="h-full bg-blue-500 rounded-full"
-                          style={{ width: `${Math.min((toner.deliveries / Math.max(...toners.map(t => movements.filter(m => m.tonerModel === t.model && m.type === 'delivery').reduce((s, m) => s + m.quantity, 0)))) * 100, 100)}%` }}
+                          style={{ width: `${Math.min((entregas / maxEntregas) * 100, 100)}%` }}
                         />
                       </div>
                     </div>
@@ -267,26 +341,37 @@ export default function Reports() {
         </div>
 
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-gray-800 mb-4">Resumen por Departamento</h3>
+          <h3 className="font-semibold text-gray-800 mb-1">Resumen por Departamento</h3>
+          <p className="text-xs text-gray-400 mb-3">
+            Tóner y costo del período. Las páginas son el contador acumulado de las impresoras (no del período).
+          </p>
           <div className="space-y-3">
             {deptData.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-4">Sin datos disponibles</p>
             ) : (
-              deptData.map((dept, i) => (
-                <div key={dept.name} className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold`} style={{ backgroundColor: COLORS[i % COLORS.length] }}>
-                    {dept.name.charAt(0)}
+              <>
+                {deptData.map((dept, i) => (
+                  <div key={dept.name} className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0`} style={{ backgroundColor: COLORS[i % COLORS.length] }}>
+                      {dept.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-700 truncate">{dept.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {dept.impresoras} impresora{dept.impresoras !== 1 ? 's' : ''} · {dept.paginas.toLocaleString('es-AR')} páginas acumuladas
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-semibold text-gray-700">{formatoPesos(dept.costo)}</p>
+                      <p className="text-xs text-gray-400">{dept.toners} tóner</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-700">{dept.name}</p>
-                    <p className="text-xs text-gray-400">{dept.printers} impresora{dept.printers !== 1 ? 's' : ''}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-gray-700">{dept.pages.toLocaleString()}</p>
-                    <p className="text-xs text-gray-400">páginas</p>
-                  </div>
+                ))}
+                <div className="flex items-center justify-between px-2 pt-2 border-t border-gray-100 text-sm font-semibold text-gray-700">
+                  <span>Total del período</span>
+                  <span>{formatoPesos(totalCosto)} · {totalConsumo} tóner</span>
                 </div>
-              ))
+              </>
             )}
           </div>
         </div>
