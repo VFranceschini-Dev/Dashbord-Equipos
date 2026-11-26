@@ -9,7 +9,7 @@
  *  - Administrador: todo, y es el único que administra usuarios.
  *  - Operador: ver/crear/editar/eliminar en Equipos, Proveedores e Impresoras; solo ver en Reportes y Servidores.
  *    Es el rol de quien hoy figura como "usuario" (o sin rol): conserva su acceso actual.
- *  - Solo lectura: solo ver, en todos los módulos.
+ *  - Consulta: solo ver, en todos los módulos.
  *  - Cada usuario puede tener ajustes que permiten o quitan una acción puntual de un módulo,
  *    por encima de su rol (excepto el Administrador, que siempre puede todo).
  *  - Crear, editar y eliminar exigen poder ver el módulo.
@@ -44,14 +44,14 @@ export const ETIQUETA_ACCION: Record<Accion, string> = {
 export const ROLES: { id: Rol; label: string; descripcion: string }[] = [
   { id: 'admin', label: 'Administrador', descripcion: 'Acceso total y administración de usuarios.' },
   { id: 'operador', label: 'Operador', descripcion: 'Trabaja con equipos, proveedores e impresoras; en reportes y servidores solo mira.' },
-  { id: 'lectura', label: 'Solo lectura', descripcion: 'Puede ver todos los módulos, sin modificar nada.' },
+  { id: 'lectura', label: 'Consulta', descripcion: 'Puede ver todos los módulos, sin modificar nada.' },
 ];
 
 /** Convierte lo que haya guardado en la columna rol: "admin", "lectura"; cualquier otra cosa (user, vacío) es operador. */
 export function normalizarRol(valor: unknown): Rol {
   const v = String(valor ?? '').trim().toLowerCase();
   if (v === 'admin') return 'admin';
-  if (v === 'lectura' || v === 'solo lectura' || v === 'solo_lectura') return 'lectura';
+  if (v === 'lectura' || /^solo[ _]lectura$/.test(v)) return 'lectura';
   return 'operador';
 }
 
