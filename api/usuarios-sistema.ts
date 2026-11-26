@@ -318,16 +318,22 @@ export async function DELETE(request: Request): Promise<Response> {
   }
   const reasignado = (await resRpc.json().catch(() => ({}))) as Record<string, number>;
 
-  // 2) Cuenta de Supabase Auth (404 = ya no existía)
+  // 2) Perfil: tiene que borrarse antes que la cuenta (la referencia a auth.users no es en cascada)
+  const resPerfil = await fetchConTimeout(`${s.base}/rest/v1/perfiles_usuarios?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: cabeceras(s) });
+  if (!resPerfil.ok) {
+    return jsonResponse(502, { success: false, error: 'Los datos ya pasaron a tu cuenta, pero no se pudo borrar el perfil. Reintentá la eliminación.' });
+  }
+
+  // 3) Cuenta de Supabase Auth (404 = ya no existía). Si falla, se restaura el perfil para poder reintentar.
   const resAuth = await fetchConTimeout(`${s.base}/auth/v1/admin/users/${id}`, { method: 'DELETE', headers: cabeceras(s) });
   if (!resAuth.ok && resAuth.status !== 404) {
     const e = await errorAuth(resAuth);
-    return jsonResponse(e.status, { success: false, error: `Los datos ya pasaron a tu cuenta, pero no se pudo eliminar la cuenta: ${e.mensaje} Reintentá la eliminación.` });
+    const { created_at: _c, ...fila } = objetivo;
+    const restaurar = (datos: Record<string, unknown>) => fetchConTimeout(`${s.base}/rest/v1/perfiles_usuarios`, { method: 'POST', headers: cabeceras(s), body: JSON.stringify(datos) });
+    let res = await restaurar(Object.keys(fila.permisos).length ? fila : (({ permisos: _p, ...r }) => r)(fila));
+    if (!res.ok) res = await restaurar((({ permisos: _p, ...r }) => r)(fila));
+    return jsonResponse(e.status, { success: false, error: `Los datos ya pasaron a tu cuenta, pero no se pudo eliminar la cuenta: ${e.mensaje} Reintentá la eliminación.${res.ok ? '' : ' Además no se pudo restaurar el perfil.'}` });
   }
 
-  // 3) Perfil
-  const resPerfil = await fetchConTimeout(`${s.base}/rest/v1/perfiles_usuarios?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: cabeceras(s) });
-  const aviso = resPerfil.ok ? undefined : 'La cuenta se eliminó, pero quedó un registro de perfil sin borrar.';
-
-  return jsonResponse(200, { success: true, data: { id, email: objetivo.email, reasignado }, aviso });
+  return jsonResponse(200, { success: true, data: { id, email: objetivo.email, reasignado } });
 }
