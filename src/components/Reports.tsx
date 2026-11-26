@@ -68,6 +68,7 @@ export default function Reports() {
     () => consumoPorDepartamento(movements, printers, toners, periodo),
     [movements, printers, toners, periodo],
   );
+  const deptGrafico = deptData.filter(d => d.toners > 0).sort((a, b) => b.toners - a.toners || b.costo - a.costo);
   const totalConsumo = deptData.reduce((s, d) => s + d.toners, 0);
   const totalCosto = deptData.reduce((s, d) => s + d.costo, 0);
 
@@ -266,23 +267,23 @@ export default function Reports() {
             Uso por Departamento
           </h3>
           <p className="text-xs text-gray-400 mb-3">
-            Costo del tóner consumido en el período (entregas menos devoluciones, al precio unitario actual).
+            Tóner consumido en el período (entregas menos devoluciones). El costo está en el detalle y al pasar el mouse.
           </p>
           {totalConsumo === 0 ? (
             <p className="text-sm text-gray-500 text-center py-16">Sin consumo de tóner en el período</p>
           ) : (
-            <ResponsiveContainer width="100%" height={Math.max(200, deptData.filter(d => d.toners > 0).length * 34 + 40)}>
-              <BarChart data={deptData.filter(d => d.toners > 0)} layout="vertical">
+            <ResponsiveContainer width="100%" height={Math.max(200, deptGrafico.length * 34 + 40)}>
+              <BarChart data={deptGrafico} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis type="number" fontSize={12} tickFormatter={v => formatoPesos(Number(v))} />
+                <XAxis type="number" fontSize={12} allowDecimals={false} />
                 <YAxis dataKey="name" type="category" fontSize={11} width={110} />
                 <Tooltip
                   formatter={(value, _n, item) => [
-                    `${formatoPesos(Number(value))} · ${item?.payload?.toners ?? 0} tóner`,
-                    'Costo',
+                    `${value} tóner · ${formatoPesos(Number(item?.payload?.costo ?? 0))}`,
+                    'Consumo',
                   ]}
                 />
-                <Bar dataKey="costo" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="toners" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
