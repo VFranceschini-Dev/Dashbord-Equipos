@@ -13,12 +13,14 @@ export interface AuthUserProfile {
   area?: string;
   /** false si el perfil está desactivado en perfiles_usuarios */
   activo: boolean;
+  /** true si la cuenta existe en Auth pero no tiene fila en perfiles_usuarios: no tiene acceso hasta que un administrador la dé de alta. */
+  sinPerfil?: boolean;
 }
 
 /**
  * Obtiene el perfil del usuario desde la tabla `public.perfiles_usuarios`
- * (id = id del usuario de Supabase Auth). Si no tiene perfil, devuelve uno por
- * defecto derivado de los metadatos de Supabase Auth.
+ * (id = id del usuario de Supabase Auth). Si no tiene perfil, la cuenta queda sin acceso (sinPerfil).
+ * Solo si no se puede leer la tabla (error) se usa un perfil derivado de los metadatos de Auth.
  */
 async function getProfile(session: Session): Promise<AuthUserProfile> {
   const user = session.user;
@@ -40,7 +42,18 @@ async function getProfile(session: Session): Promise<AuthUserProfile> {
 
     if (error) {
       console.warn('[authService] Error consultando perfiles_usuarios:', error.message);
-    } else if (data) {
+    } else if (!data) {
+      // La consulta anduvo pero no hay perfil: sin acceso (la base también lo rechaza, ver tiene_permiso).
+      return {
+        id: user.id,
+        email: user.email ?? '',
+        name: fallbackName,
+        role: 'lectura',
+        permisos: {},
+        activo: true,
+        sinPerfil: true,
+      };
+    } else {
       return {
         id: user.id,
         email: user.email ?? '',

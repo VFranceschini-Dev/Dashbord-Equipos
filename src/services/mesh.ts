@@ -134,7 +134,6 @@ export async function sincronizarConMesh(): Promise<ResultadoSincronizacion> {
   const { data: existentes, error } = await supabase
     .from('equipments')
     .select('id, mesh_node_id')
-    .eq('user_id', userId)
     .not('mesh_node_id', 'is', null);
   if (error) throw new Error('No se pudieron leer los equipos guardados.');
   const idPorNodo = new Map((existentes || []).map(e => [e.mesh_node_id as string, e.id as string]));

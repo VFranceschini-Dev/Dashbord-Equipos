@@ -9,7 +9,12 @@
  *         { id, nombre?, area?, rol?, activo?, permisos?, password? }
  *         Desactivar un usuario también bloquea su cuenta en Supabase Auth.
  *
- * No hay baja definitiva: se desactiva (así se conserva quién cargó cada dato).
+ * DELETE /api/usuarios-sistema → elimina definitivamente a un usuario DESACTIVADO.
+ *         { id, confirmar }  (confirmar = correo del usuario, a modo de confirmación)
+ *         Todo lo que cargó pasa al administrador que lo elimina (función SQL reasignar_datos_usuario),
+ *         luego se borra la cuenta de Supabase Auth y su perfil.
+ *
+ * Para conservar el historial lo normal es desactivar; eliminar es la baja definitiva.
  * Protecciones: un administrador no puede quitarse a sí mismo el rol ni desactivarse, y siempre
  * debe quedar al menos un administrador activo.
  *
@@ -271,4 +276,58 @@ export async function PATCH(request: Request): Promise<Response> {
   }
 
   return jsonResponse(200, { success: true, data: perfilFinal, aviso: avisos.join(' ') || undefined });
+}
+
+export async function DELETE(request: Request): Promise<Response> {
+  const ctx = await exigirAdministrador(request);
+  if ('error' in ctx) return ctx.error;
+  const { sesion, s } = ctx;
+
+  const body = await leerJson(request);
+  const id = String(body?.id ?? '');
+  if (!body || !UUID_RE.test(id)) return jsonResponse(400, { success: false, error: 'Solicitud inválida.' });
+  if (id === sesion.id) return jsonResponse(409, { success: false, error: 'No podés eliminar tu propia cuenta. Pedíselo a otro administrador.' });
+
+  let perfiles: Perfil[];
+  try { perfiles = await listarPerfiles(s); } catch (err) { return jsonResponse(502, { success: false, error: (err as Error).message }); }
+  const objetivo = perfiles.find(p => p.id === id);
+  if (!objetivo) return jsonResponse(404, { success: false, error: 'No se encontró el usuario.' });
+  if (objetivo.activo) return jsonResponse(409, { success: false, error: 'Primero desactivá al usuario; solo se pueden eliminar usuarios desactivados.' });
+  if (String(body.confirmar ?? '').trim().toLowerCase() !== objetivo.email.trim().toLowerCase()) {
+    return jsonResponse(400, { success: false, error: 'Escribí el correo del usuario para confirmar la eliminación.' });
+  }
+  // Un usuario inactivo no cuenta como administrador, pero se revisa igual por seguridad.
+  if (!perfiles.some(p => p.id !== id && p.rol === 'admin' && p.activo)) {
+    return jsonResponse(409, { success: false, error: 'Tiene que quedar al menos un administrador activo.' });
+  }
+
+  // 1) Los datos que cargó pasan al administrador que lo elimina
+  const resRpc = await fetchConTimeout(`${s.base}/rest/v1/rpc/reasignar_datos_usuario`, {
+    method: 'POST',
+    headers: cabeceras(s),
+    body: JSON.stringify({ p_origen: id, p_destino: sesion.id }),
+  });
+  if (!resRpc.ok) {
+    const faltaFuncion = resRpc.status === 404;
+    return jsonResponse(502, {
+      success: false,
+      error: faltaFuncion
+        ? 'Falta ejecutar en Supabase la migración de eliminación de usuarios (20261128_eliminar_usuarios.sql). No se eliminó nada.'
+        : 'No se pudieron traspasar los datos del usuario. No se eliminó nada.',
+    });
+  }
+  const reasignado = (await resRpc.json().catch(() => ({}))) as Record<string, number>;
+
+  // 2) Cuenta de Supabase Auth (404 = ya no existía)
+  const resAuth = await fetchConTimeout(`${s.base}/auth/v1/admin/users/${id}`, { method: 'DELETE', headers: cabeceras(s) });
+  if (!resAuth.ok && resAuth.status !== 404) {
+    const e = await errorAuth(resAuth);
+    return jsonResponse(e.status, { success: false, error: `Los datos ya pasaron a tu cuenta, pero no se pudo eliminar la cuenta: ${e.mensaje} Reintentá la eliminación.` });
+  }
+
+  // 3) Perfil
+  const resPerfil = await fetchConTimeout(`${s.base}/rest/v1/perfiles_usuarios?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: cabeceras(s) });
+  const aviso = resPerfil.ok ? undefined : 'La cuenta se eliminó, pero quedó un registro de perfil sin borrar.';
+
+  return jsonResponse(200, { success: true, data: { id, email: objetivo.email, reasignado }, aviso });
 }

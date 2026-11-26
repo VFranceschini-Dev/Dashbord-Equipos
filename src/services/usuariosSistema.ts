@@ -34,7 +34,7 @@ export interface CambiosUsuarioSistema {
   password?: string;
 }
 
-async function llamar(method: 'GET' | 'POST' | 'PATCH', body?: unknown): Promise<any> {
+async function llamar(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', body?: unknown): Promise<any> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   let res: Response;
@@ -63,4 +63,10 @@ export async function crearUsuarioSistema(alta: AltaUsuarioSistema): Promise<Usu
 export async function actualizarUsuarioSistema(id: string, cambios: CambiosUsuarioSistema): Promise<{ usuario: UsuarioSistema; aviso?: string }> {
   const json = await llamar('PATCH', { id, ...cambios });
   return { usuario: json.data, aviso: json.aviso };
+}
+
+/** Baja definitiva de un usuario desactivado. Sus datos pasan al administrador que lo elimina. */
+export async function eliminarUsuarioSistema(id: string, confirmar: string): Promise<{ email: string; reasignado: Record<string, number>; aviso?: string }> {
+  const json = await llamar('DELETE', { id, confirmar });
+  return { email: json.data.email, reasignado: json.data.reasignado ?? {}, aviso: json.aviso };
 }
