@@ -23,6 +23,7 @@ interface AuthContextType {
 }
 
 export const MENSAJE_DESACTIVADO = 'Tu usuario está desactivado. Contactá a Sistemas.';
+export const MENSAJE_SIN_PERFIL = 'Tu cuenta todavía no tiene permisos asignados en el sistema. Pedile a un administrador que te dé de alta.';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -38,9 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const applyProfile = (profile: AuthUserProfile | null) => {
       if (!mounted) return;
       // Perfil desactivado en perfiles_usuarios: se cierra la sesión y no se entra.
-      if (profile && !profile.activo) {
+      if (profile && (!profile.activo || profile.sinPerfil)) {
         supabaseSignOut().catch(() => undefined);
-        setAviso(MENSAJE_DESACTIVADO);
+        setAviso(profile.sinPerfil ? MENSAJE_SIN_PERFIL : MENSAJE_DESACTIVADO);
         profile = null;
       }
       // Mantener 'current_user_id' sincronizado para los servicios de supabaseSync.
@@ -92,9 +93,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     // Lanza Error si las credenciales son inválidas; el llamador debe manejarlo.
     const profile = await signInWithPassword(email, password);
-    if (!profile.activo) {
+    if (!profile.activo || profile.sinPerfil) {
       await supabaseSignOut().catch(() => undefined);
-      throw new Error(MENSAJE_DESACTIVADO);
+      throw new Error(profile.sinPerfil ? MENSAJE_SIN_PERFIL : MENSAJE_DESACTIVADO);
     }
     setAviso(null);
     // Retrocompatibilidad: los servicios de sincronización leen 'current_user_id'

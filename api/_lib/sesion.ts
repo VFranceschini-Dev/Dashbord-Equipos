@@ -6,8 +6,9 @@
  * service_role). Devuelve null si no hay sesión válida o si el perfil está
  * desactivado, así un usuario dado de baja deja de acceder aunque su token siga vigente.
  *
- * Misma regla que src/services/authService.ts: sin fila en perfiles_usuarios se
- * usa app_metadata.role y el usuario se considera activo.
+ * Misma regla que src/services/authService.ts: una cuenta SIN fila en perfiles_usuarios no tiene acceso
+ * (devuelve null), igual que la base (public.tiene_permiso). Si no se puede leer la tabla (error), se usa
+ * app_metadata.role como último recurso.
  */
 import { normalizarRol, puede, sanearPermisos, type Accion, type Modulo, type Permisos, type Rol } from './permisos.js';
 
@@ -66,11 +67,10 @@ export async function sesionDeApi(request: Request): Promise<SesionApi | null> {
     if (!resPerfil.ok) resPerfil = await fetchConTimeout(`${urlPerfil}&select=rol,activo`, { headers });
     if (resPerfil.ok) {
       const [perfil] = (await resPerfil.json()) as { rol?: string; activo?: boolean; permisos?: unknown }[];
-      if (perfil) {
-        if (perfil.activo === false) return null;
-        rolSistema = normalizarRol(perfil.rol);
-        permisos = sanearPermisos(perfil.permisos);
-      }
+      if (!perfil) return null;                  // sin perfil: sin acceso
+      if (perfil.activo === false) return null;
+      rolSistema = normalizarRol(perfil.rol);
+      permisos = sanearPermisos(perfil.permisos);
     }
     return {
       id,
