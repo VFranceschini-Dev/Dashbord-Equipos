@@ -138,13 +138,14 @@ export interface SupabaseVoucher {
 
 // Funciones CRUD para cada tabla
 
+// Los datos son del equipo: ya no se filtra por user_id al leer (user_id = quién lo cargó).
+// Qué se puede ver/crear/editar/eliminar lo decide la base según los permisos del usuario (ver supabase/migrations/20261127_*).
 // ===== PRINTERS =====
 export const printersService = {
-  async getAll(userId: string) {
+  async getAll(_userId: string) {
     const { data, error } = await supabase
       .from('app_printers')
       .select('*')
-      .eq('user_id', userId)
       .order('created_at', { ascending: false });
     return { data, error };
   },
@@ -179,11 +180,10 @@ export const printersService = {
 
 // ===== TONER ITEMS =====
 export const tonersService = {
-  async getAll(userId: string) {
+  async getAll(_userId: string) {
     const { data, error } = await supabase
       .from('toner_items')
       .select('*')
-      .eq('user_id', userId)
       .order('created_at', { ascending: false });
     return { data, error };
   },
@@ -218,11 +218,10 @@ export const tonersService = {
 
 // ===== MOVEMENTS =====
 export const movementsService = {
-  async getAll(userId: string) {
+  async getAll(_userId: string) {
     const { data, error } = await supabase
       .from('toner_movements')
       .select('*')
-      .eq('user_id', userId)
       .order('created_at', { ascending: false });
     return { data, error };
   },
@@ -247,11 +246,10 @@ export const movementsService = {
 
 // ===== EQUIPMENT =====
 export const equipmentsService = {
-  async getAll(userId: string) {
+  async getAll(_userId: string) {
     const { data, error } = await supabase
       .from('equipments')
       .select('*')
-      .eq('user_id', userId)
       .order('created_at', { ascending: false });
     return { data, error };
   },
@@ -389,11 +387,10 @@ export interface SupabaseEquipmentMovement {
 }
 
 export const equipmentMovementsService = {
-  async getAll(userId: string) {
+  async getAll(_userId: string) {
     const { data, error } = await supabase
       .from('equipment_movements')
       .select('*')
-      .eq('user_id', userId)
       .order('fecha', { ascending: false });
     return { data, error };
   },

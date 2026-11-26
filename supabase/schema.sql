@@ -56,9 +56,9 @@ CREATE TABLE IF NOT EXISTS public.app_printers (
   updated_at       timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_app_printers_user_id ON public.app_printers (user_id);
--- Código de inventario: opcional, único por usuario solo cuando no está vacío
+-- Código de inventario: opcional, único para todo el equipo solo cuando no está vacío
 CREATE UNIQUE INDEX IF NOT EXISTS uq_app_printers_inventory_code
-  ON public.app_printers (user_id, lower(inventory_code)) WHERE inventory_code <> '';
+  ON public.app_printers (lower(inventory_code)) WHERE inventory_code <> '';
 
 -- ============================================
 -- TABLA: TONER_ITEMS (Inventario de tóner)
@@ -133,7 +133,7 @@ ALTER TABLE public.equipments
   ADD COLUMN IF NOT EXISTS mesh_ultima_conexion timestamptz,
   ADD COLUMN IF NOT EXISTS mesh_sincronizado    timestamptz;
 CREATE UNIQUE INDEX IF NOT EXISTS equipments_mesh_node_key
-  ON public.equipments (user_id, mesh_node_id)
+  ON public.equipments (mesh_node_id)
   WHERE mesh_node_id IS NOT NULL;
 
 -- ============================================
@@ -274,50 +274,6 @@ ALTER TABLE public.users_new           ENABLE ROW LEVEL SECURITY;
 -- users_new queda SIN políticas a propósito: el navegador no puede leerla ni
 -- escribirla; solo la función serverless (service_role, que ignora RLS).
 
--- Políticas "cada usuario ve y modifica solo sus filas" (SELECT/INSERT/UPDATE/DELETE).
--- En toner_movements los nombres de política dicen "movements" (nombre previo de la tabla).
-DO $$
-DECLARE
-  t record;
-BEGIN
-  FOR t IN
-    SELECT * FROM (VALUES
-      ('app_printers',     'app_printers'),
-      ('toner_items',      'toner_items'),
-      ('toner_movements',  'movements'),
-      ('equipments',       'equipments')
-    ) AS v(tabla, etiqueta)
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can view their own '   || t.etiqueta, t.tabla);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can insert their own ' || t.etiqueta, t.tabla);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can update their own ' || t.etiqueta, t.tabla);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can delete their own ' || t.etiqueta, t.tabla);
-
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT USING (auth.uid() = user_id)',
-                   'Users can view their own '   || t.etiqueta, t.tabla);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR INSERT WITH CHECK (auth.uid() = user_id)',
-                   'Users can insert their own ' || t.etiqueta, t.tabla);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR UPDATE USING (auth.uid() = user_id)',
-                   'Users can update their own ' || t.etiqueta, t.tabla);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR DELETE USING (auth.uid() = user_id)',
-                   'Users can delete their own ' || t.etiqueta, t.tabla);
-  END LOOP;
-END $$;
-
--- Proveedores y facturas: compartidos por todo el equipo de Sistemas (usuarios con sesión).
-DO $$
-DECLARE t text;
-BEGIN
-  FOREACH t IN ARRAY ARRAY['vouchers', 'suppliers'] LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can view their own '   || t, t);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can insert their own ' || t, t);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can update their own ' || t, t);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Users can delete their own ' || t, t);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'equipo_sistemas_' || t, t);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (true) WITH CHECK (true)', 'equipo_sistemas_' || t, t);
-  END LOOP;
-END $$;
-
 -- Emails de Zammad con factura ya procesados (búsqueda periódica). Solo servidor: sin políticas.
 CREATE TABLE IF NOT EXISTS public.facturas_zammad_procesados (
   article_id   bigint PRIMARY KEY,
@@ -330,16 +286,7 @@ ALTER TABLE public.facturas_zammad_procesados ENABLE ROW LEVEL SECURITY;
 
 -- Archivos de facturas: espacio privado, solo usuarios con sesión.
 INSERT INTO storage.buckets (id, name, public) VALUES ('facturas', 'facturas', false) ON CONFLICT (id) DO NOTHING;
-DROP POLICY IF EXISTS "facturas_equipo_sistemas" ON storage.objects;
-CREATE POLICY "facturas_equipo_sistemas" ON storage.objects FOR ALL TO authenticated
-  USING (bucket_id = 'facturas') WITH CHECK (bucket_id = 'facturas');
-
--- Movimientos de equipos: una sola política FOR ALL.
-DROP POLICY IF EXISTS "own_equipment_movements" ON public.equipment_movements;
-CREATE POLICY "own_equipment_movements"
-  ON public.equipment_movements FOR ALL
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+-- (Las políticas de este espacio y de las tablas están al final del archivo: dependen de public.tiene_permiso.)
 
 -- ============================================
 -- COMPROBANTES DE ENTREGA (migración 20261104_comprobantes_entrega.sql)
@@ -409,9 +356,7 @@ create index if not exists comprobantes_entrega_movement_ids_idx
   on public.comprobantes_entrega using gin (movement_ids);
 -- (La política de lectura de la tabla "Ubicacion" está en esa migración: la tabla no la crea este esquema.)
 alter table public.comprobantes_entrega enable row level security;
-drop policy if exists "own_comprobantes_select" on public.comprobantes_entrega;
-create policy "own_comprobantes_select" on public.comprobantes_entrega for select
-  using (auth.uid() = user_id);
+-- (Política de lectura por permiso: al final del archivo.)
 
 -- ============================================
 -- PERFILES DE USUARIOS DE LA APP (nombre y rol de quien inicia sesión)
@@ -498,10 +443,7 @@ BEGIN
     FROM public.perfiles_usuarios
    WHERE id = auth.uid();
 
-  -- Sin perfil: igual que la app, se lo trata como operador activo
-  IF NOT FOUND THEN
-    v_rol := ''; v_activo := true; v_perm := '{}'::jsonb;
-  END IF;
+  IF NOT FOUND THEN RETURN false; END IF;      -- sin perfil: sin acceso
 
   IF NOT v_activo THEN RETURN false; END IF;
   IF v_rol = 'admin' THEN RETURN true; END IF;
@@ -555,10 +497,14 @@ BEGIN
     WHEN 'baja'       THEN 'retired'
   END;
 
-  PERFORM id FROM public.equipments
-    WHERE id = p_equipment_id AND user_id = auth.uid();
+  -- Inserta el movimiento Y cambia el estado del equipo: hacen falta crear y editar en Equipos.
+  IF NOT (public.tiene_permiso('equipos', 'crear') AND public.tiene_permiso('equipos', 'editar')) THEN
+    RAISE EXCEPTION 'No tenés permiso para registrar movimientos de equipos.';
+  END IF;
+
+  PERFORM id FROM public.equipments WHERE id = p_equipment_id;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'El equipamiento no existe o no pertenece al usuario';
+    RAISE EXCEPTION 'El equipamiento no existe o no tenés acceso a él';
   END IF;
 
   INSERT INTO public.equipment_movements
@@ -574,3 +520,68 @@ BEGIN
   RETURN v_new_id;
 END;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- PERMISOS Y DATOS COMPARTIDOS (migración 20261127_datos_compartidos_permisos.sql)
+-- Todo es del equipo; cada acción depende de la matriz del usuario (public.tiene_permiso).
+-- user_id = quién cargó el dato (no limita quién lo ve).
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  t record;
+  pol record;
+BEGIN
+  FOR t IN
+    SELECT * FROM (VALUES
+      ('app_printers',        'impresoras',  true),
+      ('toner_items',         'impresoras',  true),
+      ('toner_movements',     'impresoras',  true),
+      ('equipments',          'equipos',     true),
+      ('equipment_movements', 'equipos',     true),
+      ('suppliers',           'proveedores', false),
+      ('vouchers',            'proveedores', false)
+    ) AS v(tabla, modulo, exige_creador)
+  LOOP
+    FOR pol IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = t.tabla LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, t.tabla);
+    END LOOP;
+
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (public.tiene_permiso(%L, ''ver''))',
+                   'permiso_ver_' || t.tabla, t.tabla, t.modulo);
+    -- user_id registra quién cargó el dato; en las tablas con creador no se puede cargar a nombre de otro.
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR INSERT TO authenticated WITH CHECK (public.tiene_permiso(%L, ''crear'')%s)',
+                   'permiso_crear_' || t.tabla, t.tabla, t.modulo,
+                   CASE WHEN t.exige_creador THEN ' AND user_id = auth.uid()' ELSE '' END);
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated USING (public.tiene_permiso(%L, ''editar'')) WITH CHECK (public.tiene_permiso(%L, ''editar''))',
+                   'permiso_editar_' || t.tabla, t.tabla, t.modulo, t.modulo);
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR DELETE TO authenticated USING (public.tiene_permiso(%L, ''eliminar''))',
+                   'permiso_eliminar_' || t.tabla, t.tabla, t.modulo);
+  END LOOP;
+END $$;
+
+-- Constancias de entrega: el navegador solo lee (las escribe la función serverless con service_role).
+DO $$
+DECLARE pol record;
+BEGIN
+  FOR pol IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = 'comprobantes_entrega' LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.comprobantes_entrega', pol.policyname);
+  END LOOP;
+END $$;
+CREATE POLICY "permiso_ver_comprobantes_entrega" ON public.comprobantes_entrega
+  FOR SELECT TO authenticated USING (public.tiene_permiso('equipos', 'ver'));
+
+-- Archivos de facturas (espacio privado "facturas")
+DROP POLICY IF EXISTS "facturas_equipo_sistemas"  ON storage.objects;
+DROP POLICY IF EXISTS "facturas_permiso_ver"      ON storage.objects;
+DROP POLICY IF EXISTS "facturas_permiso_crear"    ON storage.objects;
+DROP POLICY IF EXISTS "facturas_permiso_editar"   ON storage.objects;
+DROP POLICY IF EXISTS "facturas_permiso_eliminar" ON storage.objects;
+CREATE POLICY "facturas_permiso_ver" ON storage.objects FOR SELECT TO authenticated
+  USING (bucket_id = 'facturas' AND public.tiene_permiso('proveedores', 'ver'));
+CREATE POLICY "facturas_permiso_crear" ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'facturas' AND public.tiene_permiso('proveedores', 'crear'));
+CREATE POLICY "facturas_permiso_editar" ON storage.objects FOR UPDATE TO authenticated
+  USING (bucket_id = 'facturas' AND public.tiene_permiso('proveedores', 'editar'))
+  WITH CHECK (bucket_id = 'facturas' AND public.tiene_permiso('proveedores', 'editar'));
+CREATE POLICY "facturas_permiso_eliminar" ON storage.objects FOR DELETE TO authenticated
+  USING (bucket_id = 'facturas' AND public.tiene_permiso('proveedores', 'eliminar'));

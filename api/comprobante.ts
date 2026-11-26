@@ -89,11 +89,9 @@ async function rest(b: NonNullable<ReturnType<typeof base>>, path: string, init:
   return texto ? JSON.parse(texto) : null;
 }
 
-/** Devuelve el usuario de la sesión (id y email) o null. */
-async function usuarioDeSesion(request: Request): Promise<{ id: string; email: string } | null> {
-  // Sesión válida Y perfil activo (ver api/_lib/sesion.ts)
-  const s = await sesionDeApi(request);
-  return s ? { id: s.id, email: s.email } : null;
+/** Devuelve la sesión (id, email y permisos) o null. Exige sesión válida Y perfil activo (ver api/_lib/sesion.ts). */
+async function usuarioDeSesion(request: Request) {
+  return sesionDeApi(request);
 }
 
 // ---------------------------------------------------------------------------
@@ -245,6 +243,10 @@ async function crear(request: Request, body: any): Promise<Response> {
   if (!b) return jsonResponse(500, { success: false, error: 'Falta configuración del servidor.' });
   const sesion = await usuarioDeSesion(request);
   if (!sesion) return jsonResponse(401, { success: false, error: 'No autenticado. Se requiere una sesión válida.' });
+  // Generar una constancia es crear un comprobante de un movimiento de equipos
+  if (!sesion.puede('equipos', 'crear')) {
+    return jsonResponse(403, { success: false, error: 'No tenés permiso para generar comprobantes de entrega.' });
+  }
 
   const ids: number[] = [...new Set<number>(
     (Array.isArray(body?.movementIds) ? body.movementIds : [body?.movementId]).map(Number),
@@ -257,9 +259,9 @@ async function crear(request: Request, body: any): Promise<Response> {
   }
   if (!EMAIL_RE.test(correo)) return jsonResponse(400, { success: false, error: 'El correo del usuario no es válido.' });
 
-  // ¿Alguno de estos movimientos ya está en una constancia PROPIA? Se devuelve esa.
-  // Se filtra por dueño: sin esto, el id de un movimiento ajeno devolvía el token (enlace secreto) de otra persona.
-  const existentes = await rest(b, `comprobantes_entrega?user_id=eq.${sesion.id}&movement_ids=ov.{${ids.join(',')}}&select=id,token,estado,datos,correo_destino,zammad_ticket_id`);
+  // ¿Alguno de estos movimientos ya está en una constancia? Se devuelve esa (las constancias son del equipo:
+  // cualquiera con permiso sobre Equipos puede abrir la de un movimiento cargado por otra persona).
+  const existentes = await rest(b, `comprobantes_entrega?movement_ids=ov.{${ids.join(',')}}&select=id,token,estado,datos,correo_destino,zammad_ticket_id`);
   const previo = Array.isArray(existentes) ? existentes[0] : null;
   if (previo) {
     await actualizarSiPendiente(b, previo);
@@ -271,7 +273,7 @@ async function crear(request: Request, body: any): Promise<Response> {
   }
 
   const movs: any[] = await rest(b, `equipment_movements?id=in.(${ids.join(',')})&select=*`) ?? [];
-  if (movs.length !== ids.length || movs.some(m => m.user_id !== sesion.id)) {
+  if (movs.length !== ids.length) {
     return jsonResponse(404, { success: false, error: 'No se encontró el movimiento.' });
   }
   if (movs.some(m => m.tipo !== 'asignacion')) return jsonResponse(400, { success: false, error: 'Solo las asignaciones generan comprobante.' });
