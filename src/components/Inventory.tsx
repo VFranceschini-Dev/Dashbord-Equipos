@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ImpresorasCompatibles from './ImpresorasCompatibles';
 import ModuleSyncControls from './ModuleSyncControls';
 import Movements from './Movements';
 import { TonerItem } from '../types';
@@ -34,7 +35,7 @@ export default function Inventory() {
 }
 
 function StockToner() {
-  const { toners, addToner, updateToner, deleteToner, addMovement } = useApp();
+  const { toners, printers, addToner, updateToner, deleteToner, addMovement } = useApp();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -376,6 +377,7 @@ function StockToner() {
                       <div>
                         <p className="text-sm font-medium text-gray-800">{toner.model}</p>
                         <p className="text-xs text-gray-400">{toner.brand}</p>
+                        <ImpresorasCompatibles modeloToner={toner.model} printers={printers} className="mt-1 max-w-xs" />
                       </div>
                     </td>
                     <td className="px-4 py-3">

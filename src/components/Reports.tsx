@@ -1,4 +1,5 @@
 import { useApp } from '../context/AppContext';
+import ImpresorasCompatibles from './ImpresorasCompatibles';
 import {
   BarChart,
   Bar,
@@ -245,9 +246,13 @@ export default function Reports() {
                     <span className="text-sm font-bold text-gray-400 w-6">#{i + 1}</span>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">{toner.model}</span>
+                        <span className="text-sm font-medium text-gray-700">
+                          {toner.model}
+                          <span className="ml-2 text-xs font-normal text-gray-400">{toner.brand}</span>
+                        </span>
                         <span className="text-sm text-gray-500">{toner.deliveries} entregas</span>
                       </div>
+                      <ImpresorasCompatibles modeloToner={toner.model} printers={printers} className="mt-0.5" />
                       <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1">
                         <div
                           className="h-full bg-blue-500 rounded-full"
