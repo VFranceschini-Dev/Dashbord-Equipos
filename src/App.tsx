@@ -1,4 +1,7 @@
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { MODULO_DE_PAGINA } from './config/accesoPaginas';
+import SinAcceso from './components/SinAcceso';
+import AdministracionUsuarios from './components/AdministracionUsuarios';
 import { AppProvider, useApp } from './context/AppContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/Layout';
@@ -15,6 +18,11 @@ import FirmarComprobante from './components/comprobante/FirmarComprobante';
 
 function PageRouter() {
   const { currentPage } = useApp();
+  const { can, esAdmin } = useAuth();
+
+  // Permiso de la pantalla: un módulo ("ver"), solo administradores o abierta a todos
+  const requerido = MODULO_DE_PAGINA[currentPage];
+  if (requerido === 'admin' ? !esAdmin : requerido !== null && !can(requerido)) return <SinAcceso />;
 
   switch (currentPage) {
     case 'dashboard':
@@ -37,6 +45,8 @@ function PageRouter() {
       return <Suppliers tab="facturas" />;
     case 'server-config':
       return <ServerConfig />;
+    case 'admin-usuarios':
+      return <AdministracionUsuarios />;
     default:
       return <Dashboard />;
   }

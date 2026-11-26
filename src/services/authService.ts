@@ -1,11 +1,15 @@
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { normalizarRol, sanearPermisos, type Permisos, type Rol } from '../config/permisos';
 
 export interface AuthUserProfile {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'user';
+  /** Rol del sistema: admin, operador o lectura (lo que figuraba como "user" es operador). */
+  role: Rol;
+  /** Ajustes por usuario sobre su rol (ver src/config/permisos.ts). */
+  permisos: Permisos;
   area?: string;
   /** false si el perfil está desactivado en perfiles_usuarios */
   activo: boolean;
@@ -25,11 +29,14 @@ async function getProfile(session: Session): Promise<AuthUserProfile> {
     'Usuario';
 
   try {
-    const { data, error } = await supabase
-      .from('perfiles_usuarios')
-      .select('nombre, rol, area, activo')
-      .eq('id', user.id)
-      .maybeSingle();
+    type FilaPerfil = { nombre?: string; rol?: string; area?: string; activo?: boolean; permisos?: unknown };
+    const leer = async (columnas: string): Promise<{ data: FilaPerfil | null; error: { message: string } | null }> => {
+      const r = await supabase.from('perfiles_usuarios').select(columnas).eq('id', user.id).maybeSingle();
+      return { data: r.data as unknown as FilaPerfil | null, error: r.error };
+    };
+    let { data, error } = await leer('nombre, rol, area, activo, permisos');
+    // Si todavía no se ejecutó la migración de permisos, la columna no existe: se lee sin ella.
+    if (error) ({ data, error } = await leer('nombre, rol, area, activo'));
 
     if (error) {
       console.warn('[authService] Error consultando perfiles_usuarios:', error.message);
@@ -37,9 +44,10 @@ async function getProfile(session: Session): Promise<AuthUserProfile> {
       return {
         id: user.id,
         email: user.email ?? '',
-        name: (data.nombre as string)?.trim() || fallbackName,
-        role: String(data.rol ?? '').toLowerCase() === 'admin' ? 'admin' : 'user',
-        area: (data.area as string) || undefined,
+        name: data.nombre?.trim() || fallbackName,
+        role: normalizarRol(data.rol),
+        permisos: sanearPermisos(data.permisos),
+        area: data.area || undefined,
         activo: data.activo !== false,
       };
     }
@@ -52,7 +60,8 @@ async function getProfile(session: Session): Promise<AuthUserProfile> {
     id: user.id,
     email: user.email ?? '',
     name: fallbackName,
-    role: appRole === 'admin' ? 'admin' : 'user',
+    role: normalizarRol(appRole),
+    permisos: {},
     activo: true,
   };
 }
