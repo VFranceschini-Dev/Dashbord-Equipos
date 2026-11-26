@@ -325,9 +325,11 @@ export async function DELETE(request: Request): Promise<Response> {
   }
 
   // 3) Cuenta de Supabase Auth (404 = ya no existía). Si falla, se restaura el perfil para poder reintentar.
-  const resAuth = await fetchConTimeout(`${s.base}/auth/v1/admin/users/${id}`, { method: 'DELETE', headers: cabeceras(s) });
+  const resAuth = await fetchConTimeout(`${s.base}/auth/v1/admin/users/${id}`, { method: 'DELETE', headers: cabeceras(s), body: JSON.stringify({ should_soft_delete: false }) });
   if (!resAuth.ok && resAuth.status !== 404) {
+    const detalle = await resAuth.clone().text().then(x => x.replace(/\s+/g, ' ').slice(0, 200)).catch(() => '');
     const e = await errorAuth(resAuth);
+    e.mensaje = `${e.mensaje} (Auth HTTP ${resAuth.status}${detalle ? `: ${detalle}` : ''})`;
     const { created_at: _c, ...fila } = objetivo;
     const restaurar = (datos: Record<string, unknown>) => fetchConTimeout(`${s.base}/rest/v1/perfiles_usuarios`, { method: 'POST', headers: cabeceras(s), body: JSON.stringify(datos) });
     let res = await restaurar(Object.keys(fila.permisos).length ? fila : (({ permisos: _p, ...r }) => r)(fila));
