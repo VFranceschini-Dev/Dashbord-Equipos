@@ -5,10 +5,10 @@ import {
   type Accion, type Modulo, type Permisos, type Rol,
 } from '../config/permisos';
 import {
-  actualizarUsuarioSistema, crearUsuarioSistema, listarUsuariosSistema, type UsuarioSistema,
+  actualizarUsuarioSistema, crearUsuarioSistema, eliminarUsuarioSistema, listarUsuariosSistema, type UsuarioSistema,
 } from '../services/usuariosSistema';
 import {
-  AlertTriangle, CheckCircle, Copy, Eye, EyeOff, KeyRound, Loader2, Pencil, Plus, RefreshCw, Search, ShieldCheck, UserCheck, UserX, Users, X,
+  AlertTriangle, CheckCircle, Copy, Eye, EyeOff, KeyRound, Loader2, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, UserCheck, UserX, Users, X,
 } from 'lucide-react';
 
 const claseCampo = 'w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 outline-none text-sm focus:border-blue-400';
@@ -240,6 +240,65 @@ function ModalUsuario({ usuario, esUnoMismo, onClose, onGuardado }: {
   );
 }
 
+/** Confirmación de baja definitiva: hay que escribir el correo del usuario. Sus datos pasan a quien elimina. */
+function ModalEliminar({ usuario, onClose, onEliminado }: {
+  usuario: UsuarioSistema;
+  onClose: () => void;
+  onEliminado: (u: UsuarioSistema, aviso?: string) => void;
+}) {
+  const [texto, setTexto] = useState('');
+  const [eliminando, setEliminando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const coincide = texto.trim().toLowerCase() === usuario.email.trim().toLowerCase();
+
+  const eliminar = async () => {
+    if (!coincide) return;
+    setEliminando(true);
+    setError(null);
+    try {
+      const r = await eliminarUsuarioSistema(usuario.id, texto.trim());
+      onEliminado(usuario, r.aviso);
+    } catch (err) {
+      setError((err as Error).message);
+      setEliminando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md">
+        <div className="p-5 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Eliminar usuario</h3>
+          <button onClick={onClose} disabled={eliminando} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg" aria-label="Cerrar"><X size={20} /></button>
+        </div>
+        <div className="p-5 space-y-3 text-sm text-gray-700 dark:text-slate-300">
+          <p>Vas a eliminar definitivamente a <strong>{usuario.nombre}</strong> ({usuario.email}).</p>
+          <ul className="list-disc pl-5 space-y-1 text-gray-600 dark:text-slate-400">
+            <li>Todo lo que cargó (equipos, proveedores, impresoras, tóner, comprobantes) pasa a tu cuenta.</li>
+            <li>Su cuenta de acceso se borra y no se puede deshacer.</li>
+          </ul>
+          <div>
+            <label className={claseEtiqueta}>Para confirmar, escribí su correo</label>
+            <input type="text" value={texto} onChange={e => { setTexto(e.target.value); setError(null); }} placeholder={usuario.email} autoComplete="off" className={claseCampo} />
+          </div>
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {error}
+            </div>
+          )}
+        </div>
+        <div className="p-5 border-t border-gray-100 dark:border-slate-700 flex justify-end gap-2">
+          <button onClick={onClose} disabled={eliminando} className={claseSecundario}>Cancelar</button>
+          <button onClick={eliminar} disabled={!coincide || eliminando}
+            className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50">
+            {eliminando ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} Eliminar definitivamente
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Administración de usuarios del sistema: alta, rol, permisos por módulo, activar/desactivar y contraseña (solo administradores). */
 export default function AdministracionUsuarios() {
   const { user } = useAuth();
@@ -251,6 +310,7 @@ export default function AdministracionUsuarios() {
   const [editando, setEditando] = useState<UsuarioSistema | null | undefined>(undefined);   // undefined = cerrado, null = alta
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const [procesando, setProcesando] = useState<string | null>(null);
+  const [eliminando, setEliminando] = useState<UsuarioSistema | null>(null);
 
   const cargar = async () => {
     setCargando(true);
@@ -270,6 +330,13 @@ export default function AdministracionUsuarios() {
     setUsuarios(prev => (prev.some(x => x.id === u.id) ? prev.map(x => (x.id === u.id ? u : x)) : [...prev, u]).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')));
     setAviso({ ok: !advertencia, texto: advertencia ? `${mensaje} ${advertencia}` : mensaje });
     setEditando(undefined);
+  };
+
+  const eliminado = (u: UsuarioSistema, advertencia?: string) => {
+    setUsuarios(prev => prev.filter(x => x.id !== u.id));
+    const mensaje = `${u.nombre} fue eliminado. Sus datos pasaron a tu cuenta.`;
+    setAviso({ ok: !advertencia, texto: advertencia ? `${mensaje} ${advertencia}` : mensaje });
+    setEliminando(null);
   };
 
   const alternarActivo = async (u: UsuarioSistema) => {
@@ -376,6 +443,10 @@ export default function AdministracionUsuarios() {
                           {procesando === u.id ? <Loader2 size={16} className="animate-spin" /> : u.activo ? <UserX size={16} /> : <UserCheck size={16} />}
                         </button>
                       )}
+                      {!esUnoMismo && !u.activo && (
+                        <button onClick={() => setEliminando(u)} title="Eliminar definitivamente"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-slate-700"><Trash2 size={16} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -397,6 +468,8 @@ export default function AdministracionUsuarios() {
       {editando !== undefined && (
         <ModalUsuario usuario={editando} esUnoMismo={editando?.id === user?.id} onClose={() => setEditando(undefined)} onGuardado={guardado} />
       )}
+
+      {eliminando && <ModalEliminar usuario={eliminando} onClose={() => setEliminando(null)} onEliminado={eliminado} />}
     </div>
   );
 }
