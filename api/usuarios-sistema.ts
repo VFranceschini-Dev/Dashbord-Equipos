@@ -5,6 +5,7 @@
  * GET   /api/usuarios-sistema → lista de perfiles { id, nombre, email, rol, area, activo, permisos, created_at }.
  * POST  /api/usuarios-sistema → crea la cuenta (Supabase Auth, con contraseña temporal) y su perfil.
  *         { nombre, email, password, rol, area?, permisos? }
+ *         Con zammad_id (en lugar de nombre/email) el alta sale del directorio de Zammad (api/_lib/zammad-directorio.ts).
  * PATCH /api/usuarios-sistema → edita un perfil.
  *         { id, nombre?, area?, rol?, activo?, permisos?, password? }
  *         Desactivar un usuario también bloquea su cuenta en Supabase Auth.
@@ -21,6 +22,7 @@
  * Variables de entorno: SUPABASE_URL (o VITE_SUPABASE_URL) y SUPABASE_SERVICE_ROLE_KEY (solo servidor).
  */
 import { sesionDeApi, type SesionApi } from './_lib/sesion.js';
+import { correoParaCuenta, usuarioHabilitado } from './_lib/zammad-directorio.js';
 import { ROLES, compactarPermisos, normalizarRol, sanearPermisos, type Permisos, type Rol } from './_lib/permisos.js';
 
 const TIMEOUT_MS = 15000;
@@ -144,9 +146,22 @@ export async function POST(request: Request): Promise<Response> {
   const body = await leerJson(request);
   if (!body || typeof body !== 'object') return jsonResponse(400, { success: false, error: 'Solicitud inválida.' });
 
-  const nombre = String(body.nombre ?? '').trim();
-  const email = String(body.email ?? '').trim().toLowerCase();
+  let nombre = String(body.nombre ?? '').trim();
+  let email = String(body.email ?? '').trim().toLowerCase();
   const password = String(body.password ?? '');
+  // Alta desde Zammad: nombre y correo se toman de Zammad (no del navegador) y solo se admiten usuarios
+  // activos de las organizaciones habilitadas.
+  let zammadId: number | null = null;
+  if (body.zammad_id !== undefined && body.zammad_id !== null) {
+    const id = Number(body.zammad_id);
+    if (!Number.isInteger(id) || id <= 0) return jsonResponse(400, { success: false, error: 'Solicitud inválida.' });
+    let uz;
+    try { uz = await usuarioHabilitado(id); } catch (err) { return jsonResponse(502, { success: false, error: (err as Error).message }); }
+    if (!uz) return jsonResponse(403, { success: false, error: 'Ese usuario no pertenece a una organización habilitada o está inactivo en Zammad.' });
+    zammadId = uz.zammadId;
+    nombre = uz.nombre.replace(/[^\p{L}\p{M} .'-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || uz.login.slice(0, 80);
+    email = correoParaCuenta(uz);
+  }
   const area = String(body.area ?? '').trim().slice(0, 80);
   const rol = body.rol;
   if (!NOMBRE_RE.test(nombre)) return jsonResponse(400, { success: false, error: 'Ingresá un nombre válido (hasta 80 caracteres).' });
@@ -172,14 +187,19 @@ export async function POST(request: Request): Promise<Response> {
   const deshacer = () => fetchConTimeout(`${s.base}/auth/v1/admin/users/${id}`, { method: 'DELETE', headers: cabeceras(s) }).catch(() => undefined);
 
   // 2) Perfil. Sin la columna permisos (migración pendiente) solo se puede crear sin ajustes.
-  const fila = { id, nombre, email, rol, area, activo: true };
+  const fila: Record<string, unknown> = { id, nombre, email, rol, area, activo: true };
   const insertar = (datos: Record<string, unknown>) => fetchConTimeout(`${s.base}/rest/v1/perfiles_usuarios`, {
     method: 'POST',
     headers: cabeceras(s, { Prefer: 'return=representation' }),
     body: JSON.stringify(datos),
   });
-  let resPerfil = await insertar(Object.keys(permisos).length ? { ...fila, permisos } : fila);
-  if (!resPerfil.ok && Object.keys(permisos).length === 0) resPerfil = await insertar(fila);
+  const conZammad = zammadId !== null ? { ...fila, zammad_id: zammadId } : fila;
+  let resPerfil = await insertar(Object.keys(permisos).length ? { ...conZammad, permisos } : conZammad);
+  if (!resPerfil.ok && Object.keys(permisos).length === 0) resPerfil = await insertar(conZammad);
+  if (!resPerfil.ok && zammadId !== null) {
+    await deshacer();
+    return jsonResponse(502, { success: false, error: 'No se pudo guardar el perfil. Verificá que la migración de Zammad (zammad_id) esté ejecutada en Supabase, o que ese usuario no tenga ya una cuenta. No se creó la cuenta.' });
+  }
   if (!resPerfil.ok) {
     await deshacer();
     return jsonResponse(502, { success: false, error: 'No se pudo guardar el perfil. Si es la primera vez, ejecutá la migración de permisos en Supabase. No se creó la cuenta.' });
