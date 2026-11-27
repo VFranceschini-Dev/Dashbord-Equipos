@@ -15,6 +15,8 @@ export interface AuthUserProfile {
   activo: boolean;
   /** true si la cuenta existe en Auth pero no tiene fila en perfiles_usuarios: no tiene acceso hasta que un administrador la dé de alta. */
   sinPerfil?: boolean;
+  /** true si el administrador le dio una contraseña temporal: tiene que elegir la suya antes de usar la app. */
+  debeCambiarClave?: boolean;
 }
 
 /**
@@ -23,6 +25,11 @@ export interface AuthUserProfile {
  * Solo si no se puede leer la tabla (error) se usa un perfil derivado de los metadatos de Auth.
  */
 async function getProfile(session: Session): Promise<AuthUserProfile> {
+  const perfil = await getProfileBase(session);
+  return { ...perfil, debeCambiarClave: session.user.user_metadata?.debe_cambiar_clave === true };
+}
+
+async function getProfileBase(session: Session): Promise<AuthUserProfile> {
   const user = session.user;
   const fallbackName =
     (user.user_metadata?.full_name as string) ||

@@ -159,7 +159,7 @@ export async function POST(request: Request): Promise<Response> {
   const resAuth = await fetchConTimeout(`${s.base}/auth/v1/admin/users`, {
     method: 'POST',
     headers: cabeceras(s),
-    body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { full_name: nombre } }),
+    body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { full_name: nombre, debe_cambiar_clave: true } }),
   });
   if (!resAuth.ok) {
     const e = await errorAuth(resAuth);
@@ -264,7 +264,7 @@ export async function PATCH(request: Request): Promise<Response> {
   const avisos: string[] = [];
   const authCambios: Record<string, unknown> = {};
   if ('activo' in cambios && cambios.activo !== actual.activo) authCambios.ban_duration = cambios.activo ? 'none' : BLOQUEO_PERMANENTE;
-  if (password !== null) authCambios.password = password;
+  if (password !== null) { authCambios.password = password; authCambios.user_metadata = { debe_cambiar_clave: true }; }   // clave temporal: la persona elige la suya al ingresar
   if (Object.keys(authCambios).length > 0) {
     const res = await fetchConTimeout(`${s.base}/auth/v1/admin/users/${id}`, { method: 'PUT', headers: cabeceras(s), body: JSON.stringify(authCambios) });
     if (!res.ok) {

@@ -20,6 +20,8 @@ interface AuthContextType {
   esAdmin: boolean;
   /** Motivo por el que se cerró la sesión (p. ej. usuario desactivado), para mostrar en el login. */
   aviso: string | null;
+  /** La persona ya eligió su contraseña: se levanta el bloqueo de cambio obligatorio. */
+  claveElegida: () => void;
 }
 
 export const MENSAJE_DESACTIVADO = 'Tu usuario está desactivado. Contactá a Sistemas.';
@@ -112,13 +114,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
+  const claveElegida = useCallback(() => {
+    setUser(u => (u ? { ...u, debeCambiarClave: false } : u));
+  }, []);
+
   const can = useCallback(
     (modulo: Modulo, accion: Accion = 'ver') => (user ? puede(user.role, user.permisos, modulo, accion) : false),
     [user],
   );
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user, aviso, can, esAdmin: user?.role === 'admin' }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user, aviso, claveElegida, can, esAdmin: user?.role === 'admin' }}>
       {children}
     </AuthContext.Provider>
   );
