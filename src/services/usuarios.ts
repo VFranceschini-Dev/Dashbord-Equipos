@@ -54,6 +54,7 @@ export interface Usuario {
   correo: string;
   departamento: string;
   estado: 'activo' | 'inactivo';
+  sinZammad?: boolean;   // tiene equipos asignados pero ya no figura en Zammad
 }
 
 export class ProxyError extends Error {

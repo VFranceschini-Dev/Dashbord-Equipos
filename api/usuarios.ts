@@ -1,33 +1,26 @@
 /**
  * api/usuarios.ts — Función serverless de Vercel (runtime Node).
  *
- * GET  /api/usuarios → busca usuarios y devuelve SOLO el perfil normalizado
- *          { id, nombre, apellido, usuario, correo, departamento, estado }.
- * POST /api/usuarios → alta de un usuario nuevo en la base gestionada por la app.
+ * GET  /api/usuarios → lista de personas con el perfil normalizado
+ *          { id, nombre, apellido, usuario, correo, departamento, estado, sinZammad? }.
+ * POST /api/usuarios → retirado (410): las personas se gestionan en Zammad.
  *
- * Fuentes (solo el backend las conoce; NUNCA se mencionan al navegador):
- *   1) Origen interno de acceso (SOLO LECTURA, vía query HTTP paginada).
- *   2) Tabla local "users_new" de la base gestionada (lectura + alta),
- *      accedida con REST PostgREST usando SUPABASE_SERVICE_ROLE_KEY.
- * La fusión ocurre acá: clave = login en minúsculas sin espacios; si el usuario
- * está en ambas fuentes, prevalece la del origen interno. El id devuelto es un
- * UUID opaco derivado solo del login (igual en ambas fuentes; no revela el origen).
+ * Fuente: Zammad (directorio sincronizado con el Active Directory por LDAP), solo las organizaciones
+ * habilitadas (api/_lib/zammad-directorio.ts). El id es un UUID v5 derivado del login (en minúsculas y
+ * sin espacios), así las asignaciones ya registradas siguen apuntando a la misma persona si el login coincide.
+ * Las personas con equipos asignados que no figuran en Zammad se muestran marcadas (sinZammad).
  *
- * Variables de entorno (Vercel > Settings > Environment Variables, Production):
- *   IPA_API_URL            ej. https://ipa.donnet.com.ar
- *   IPA_API_KEY            API key del origen interno (solo servidor)
- *   IPA_DB_ID              id numérico de la base en el origen interno (ej. 5)
- *   IPA_USUARIOS_TABLE_ID  id numérico de la tabla de accesos (ej. 1406)
- *   USERS_NEW_TABLE        nombre de la tabla local de altas (default users_new)
- *   SUPABASE_URL / SUPABASE_ANON_KEY  validación de sesión (fallback: VITE_*)
- *   SUPABASE_SERVICE_ROLE_KEY  escritura en la tabla local (solo servidor)
+ * Variables de entorno: ZAMMAD_URL, ZAMMAD_TOKEN, ZAMMAD_ORGANIZACIONES (por defecto 2),
+ *   SUPABASE_URL / SUPABASE_ANON_KEY (sesión; fallback VITE_*), SUPABASE_SERVICE_ROLE_KEY (solo servidor).
  */
 import { sesionDeApi } from './_lib/sesion.js';
+import { miembrosOrganizaciones } from './_lib/zammad-directorio.js';
 
 // ---------------------------------------------------------------------------
 // Perfil normalizado: ES LO ÚNICO que sale al navegador.
 // ---------------------------------------------------------------------------
 interface UsuarioPublico {
+  sinZammad?: boolean; // tiene equipos asignados pero ya no figura en Zammad
   id: string;           // UUID opaco v5 (login) — igual en ambas fuentes, no revela el origen
   nombre: string;       // pila
   apellido: string;
@@ -38,8 +31,6 @@ interface UsuarioPublico {
 }
 
 const TIMEOUT_MS = 15000;
-const PAGE_SIZE = 2000;
-const SAFETY_MAX_ROWS = 50000;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
@@ -80,7 +71,6 @@ function sha1Bytes(bytes: Uint8Array): Uint8Array {
 }
 
 const NAMESPACE_ORIGEN = '6ba7b811-9dad-11d1-80b4-00c04fd430c8'; // URL
-const NAMESPACE_LOCAL = NAMESPACE_ORIGEN; // mismo id para el mismo login, venga de donde venga
 
 function uuidV5(namespaceHex: string, value: string): string {
   const ns = namespaceHex.replace(/-/g, '');
@@ -99,7 +89,7 @@ function uuidV5(namespaceHex: string, value: string): string {
 // ---------------------------------------------------------------------------
 interface CacheEntry {
   expiresAt: number;
-  promise: Promise<UsuarioPublico[]>;
+  promise: Promise<UsuarioLista[]>;
 }
 let cache: CacheEntry | null = null;
 
@@ -120,23 +110,8 @@ function cleanKey(s: string): string {
   return s.toLowerCase().replace(/\s+/g, '');
 }
 
-function toBool(v: unknown): boolean {
-  if (typeof v === 'boolean') return v;
-  const s = norm(String(v ?? ''));
-  return s === 'true' || s === '1' || s === 's' || s === 'si' || s === 'activo';
-}
-
 function str(v: unknown): string {
   return v === null || v === undefined ? '' : String(v);
-}
-
-/** Separa un nombre completo en pila/apellido (el origen interno los trae junto). */
-function splitNombre(full: string): { nombre: string; apellido: string } {
-  const t = full.trim().replace(/\s+/g, ' ');
-  if (!t) return { nombre: '', apellido: '' };
-  const parts = t.split(' ');
-  if (parts.length === 1) return { nombre: parts[0], apellido: '' };
-  return { nombre: parts.slice(0, -1).join(' '), apellido: parts[parts.length - 1] };
 }
 
 // ---------------------------------------------------------------------------
@@ -148,151 +123,80 @@ async function validateSession(request: Request): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// Fuente 1: origen interno de accesos (SOLO LECTURA, nunca se escribe acá)
+// Fuente única: Zammad (usuarios del directorio LDAP, organizaciones habilitadas)
 // ---------------------------------------------------------------------------
-async function queryOrigenAll(cfg: { apiUrl: string; apiKey: string; dbId: number; tableId: number }): Promise<UsuarioPublico[]> {
-  const all: Record<string, unknown>[] = [];
-  let offset = 0;
-  let cols: string[] | null = null;
+type UsuarioLista = UsuarioPublico & { sinZammad?: boolean };
 
-  while (all.length < SAFETY_MAX_ROWS) {
-    const body = {
-      database: cfg.dbId,
-      type: 'query',
-      query: { 'source-table': cfg.tableId, limit: PAGE_SIZE, offset },
-    };
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    let res: Response;
-    try {
-      res = await fetch(`${cfg.apiUrl}/api/dataset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': cfg.apiKey },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') throw Object.assign(new Error('timeout'), { status: 504 });
-      throw Object.assign(new Error('El origen interno no respondió'), { status: 502 });
-    } finally {
-      clearTimeout(timer);
-    }
-    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: 502 });
-    let json: any;
-    try { json = await res.json(); } catch { throw Object.assign(new Error('respuesta inválida'), { status: 502 }); }
-    if (json?.error) throw Object.assign(new Error(String(json.error)), { status: 502 });
-
-    const data = json?.data;
-    const pageCols: string[] = (data?.cols || []).map((c: any) => (typeof c === 'string' ? c : String(c?.name ?? '')));
-    const rows: unknown[][] = data?.rows || [];
-    if (!cols) cols = pageCols.map(c => c.toLowerCase());
-    for (const row of rows) all.push(Object.fromEntries(cols.map((c, i) => [c, row[i]])));
-    if (rows.length < PAGE_SIZE) break;
-    offset += PAGE_SIZE;
-  }
-
-  return all.map(raw => {
-    const login = str(raw['nombre']);
-    let full = str(raw['descripcion']).trim();
-    if (!full || full.startsWith('[')) full = login; // descripción vacía o técnica → usar login
-    const { nombre, apellido } = splitNombre(full);
-    return {
-      id: uuidV5(NAMESPACE_ORIGEN, cleanKey(login) || str(raw['usuariosaccesoid'])),
-      nombre,
-      apellido,
-      usuario: login,
-      correo: '',
-      departamento: str(raw['perfil']),
-      estado: toBool(raw['activo']) ? ('activo' as const) : ('inactivo' as const),
-      __tipo: str(raw['tipo']).toUpperCase(),
-    } as UsuarioPublico & { __tipo: string };
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Fuente 2: tabla local de altas (lectura + escritura)
-// ---------------------------------------------------------------------------
-function localBase(): { url: string; key: string; table: string } | null {
+function serviceBase(): { url: string; key: string } | null {
   const url = env('SUPABASE_URL', 'VITE_SUPABASE_URL');
   const key = env('SUPABASE_SERVICE_ROLE_KEY');
-  const table = env('USERS_NEW_TABLE') || 'users_new';
-  if (!url || !key) return null;
-  return { url: url.replace(/\/+$/, ''), key, table };
+  return url && key ? { url: url.replace(/\/+$/, ''), key } : null;
 }
 
-async function readLocal(base: { url: string; key: string; table: string }): Promise<UsuarioPublico[]> {
+/**
+ * Personas con equipos asignados hoy que no figuran en Zammad (por ejemplo, de la fuente anterior):
+ * se siguen mostrando, marcadas, para no perder las asignaciones. Se calculan con el último movimiento
+ * de cada equipo (asignación o traslado = asignado; devolución o baja = libre).
+ */
+async function personasConEquiposSinZammad(idsZammad: Set<string>): Promise<UsuarioLista[]> {
+  const base = serviceBase();
+  if (!base) return [];
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let res: Response;
   try {
-    res = await fetch(`${base.url}/rest/v1/${base.table}?select=*&limit=5000`, {
-      headers: { apikey: base.key, Authorization: `Bearer ${base.key}` },
-      signal: controller.signal,
-    });
+    const res = await fetch(
+      `${base.url}/rest/v1/equipment_movements?select=equipment_id,usuario_ref,usuario_nombre,usuario_area,tipo,fecha,id&order=fecha.desc,id.desc&limit=20000`,
+      { headers: { apikey: base.key, Authorization: `Bearer ${base.key}` }, signal: controller.signal },
+    );
+    if (!res.ok) return [];
+    const filas: any[] = await res.json();
+    const visto = new Set<string>();
+    const huerfanos = new Map<string, UsuarioLista>();
+    for (const m of filas) {              // ya vienen del más nuevo al más viejo
+      const eq = str(m.equipment_id);
+      if (visto.has(eq)) continue;
+      visto.add(eq);
+      if (m.tipo !== 'asignacion' && m.tipo !== 'traslado') continue;
+      const ref = str(m.usuario_ref);
+      if (!ref || idsZammad.has(ref) || huerfanos.has(ref)) continue;
+      huerfanos.set(ref, {
+        id: ref, nombre: str(m.usuario_nombre) || 'Sin nombre', apellido: '', usuario: '', correo: '',
+        departamento: str(m.usuario_area), estado: 'activo', sinZammad: true,
+      });
+    }
+    return [...huerfanos.values()];
   } catch {
-    throw Object.assign(new Error('falló la lectura local'), { status: 502 });
+    return [];
   } finally {
     clearTimeout(timer);
   }
-  if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: 502 });
-  const rows: any[] = await res.json();
-  return rows.map(r => ({
-    id: uuidV5(NAMESPACE_LOCAL, cleanKey(str(r.usuario)) || str(r.id)),
-    nombre: str(r.nombre),
-    apellido: str(r.apellido),
-    usuario: str(r.usuario),
-    correo: str(r.correo),
-    departamento: str(r.departamento),
-    estado: (str(r.estado) === 'inactivo' ? 'inactivo' : 'activo') as UsuarioPublico['estado'],
+}
+
+async function loadUsuarios(): Promise<UsuarioLista[]> {
+  let miembros;
+  try {
+    miembros = await miembrosOrganizaciones(true);
+  } catch (err) {
+    const msg = (err as Error).message;
+    throw Object.assign(new Error(msg), { status: /no está configurada/.test(msg) ? 500 : 502 });
+  }
+  const lista: UsuarioLista[] = miembros.map(u => ({
+    id: uuidV5(NAMESPACE_ORIGEN, cleanKey(u.login)),
+    nombre: u.apellido && u.nombre.endsWith(u.apellido) ? u.nombre.slice(0, u.nombre.length - u.apellido.length).trim() : u.nombre,
+    apellido: u.apellido,
+    usuario: u.login,
+    correo: u.email,
+    departamento: u.departamento,
+    estado: u.activo ? ('activo' as const) : ('inactivo' as const),
   }));
+  const ids = new Set(lista.map(u => u.id));
+  return [...lista, ...(await personasConEquiposSinZammad(ids))];
 }
 
-// ---------------------------------------------------------------------------
-// Fusión: SAI prevalece sobre la tabla local (clave: login minúscula sin espacios)
-// ---------------------------------------------------------------------------
-async function loadFusionados(): Promise<(UsuarioPublico & { __tipo?: string })[]> {
-  const cfg = {
-    apiUrl: (env('IPA_API_URL') || '').replace(/\/+$/, ''),
-    apiKey: env('IPA_API_KEY') || '',
-    dbId: parseInt(env('IPA_DB_ID') || '', 10),
-    tableId: parseInt(env('IPA_USUARIOS_TABLE_ID') || '', 10),
-  };
-  const tieneCfg = Boolean(cfg.apiUrl && cfg.apiKey && Number.isFinite(cfg.dbId) && Number.isFinite(cfg.tableId));
-  const base = localBase();
-  if (!tieneCfg && !base) {
-    throw Object.assign(
-      new Error('Falta configuración del servidor: revisá las variables de entorno de la función.'),
-      { status: 500 },
-    );
-  }
-
-  // Cada fuente se evalúa por separado: si una falla, la otra sigue funcionando.
-  const [origenRes, localRes] = await Promise.allSettled([
-    tieneCfg ? queryOrigenAll(cfg) : Promise.reject(new Error('sin config de origen')),
-    base ? readLocal(base) : Promise.reject(new Error('sin config local')),
-  ]);
-  const origen = origenRes.status === 'fulfilled' ? origenRes.value : [];
-  const local = localRes.status === 'fulfilled' ? localRes.value : [];
-  if (origen.length === 0 && local.length === 0) {
-    // Las dos fuentes fallaron → error para que la UI muestre el mensaje genérico.
-    const firstErr = origenRes.status === 'rejected'
-  ? origenRes.reason
-  : localRes.status === 'rejected' ? localRes.reason : undefined;
-    throw Object.assign(new Error('no hay datos disponibles'), {
-      status: (firstErr as { status?: number })?.status === 500 ? 500 : 502,
-    });
-  }
-
-  const map = new Map<string, UsuarioPublico & { __tipo?: string }>();
-  for (const u of local) map.set(cleanKey(u.usuario), u);
-  for (const u of origen) map.set(cleanKey(u.usuario), u); // SAI prevalece
-  return [...map.values()];
-}
-
-function getCached(forceRefresh: boolean): Promise<UsuarioPublico[]> {
+function getCached(forceRefresh: boolean): Promise<UsuarioLista[]> {
   const now = Date.now();
   if (!forceRefresh && cache && cache.expiresAt > now) return cache.promise;
-  const promise = loadFusionados().then(list => list.map(({ __tipo, ...resto }) => resto as UsuarioPublico));
+  const promise = loadUsuarios();
   promise.catch(() => { cache = null; }); // no cachear errores
   cache = { expiresAt: now + CACHE_TTL_MS, promise };
   return promise;
@@ -329,7 +233,7 @@ export async function GET(request: Request): Promise<Response> {
     return jsonResponse(400, { success: false, error: 'El parámetro limit debe estar entre 1 y 500.' });
   }
 
-  let list: UsuarioPublico[];
+  let list: UsuarioLista[];
   try {
     list = await getCached(refresh);
   } catch (err) {
@@ -362,114 +266,13 @@ export async function GET(request: Request): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------------
-// POST: alta de usuario nuevo (solo en la tabla local; jamás en el origen)
+// POST: retirado. Las personas se leen de Zammad; las cuentas del sistema se dan de alta
+// en Administración (api/usuarios-sistema.ts).
 // ---------------------------------------------------------------------------
-const NOMBRE_RE = /^[\p{L}\p{M} .'-]{1,80}$/u;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
 export async function POST(request: Request): Promise<Response> {
   const sesion = await sesionDeApi(request);
   if (!sesion) {
     return jsonResponse(401, { success: false, error: 'No autenticado. Se requiere una sesión válida.' });
   }
-  // El alta de usuarios es una acción de administración (rol en perfiles_usuarios).
-  if (sesion.rol !== 'admin') {
-    return jsonResponse(403, { success: false, error: 'No tenés permisos para dar de alta usuarios.' });
-  }
-
-  let input: any;
-  try {
-    input = await request.json();
-  } catch {
-    return jsonResponse(400, { success: false, error: 'Los datos enviados no son válidos.' });
-  }
-
-  const nombre = str(input?.nombre).trim();
-  const apellido = str(input?.apellido).trim();
-  const usuario = str(input?.usuario).trim().toLowerCase().replace(/\s+/g, '');
-  const correo = str(input?.correo).trim().toLowerCase();
-  const departamento = str(input?.departamento).trim();
-  const estado = str(input?.estado).trim().toLowerCase() === 'inactivo' ? 'inactivo' : 'activo';
-
-  // Validaciones (mensajes genéricos, sin detalles internos)
-  if (!nombre || !NOMBRE_RE.test(nombre)) {
-    return jsonResponse(400, { success: false, error: 'El nombre no es válido.' });
-  }
-  if (!apellido || !NOMBRE_RE.test(apellido)) {
-    return jsonResponse(400, { success: false, error: 'El apellido no es válido.' });
-  }
-  if (!usuario || usuario.length < 2 || usuario.length > 60) {
-    return jsonResponse(400, { success: false, error: 'El usuario no es válido.' });
-  }
-  if (correo && !EMAIL_RE.test(correo)) {
-    return jsonResponse(400, { success: false, error: 'El correo no es válido.' });
-  }
-
-  const base = localBase();
-  if (!base) {
-    return jsonResponse(500, { success: false, error: 'Falta configuración del servidor para guardar usuarios.' });
-  }
-
-  // Anti-duplicado contra AMBAS fuentes (además del índice único en la base).
-  let existentes: UsuarioPublico[];
-  try {
-    existentes = await getCached(false);
-  } catch {
-    return jsonResponse(502, { success: false, error: 'No se pudo verificar si el usuario ya existe. Intentá de nuevo más tarde.' });
-  }
-  const dupLogin = existentes.some(u => cleanKey(u.usuario) === cleanKey(usuario));
-  const dupCorreo = correo ? existentes.some(u => u.correo && norm(u.correo) === norm(correo)) : false;
-  if (dupLogin || dupCorreo) {
-    return jsonResponse(409, { success: false, error: 'Ya existe un usuario con esos datos.' });
-  }
-
-  // Insertar en la tabla local (nunca en el origen interno).
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let res: Response;
-  try {
-    res = await fetch(`${base.url}/rest/v1/${base.table}`, {
-      method: 'POST',
-      headers: {
-        apikey: base.key,
-        Authorization: `Bearer ${base.key}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
-      body: JSON.stringify({ nombre, apellido, usuario, correo, departamento, estado }),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    if ((err as Error).name === 'AbortError') return jsonResponse(504, { success: false, error: 'Tiempo de espera agotado al guardar.' });
-    return jsonResponse(502, { success: false, error: 'No se pudo guardar el usuario. Intentá de nuevo más tarde.' });
-  } finally {
-    clearTimeout(timer);
-  }
-
-  if (res.status === 409) {
-    return jsonResponse(409, { success: false, error: 'Ya existe un usuario con esos datos.' });
-  }
-  if (!res.ok) {
-    return jsonResponse(502, { success: false, error: 'No se pudo guardar el usuario. Intentá de nuevo más tarde.' });
-  }
-
-  let created: any;
-  try {
-    const arr = await res.json();
-    created = Array.isArray(arr) ? arr[0] : arr;
-  } catch {
-    created = null;
-  }
-
-  cache = null; // la caché quedó vieja
-  const usuarioCreado: UsuarioPublico = {
-    id: uuidV5(NAMESPACE_LOCAL, cleanKey(str(created?.usuario) || usuario)),
-    nombre: str(created?.nombre) || nombre,
-    apellido: str(created?.apellido) || apellido,
-    usuario: str(created?.usuario) || usuario,
-    correo: str(created?.correo) || correo,
-    departamento: str(created?.departamento) || departamento,
-    estado: (str(created?.estado) === 'inactivo' ? 'inactivo' : 'activo') as UsuarioPublico['estado'],
-  };
-  return jsonResponse(201, { success: true, data: usuarioCreado });
+  return jsonResponse(410, { success: false, error: 'Las personas se gestionan en Zammad: ya no se pueden dar de alta desde acá.' });
 }

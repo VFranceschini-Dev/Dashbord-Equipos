@@ -319,10 +319,9 @@ export default function Collaborators() {
             {departamentos.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
-          <Plus size={16} /> {TU.nuevo}
-        </button>
+        <span className="text-xs text-gray-500 dark:text-slate-400" title="Las personas se leen de Zammad (directorio sincronizado con el Active Directory)">
+          Personas leídas de Zammad
+        </span>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -469,7 +468,9 @@ export default function Collaborators() {
                     onDragLeave: () => salirDeObjetivo(clave),
                     onDrop: (e: React.DragEvent) => { if (puedeRecibir) soltarEnUsuario(e, persona); },
                   };
-                  const estado = (
+                  const estado = u.sinZammad ? (
+                    <span className="text-amber-600 dark:text-amber-400" title="Tiene equipos asignados pero ya no figura en Zammad">No está en Zammad</span>
+                  ) : (
                     <span className={activo ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-slate-500'}>
                       {activo ? 'Activo' : 'Inactivo'}
                     </span>
