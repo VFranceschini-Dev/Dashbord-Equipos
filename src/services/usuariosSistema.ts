@@ -19,6 +19,8 @@ export interface UsuarioSistema {
 export interface AltaUsuarioSistema {
   nombre: string;
   email: string;
+  /** Alta desde el directorio: el servidor toma nombre y correo de Zammad. */
+  zammad_id?: number;
   password: string;
   rol: Rol;
   area: string;
@@ -69,4 +71,27 @@ export async function actualizarUsuarioSistema(id: string, cambios: CambiosUsuar
 export async function eliminarUsuarioSistema(id: string, confirmar: string): Promise<{ email: string; reasignado: Record<string, number>; aviso?: string }> {
   const json = await llamar('DELETE', { id, confirmar });
   return { email: json.data.email, reasignado: json.data.reasignado ?? {}, aviso: json.aviso };
+}
+
+export interface UsuarioDirectorio {
+  zammadId: number;
+  login: string;
+  nombre: string;
+  email: string;
+  yaTieneCuenta: boolean;
+}
+
+/** Busca en el directorio (Zammad) personas de las organizaciones habilitadas. */
+export async function buscarUsuariosDirectorio(q: string): Promise<{ usuarios: UsuarioDirectorio[]; total: number }> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  let res: Response;
+  try {
+    res = await fetch(`/api/zammad-usuarios?q=${encodeURIComponent(q)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new Error('No se pudo conectar con el servidor.');
+  }
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) throw new Error(json?.error || `El servidor respondió HTTP ${res.status}.`);
+  return { usuarios: json.data, total: json.total ?? json.data.length };
 }

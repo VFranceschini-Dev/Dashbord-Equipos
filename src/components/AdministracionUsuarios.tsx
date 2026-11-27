@@ -5,7 +5,7 @@ import {
   type Accion, type Modulo, type Permisos, type Rol,
 } from '../config/permisos';
 import {
-  actualizarUsuarioSistema, crearUsuarioSistema, eliminarUsuarioSistema, listarUsuariosSistema, type UsuarioSistema,
+  actualizarUsuarioSistema, buscarUsuariosDirectorio, crearUsuarioSistema, eliminarUsuarioSistema, listarUsuariosSistema, type UsuarioDirectorio, type UsuarioSistema,
 } from '../services/usuariosSistema';
 import {
   AlertTriangle, CheckCircle, Copy, Eye, EyeOff, KeyRound, Loader2, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, UserCheck, UserX, Users, X,
@@ -123,6 +123,76 @@ function CampoContrasena({ valor, onChange, etiqueta }: { valor: string; onChang
   );
 }
 
+/** Buscador del directorio (Zammad): elige a la persona y completa nombre/correo; el servidor los vuelve a leer de Zammad. */
+function BuscadorDirectorio({ elegido, onElegir, onQuitar }: {
+  elegido: UsuarioDirectorio | null;
+  onElegir: (u: UsuarioDirectorio) => void;
+  onQuitar: () => void;
+}) {
+  const [texto, setTexto] = useState('');
+  const [resultados, setResultados] = useState<UsuarioDirectorio[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [buscando, setBuscando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (elegido) return;
+    const q = texto.trim();
+    if (q.length < 2) { setResultados(null); setError(null); return; }
+    let vigente = true;
+    const t = setTimeout(async () => {
+      setBuscando(true);
+      try {
+        const r = await buscarUsuariosDirectorio(q);
+        if (vigente) { setResultados(r.usuarios); setTotal(r.total); setError(null); }
+      } catch (err) {
+        if (vigente) { setError((err as Error).message); setResultados(null); }
+      } finally {
+        if (vigente) setBuscando(false);
+      }
+    }, 350);
+    return () => { vigente = false; clearTimeout(t); };
+  }, [texto, elegido]);
+
+  if (elegido) {
+    return (
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-blue-200 dark:border-sky-500/30 bg-blue-50 dark:bg-sky-500/10 px-3 py-2 text-sm">
+        <div className="min-w-0">
+          <p className="font-medium text-gray-900 dark:text-white truncate">{elegido.nombre}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{elegido.login}{elegido.email && elegido.email !== elegido.login ? ` · ${elegido.email}` : ''}</p>
+        </div>
+        <button type="button" onClick={onQuitar} className="text-xs text-blue-600 dark:text-sky-300 hover:underline shrink-0">Cambiar</button>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <label className={claseEtiqueta}>Buscar en el directorio (Zammad)</label>
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input type="text" value={texto} onChange={e => setTexto(e.target.value)} placeholder="Nombre, usuario o correo (mínimo 2 letras)" className={`${claseCampo} pl-9`} />
+        {buscando && <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />}
+      </div>
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+      {resultados && (
+        <div className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-slate-600 divide-y divide-gray-100 dark:divide-slate-700">
+          {resultados.length === 0 && <p className="px-3 py-2 text-sm text-gray-500 dark:text-slate-400">Sin coincidencias en las organizaciones habilitadas.</p>}
+          {resultados.map(u => (
+            <button type="button" key={u.zammadId} disabled={u.yaTieneCuenta} onClick={() => onElegir(u)}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed">
+              <span className="text-gray-900 dark:text-slate-100">{u.nombre}</span>
+              <span className="text-xs text-gray-500 dark:text-slate-400"> · {u.login}</span>
+              {u.yaTieneCuenta && <span className="ml-1 text-xs text-emerald-600 dark:text-emerald-400">ya tiene cuenta</span>}
+            </button>
+          ))}
+          {total > resultados.length && <p className="px-3 py-1.5 text-xs text-gray-400">Mostrando {resultados.length} de {total}; afiná la búsqueda.</p>}
+        </div>
+      )}
+      <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Solo aparecen personas activas de las organizaciones habilitadas. También podés cargar los datos a mano.</p>
+    </div>
+  );
+}
+
 interface FormUsuario {
   nombre: string;
   email: string;
@@ -145,19 +215,20 @@ function ModalUsuario({ usuario, esUnoMismo, onClose, onGuardado }: {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cambiarClave, setCambiarClave] = useState(false);
+  const [desdeDirectorio, setDesdeDirectorio] = useState<UsuarioDirectorio | null>(null);
   const set = <K extends keyof FormUsuario>(k: K, v: FormUsuario[K]) => { setForm(f => ({ ...f, [k]: v })); setError(null); };
 
   const guardar = async () => {
     setError(null);
     if (!form.nombre.trim()) { setError('Ingresá el nombre.'); return; }
-    if (!usuario && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) { setError('Ingresá un correo válido.'); return; }
+    if (!usuario && !desdeDirectorio && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) { setError('Ingresá un correo válido.'); return; }
     const pide = !usuario || cambiarClave;
     if (pide && (form.password.length < 8 || form.password.length > 72)) { setError('La contraseña temporal debe tener entre 8 y 72 caracteres.'); return; }
     setGuardando(true);
     try {
       const permisos = compactarPermisos(form.rol, form.permisos);
       if (!usuario) {
-        const creado = await crearUsuarioSistema({ nombre: form.nombre.trim(), email: form.email.trim(), password: form.password, rol: form.rol, area: form.area.trim(), permisos });
+        const creado = await crearUsuarioSistema({ nombre: form.nombre.trim(), email: form.email.trim(), password: form.password, rol: form.rol, area: form.area.trim(), permisos, ...(desdeDirectorio ? { zammad_id: desdeDirectorio.zammadId } : {}) });
         onGuardado(creado, `Usuario creado: ${creado.email}. Pasale la contraseña temporal.`);
       } else {
         const { usuario: actualizado, aviso } = await actualizarUsuarioSistema(usuario.id, {
@@ -181,14 +252,19 @@ function ModalUsuario({ usuario, esUnoMismo, onClose, onGuardado }: {
         </div>
 
         <div className="p-5 space-y-4">
+          {!usuario && (
+            <BuscadorDirectorio elegido={desdeDirectorio}
+              onElegir={u => { setDesdeDirectorio(u); setForm(f => ({ ...f, nombre: u.nombre, email: u.email || u.login, rol: 'lectura' })); setError(null); }}
+              onQuitar={() => { setDesdeDirectorio(null); setForm(f => ({ ...f, nombre: '', email: '' })); }} />
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={claseEtiqueta}>Nombre y apellido *</label>
-              <input type="text" value={form.nombre} onChange={e => set('nombre', e.target.value)} className={claseCampo} />
+              <input type="text" value={form.nombre} disabled={Boolean(desdeDirectorio)} onChange={e => set('nombre', e.target.value)} className={`${claseCampo} disabled:opacity-60`} />
             </div>
             <div>
               <label className={claseEtiqueta}>Correo (para iniciar sesión) *</label>
-              <input type="email" value={form.email} disabled={Boolean(usuario)} onChange={e => set('email', e.target.value)}
+              <input type="text" value={form.email} disabled={Boolean(usuario) || Boolean(desdeDirectorio)} onChange={e => set('email', e.target.value)}
                 className={`${claseCampo} disabled:opacity-60`} />
               {usuario && <p className="text-xs text-gray-400 mt-1">El correo no se puede cambiar.</p>}
             </div>

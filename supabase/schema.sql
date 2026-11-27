@@ -372,6 +372,7 @@ create table if not exists public.perfiles_usuarios (
   permisos   jsonb not null default '{}'::jsonb,  -- ajustes por módulo sobre el rol (20261126_permisos_usuarios.sql)
   created_at timestamptz not null default now()
 );
+alter table public.perfiles_usuarios add column if not exists zammad_id integer;   -- 20261129_zammad_id_perfiles.sql
 alter table public.perfiles_usuarios enable row level security;
 
 -- ¿El usuario con sesión es administrador? Se evalúa sin aplicar las políticas
