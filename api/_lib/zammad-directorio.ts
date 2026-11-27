@@ -64,7 +64,9 @@ export function normalizarUsuario(u: any): UsuarioZammad | null {
   if (!Number.isInteger(zammadId) || zammadId <= 0 || !login) return null;
   const pila = String(u?.firstname ?? '').trim();
   const apellido = String(u?.lastname ?? '').trim();
-  const nombre = [pila, apellido].filter(Boolean).join(' ') || login;
+  // Solo personas: las cuentas genéricas de áreas (Caja, Control de Stock…) no tienen nombre y apellido
+  if (!pila || !apellido) return null;
+  const nombre = `${pila} ${apellido}`;
   const email = String(u?.email ?? '').trim().toLowerCase();
   return {
     zammadId, login, nombre, apellido,
@@ -76,7 +78,7 @@ export function normalizarUsuario(u: any): UsuarioZammad | null {
 }
 
 export function habilitado(u: any, organizaciones = organizacionesHabilitadas()): boolean {
-  return u?.active !== false && organizaciones.includes(Number(u?.organization_id));
+  return u?.active !== false && organizaciones.includes(Number(u?.organization_id)) && normalizarUsuario(u) !== null;
 }
 
 /** Correo con el que se crea la cuenta del sistema (Supabase lo exige): el de Zammad, el login si ya es un correo, o uno técnico. */
