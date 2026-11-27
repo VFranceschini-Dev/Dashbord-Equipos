@@ -7,9 +7,10 @@
  *
  * Reglas:
  *  - Administrador: todo, y es el único que administra usuarios.
- *  - Operador: ver/crear/editar/eliminar en Equipos, Proveedores e Impresoras; solo ver en Reportes y Servidores.
- *    Es el rol de quien hoy figura como "usuario" (o sin rol): conserva su acceso actual.
- *  - Consulta: solo ver, en todos los módulos.
+ *  - Operador: ver, crear y editar en Equipos, Proveedores e Impresoras; solo ver en Reportes y Servidores.
+ *    Eliminar no viene con el rol: el administrador lo habilita como ajuste. Es también el rol de quien figura
+ *    como "usuario" (o sin rol).
+ *  - Consulta: solo ver, y solo Equipos e Impresoras (sin proveedores, reportes ni servidores).
  *  - Cada usuario puede tener ajustes que permiten o quitan una acción puntual de un módulo,
  *    por encima de su rol (excepto el Administrador, que siempre puede todo).
  *  - Crear, editar y eliminar exigen poder ver el módulo.
@@ -43,8 +44,8 @@ export const ETIQUETA_ACCION: Record<Accion, string> = {
 
 export const ROLES: { id: Rol; label: string; descripcion: string }[] = [
   { id: 'admin', label: 'Administrador', descripcion: 'Acceso total y administración de usuarios.' },
-  { id: 'operador', label: 'Operador', descripcion: 'Trabaja con equipos, proveedores e impresoras; en reportes y servidores solo mira.' },
-  { id: 'lectura', label: 'Consulta', descripcion: 'Puede ver todos los módulos, sin modificar nada.' },
+  { id: 'operador', label: 'Operador', descripcion: 'Ve, carga y edita equipos, proveedores e impresoras (eliminar se habilita aparte); en reportes y servidores solo mira.' },
+  { id: 'lectura', label: 'Consulta', descripcion: 'Solo ve equipos, asignaciones, impresoras y tóner, sin modificar nada.' },
 ];
 
 /** Convierte lo que haya guardado en la columna rol: "admin", "lectura"; cualquier otra cosa (user, vacío) es operador. */
@@ -58,8 +59,9 @@ export function normalizarRol(valor: unknown): Rol {
 /** Lo que permite el rol por sí solo, sin ajustes. */
 export function permisoBase(rol: Rol, modulo: Modulo, accion: Accion): boolean {
   if (rol === 'admin') return true;
+  if (rol === 'lectura') return accion === 'ver' && (modulo === 'equipos' || modulo === 'impresoras');
   if (accion === 'ver') return true;
-  if (rol === 'lectura') return false;
+  if (accion === 'eliminar') return false;
   return modulo === 'equipos' || modulo === 'proveedores' || modulo === 'impresoras';
 }
 

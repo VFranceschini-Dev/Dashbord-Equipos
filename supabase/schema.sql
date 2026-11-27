@@ -411,8 +411,10 @@ AS $$
     WHEN p_modulo NOT IN ('equipos', 'proveedores', 'impresoras', 'reportes', 'servidores') THEN false
     WHEN p_accion NOT IN ('ver', 'crear', 'editar', 'eliminar') THEN false
     WHEN lower(coalesce(p_rol, '')) = 'admin' THEN true
+    WHEN lower(coalesce(p_rol, '')) IN ('lectura', 'solo lectura', 'solo_lectura')
+      THEN p_accion = 'ver' AND p_modulo IN ('equipos', 'impresoras')
     WHEN p_accion = 'ver' THEN true
-    WHEN lower(coalesce(p_rol, '')) IN ('lectura', 'solo lectura', 'solo_lectura') THEN false
+    WHEN p_accion = 'eliminar' THEN false
     ELSE p_modulo IN ('equipos', 'proveedores', 'impresoras')
   END;
 $$;
