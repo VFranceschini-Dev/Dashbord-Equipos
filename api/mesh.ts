@@ -56,8 +56,9 @@ function jsonResponse(status: number, payload: unknown): Response {
 // Validación de sesión (Bearer token → endpoint de autenticación)
 // ---------------------------------------------------------------------------
 async function validateSession(request: Request): Promise<boolean> {
-  // Sesión válida Y perfil activo (ver api/_lib/sesion.ts)
-  return (await sesionDeApi(request)) !== null;
+  // Sesión válida Y perfil activo Y permiso para ver Servidores (ver api/_lib/sesion.ts)
+  const sesion = await sesionDeApi(request);
+  return sesion !== null && sesion.puede('servidores', 'ver');
 }
 
 // ---------------------------------------------------------------------------
@@ -322,7 +323,7 @@ async function consultarDetalle(url: string, usuario: string, clave: string, nod
 // ---------------------------------------------------------------------------
 export async function GET(request: Request): Promise<Response> {
   if (!(await validateSession(request))) {
-    return jsonResponse(401, { success: false, error: 'No autenticado. Se requiere una sesión válida.' });
+    return jsonResponse(401, { success: false, error: 'No autenticado o sin permiso para ver Servidores.' });
   }
 
   const url = env('MESH_URL');

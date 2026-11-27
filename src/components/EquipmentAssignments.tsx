@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { syncEquipmentMovementsFromSupabase } from '../services/supabaseSync';
 import { buscarUsuariosCompat, existeUsuario, darDeAltaUsuario, generarCodigoUsuario, codigoDisponible, ProxyError, type UsuarioCompat, type AltaUsuarioInput } from '../services/usuarios';
 import { TEXTOS_USUARIOS } from '../constants/textos';
@@ -27,6 +28,8 @@ const TIPOS_HISTORICOS: typeof TIPOS = [
 /** Movimientos de equipos: registro manual de asignaciones y devoluciones + historial. Se muestra en Usuarios y asignaciones. */
 export function MovimientosEquipos() {
   const { equipments } = useApp();
+  const { can } = useAuth();
+  const puedeRegistrar = can('equipos', 'crear');
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [loadingHist, setLoadingHist] = useState(true);
 
@@ -197,6 +200,7 @@ export function MovimientosEquipos() {
       )}
 
       {/* Formulario */}
+      {puedeRegistrar && (
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
         <h3 className="font-semibold text-gray-800 flex items-center gap-2"><ArrowLeftRight size={16} /> Registrar movimiento</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -282,6 +286,7 @@ export function MovimientosEquipos() {
           )}
         </div>
       </div>
+      )}
 
       {/* Modal de alta rápida de usuario */}
       {showAlta && (
@@ -411,9 +416,9 @@ export function MovimientosEquipos() {
                           const c = comprobantes.get(Number(m.id));
                           if (!c) {
                             return (
-                              <button onClick={() => setGenerar(m)} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                              puedeRegistrar ? <button onClick={() => setGenerar(m)} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
                                 <FileText size={12} /> Generar
-                              </button>
+                              </button> : <span className="text-gray-300">—</span>
                             );
                           }
                           return (
@@ -424,7 +429,7 @@ export function MovimientosEquipos() {
                                 {c.estado === 'firmado' ? <CheckCircle size={11} /> : <Clock size={11} />}
                                 {ESTADO_COMPROBANTE[estadoVisible(c)].label}
                               </a>
-                              {c.estado === 'pendiente' && (
+                              {c.estado === 'pendiente' && puedeRegistrar && (
                                 <button onClick={() => setGenerar(m)} className="text-xs text-blue-600 hover:underline"
                                   title="Volver a enviar el email (si no se envió) o copiar el enlace">
                                   Reenviar

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import ModuleSyncControls from './ModuleSyncControls';
 import { Supplier } from '../types';
 import { SUPPLIER_CATEGORIES } from '../data';
@@ -39,6 +40,7 @@ export default function Suppliers({ tab = 'proveedores' }: { tab?: Pestana }) {
 }
 
 function ListaProveedores() {
+  const { can } = useAuth();
   const { suppliers, addSupplier, updateSupplier, deleteSupplier, dataLoading, refreshModule } = useApp();
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -129,6 +131,7 @@ function ListaProveedores() {
             className="flex items-center gap-2 bg-white text-gray-700 border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={16} /> Exportar
           </button>
+          {can('proveedores', 'crear') && (<>
           <button onClick={() => setShowImport(true)}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium">
             <Upload size={16} /> Importar
@@ -137,6 +140,7 @@ function ListaProveedores() {
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
             <Plus size={16} /> Nuevo Proveedor
           </button>
+          </>)}
         </div>
       </div>
 
@@ -302,8 +306,8 @@ function ListaProveedores() {
                 ))}
               </div>
               <div className="flex gap-1">
-                <button onClick={() => startEdit(supplier)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600"><Edit2 size={16} /></button>
-                <button onClick={() => setDeleteConfirm(supplier.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>
+                {can('proveedores', 'editar') && <button onClick={() => startEdit(supplier)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600"><Edit2 size={16} /></button>}
+                {can('proveedores', 'eliminar') && <button onClick={() => setDeleteConfirm(supplier.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>}
               </div>
             </div>
           </div>

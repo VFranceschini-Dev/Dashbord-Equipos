@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { DEPARTMENTS } from '../data';
 import { TEXTOS_USUARIOS } from '../constants/textos';
 import { listarUsuarios, darDeAltaUsuario, generarCodigoUsuario, codigoDisponible, ProxyError, type ListadoUsuarios, type AltaUsuarioInput } from '../services/usuarios';
@@ -68,6 +69,8 @@ const emptyForm: AltaUsuarioInput = {
  */
 export default function Collaborators() {
   const { equipments } = useApp();
+  const { can } = useAuth();
+  const puedeMover = can('equipos', 'crear');   // asignar y devolver = registrar un movimiento
   const [search, setSearch] = useState('');
   const [filterDepartment, setFilterDepartment] = useState<string>('all');
   const [listado, setListado] = useState<ListadoUsuarios>({ total: 0, activos: 0, data: [] });
@@ -194,6 +197,7 @@ export default function Collaborators() {
   };
 
   const iniciarArrastre = (e: React.DragEvent, ids: string[], desde: string | null) => {
+    if (!puedeMover) { e.preventDefault(); return; }
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', ids.join(','));   // Firefox exige datos para iniciar el arrastre
     setArrastre({ ids, desde });
@@ -474,7 +478,7 @@ export default function Collaborators() {
                       {activo ? 'Activo' : 'Inactivo'}
                     </span>
                   );
-                  const botonAsignar = activo && (
+                  const botonAsignar = activo && puedeMover && (
                     <button onClick={() => setMovimiento({ tipo: 'asignacion', usuario: persona })} title="Asignar equipo (manual)"
                       className="flex items-center gap-1 rounded px-1.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-sky-300 dark:hover:bg-slate-700">
                       <UserPlus size={13} /> Asignar
@@ -486,8 +490,8 @@ export default function Collaborators() {
                       className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 text-xs text-gray-700 dark:text-slate-200 cursor-grab active:cursor-grabbing">
                       <GripVertical size={11} className="shrink-0 text-gray-400" />
                       <Monitor size={11} className="shrink-0" /> <span className="truncate max-w-[9rem]" title={eq.name}>{eq.name}</span>
-                      <button onClick={() => setMovimiento({ tipo: 'devolucion', usuario: persona, equipo: eq })} title={`Devolución de ${eq.name}`}
-                        className="text-emerald-700 dark:text-emerald-400 hover:opacity-70"><Undo2 size={12} /></button>
+                      {puedeMover && <button onClick={() => setMovimiento({ tipo: 'devolucion', usuario: persona, equipo: eq })} title={`Devolución de ${eq.name}`}
+                        className="text-emerald-700 dark:text-emerald-400 hover:opacity-70"><Undo2 size={12} /></button>}
                     </span>
                   ));
 
@@ -577,7 +581,7 @@ export default function Collaborators() {
             <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs text-blue-800 dark:bg-slate-700 dark:text-sky-200">
               <span>{seleccionados.length} seleccionado{seleccionados.length !== 1 ? 's' : ''}</span>
               <span className="flex items-center gap-2">
-                <button onClick={() => setMovimiento({ tipo: 'asignacion', equipos: seleccionados })} className="font-medium hover:underline">Asignar a...</button>
+                {puedeMover && <button onClick={() => setMovimiento({ tipo: 'asignacion', equipos: seleccionados })} className="font-medium hover:underline">Asignar a...</button>}
                 <button onClick={() => setSeleccion([])} className="hover:underline">Limpiar</button>
               </span>
             </div>
@@ -601,10 +605,10 @@ export default function Collaborators() {
                       {[eq.serialNumber, eq.meshGrupo, eq.status === 'maintenance' ? 'En mantenimiento' : ''].filter(Boolean).join(' · ') || eq.model}
                     </p>
                   </div>
-                  <button onClick={() => setMovimiento({ tipo: 'asignacion', equipo: eq })} title="Asignar a una persona (manual)"
+                  {puedeMover && <button onClick={() => setMovimiento({ tipo: 'asignacion', equipo: eq })} title="Asignar a una persona (manual)"
                     className="shrink-0 rounded p-1 text-blue-600 hover:bg-blue-50 dark:text-sky-300 dark:hover:bg-slate-600">
                     <UserPlus size={15} />
-                  </button>
+                  </button>}
                 </li>
               );
             })}

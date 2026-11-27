@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import ModuleSyncControls from './ModuleSyncControls';
 import { Printer as PrinterType } from '../types';
 import {
@@ -9,6 +10,7 @@ import ImportModal from './ImportModal';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function Printers() {
+  const { can } = useAuth();
   const { printers, addPrinter, updatePrinter, deletePrinter } = useApp();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -108,6 +110,7 @@ export default function Printers() {
           ))}
         </div>
         <div className="flex gap-2">
+          {can('impresoras', 'crear') && (<>
           <button
             onClick={() => setShowImport(true)}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium shadow-sm"
@@ -122,6 +125,7 @@ export default function Printers() {
             <Plus size={16} />
             Nueva Impresora
           </button>
+          </>)}
         </div>
       </div>
 
@@ -303,12 +307,12 @@ export default function Printers() {
                 <span className="font-medium text-gray-600">{printer.totalPages.toLocaleString()}</span> páginas
               </div>
               <div className="flex gap-1">
-                <button onClick={() => startEdit(printer)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors">
+                {can('impresoras', 'editar') && <button onClick={() => startEdit(printer)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors">
                   <Edit2 size={16} />
-                </button>
-                <button onClick={() => setDeleteConfirm(printer.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
+                </button>}
+                {can('impresoras', 'eliminar') && <button onClick={() => setDeleteConfirm(printer.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
                   <Trash2 size={16} />
-                </button>
+                </button>}
               </div>
             </div>
           </div>

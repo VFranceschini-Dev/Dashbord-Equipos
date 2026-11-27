@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import ImpresorasCompatibles from './ImpresorasCompatibles';
 import ModuleSyncControls from './ModuleSyncControls';
 import Movements from './Movements';
@@ -35,6 +36,7 @@ export default function Inventory() {
 }
 
 function StockToner() {
+  const { can } = useAuth();
   const { toners, printers, addToner, updateToner, deleteToner, addMovement } = useApp();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -157,6 +159,7 @@ function StockToner() {
           />
         </div>
         <div className="flex gap-2">
+          {can('impresoras', 'crear') && (<>
           <button
             onClick={() => setShowImport(true)}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium shadow-sm"
@@ -171,6 +174,7 @@ function StockToner() {
             <Plus size={16} />
             Nuevo Tóner
           </button>
+          </>)}
         </div>
       </div>
 
@@ -420,19 +424,19 @@ function StockToner() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button
+{can('impresoras', 'editar') && <button
                           onClick={() => { setShowRestock(toner.id); setRestockQty(1); }}
                           className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors"
                           title="Reponer stock"
                         >
                           <ArrowDownCircle size={16} />
-                        </button>
-                        <button onClick={() => startEdit(toner)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors">
+                        </button>}
+                        {can('impresoras', 'editar') && <button onClick={() => startEdit(toner)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors">
                           <Edit2 size={16} />
-                        </button>
-                        <button onClick={() => setDeleteConfirm(toner.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
+                        </button>}
+                        {can('impresoras', 'eliminar') && <button onClick={() => setDeleteConfirm(toner.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
                           <Trash2 size={16} />
-                        </button>
+                        </button>}
                       </div>
                     </td>
                   </tr>

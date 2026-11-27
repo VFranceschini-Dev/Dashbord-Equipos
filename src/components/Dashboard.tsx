@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { listarUsuarios } from '../services/usuarios';
 import { getLowStockGroups } from '../utils/tonerCompatibility';
 import {
@@ -9,6 +10,7 @@ import {
 import LowStockAlerts from './LowStockAlerts';
 
 export default function Dashboard() {
+  const { can } = useAuth();
   const { printers, toners, movements, alerts, equipments, suppliers, vouchers, setCurrentPage, dataLoading } = useApp();
 //                              ^^^^^^^^ ← AGREGADO (necesario para leer los comprobantes reales)
   // Usuarios: misma fuente que la sección Usuarios (solo se necesitan los totales)
@@ -29,8 +31,9 @@ export default function Dashboard() {
   const totalMovements = movements.length;
   const unreadAlerts = alerts.filter(a => !a.read).length;
 
-  const mainStats = [
+  const mainStats = ([
     {
+      modulo: 'equipos' as const,
       title: 'Equipamientos',
       value: equipments.length,
       subtitle: `${equipments.filter(e => e.status === 'assigned').length} asignados`,
@@ -39,6 +42,7 @@ export default function Dashboard() {
       page: 'equipments' as const,
     },
     {
+      modulo: 'equipos' as const,
       title: 'Usuarios',
       value: usuarios.total,
       subtitle: `${usuarios.activos} activos`,
@@ -47,6 +51,7 @@ export default function Dashboard() {
       page: 'collaborators' as const,
     },
     {
+      modulo: 'proveedores' as const,
       title: 'Proveedores',
       value: suppliers.length,
       subtitle: `${suppliers.filter(s => s.active).length} activos`,
@@ -55,6 +60,7 @@ export default function Dashboard() {
       page: 'suppliers' as const,
     },
     {
+      modulo: 'impresoras' as const,
       title: 'Impresoras',
       value: printers.length,
       subtitle: `${activePrinters} activas`,
@@ -62,10 +68,11 @@ export default function Dashboard() {
       color: 'amber',
       page: 'printers' as const,
     },
-  ];
+  ]).filter(st => can(st.modulo));
 
-  const secondaryStats = [
+  const secondaryStats = ([
     {
+      modulo: 'impresoras' as const,
       title: 'Inventario Tóner',
       value: toners.reduce((s, t) => s + t.stock, 0),
       subtitle: `Valor: $${totalTonerValue.toLocaleString('es-AR')}`,
@@ -74,6 +81,7 @@ export default function Dashboard() {
       page: 'inventory' as const,
     },
     {
+      modulo: 'proveedores' as const,
       title: 'Facturas proveedores',
       value: vouchers.length,
       subtitle: `${vouchers.filter(v => v.status === 'pending').length} pendientes`,
@@ -82,6 +90,7 @@ export default function Dashboard() {
       page: 'vouchers' as const,       // abre Proveedores → pestaña Facturas
     },
     {
+      modulo: 'impresoras' as const,
       title: 'Alertas Stock',
       value: lowStockItems,
       subtitle: `${unreadAlerts} sin leer`,
@@ -90,6 +99,7 @@ export default function Dashboard() {
       page: 'inventory' as const,
     },
     {
+      modulo: 'impresoras' as const,
       title: 'Movimientos de tóner',
       value: totalMovements,
       subtitle: 'Total registrado',
@@ -97,7 +107,7 @@ export default function Dashboard() {
       color: 'purple',
       page: 'inventory' as const,
     },
-  ];
+  ]).filter(st => can(st.modulo));
 
   const getColorClasses = (color: string) => {
     const colors = {
@@ -239,10 +249,10 @@ export default function Dashboard() {
       </div>
 
       {/* Low Stock Alerts */}
-      <LowStockAlerts />
+      {can('impresoras') && <LowStockAlerts />}
 
       {/* Alerts */}
-      {unreadAlerts > 0 && (
+      {can('impresoras') && unreadAlerts > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-md dark:shadow-xl border border-gray-200 dark:border-slate-700">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
@@ -287,7 +297,7 @@ export default function Dashboard() {
       )}
 
       {/* Welcome State */}
-      {equipments.length === 0 && (
+      {can('equipos') && equipments.length === 0 && (
         <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-800 dark:via-slate-700 dark:to-slate-800 rounded-2xl p-8 border border-blue-200 dark:border-slate-600">
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200 to-purple-200 dark:from-blue-800 dark:to-purple-800 opacity-20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           <div className="relative text-center">

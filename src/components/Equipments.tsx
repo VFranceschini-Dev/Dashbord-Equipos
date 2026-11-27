@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import ModuleSyncControls from './ModuleSyncControls';
 import { Equipment } from '../types';
 import { EQUIPMENT_CATEGORIES } from '../data';
@@ -85,6 +86,7 @@ function EstadoEquipo({ eq }: { eq: Equipment }) {
 const ESTADOS_EDITABLES: Equipment['status'][] = ['available', 'maintenance'];
 
 export default function Equipments() {
+  const { can } = useAuth();
   const { equipments, addEquipment, updateEquipment, deleteEquipment, refreshModule } = useApp();
   const [sincronizando, setSincronizando] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -268,10 +270,13 @@ export default function Equipments() {
           </select>
         </div>
         <div className="flex gap-2">
+          {can('servidores', 'ver') && can('equipos', 'editar') && (
           <button onClick={handleSincronizarMesh} disabled={sincronizando}
             className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-60">
             {sincronizando ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Sincronizar con Mesh
           </button>
+          )}
+          {can('equipos', 'crear') && (<>
           <button onClick={() => setShowImport(true)}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium">
             <Upload size={16} /> Importar
@@ -280,6 +285,7 @@ export default function Equipments() {
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
             <Plus size={16} /> Nuevo Equipo
           </button>
+          </>)}
         </div>
       </div>
 
@@ -435,8 +441,8 @@ export default function Equipments() {
               const asignado = asignaciones.get(eq.id)?.usuarioNombre;
               const acciones = (
                 <div className="flex shrink-0 gap-0.5" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => startEdit(eq)} title="Editar" className="rounded p-1 text-blue-600 hover:bg-blue-50 dark:text-sky-300 dark:hover:bg-slate-700"><Edit2 size={14} /></button>
-                  <button onClick={() => setDeleteConfirm(eq.id)} title="Eliminar" className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-slate-700"><Trash2 size={14} /></button>
+                  {can('equipos', 'editar') && <button onClick={() => startEdit(eq)} title="Editar" className="rounded p-1 text-blue-600 hover:bg-blue-50 dark:text-sky-300 dark:hover:bg-slate-700"><Edit2 size={14} /></button>}
+                  {can('equipos', 'eliminar') && <button onClick={() => setDeleteConfirm(eq.id)} title="Eliminar" className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-slate-700"><Trash2 size={14} /></button>}
                 </div>
               );
 
