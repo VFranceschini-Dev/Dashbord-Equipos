@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import ModuleSyncControls from './ModuleSyncControls';
 import { Movement } from '../types';
 import {
@@ -14,6 +15,7 @@ const typeConfig = {
 };
 
 export default function Movements() {
+  const { can } = useAuth();
   const { movements, addMovement, toners, printers, updateToner } = useApp();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | Movement['type']>('all');
@@ -99,13 +101,13 @@ export default function Movements() {
             </button>
           ))}
         </div>
-        <button
+        {can('equipos', 'crear') && <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
         >
           <Plus size={16} />
           Nuevo Movimiento
-        </button>
+        </button>}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">

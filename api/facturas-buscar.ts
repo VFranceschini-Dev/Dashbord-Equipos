@@ -31,7 +31,9 @@ async function autorizado(request: Request): Promise<'cron' | 'usuario' | null> 
   if (!token) return null;
   const secreto = env('FACTURAS_CRON_SECRET');
   if (secreto && mismoSecreto(token, secreto)) return 'cron';
-  return (await sesionDeApi(request)) ? 'usuario' : null;
+  // Buscar facturas crea comprobantes y notas en Zammad: exige poder crear en Proveedores
+  const sesion = await sesionDeApi(request);
+  return sesion && sesion.puede('proveedores', 'crear') ? 'usuario' : null;
 }
 
 export async function POST(request: Request): Promise<Response> {

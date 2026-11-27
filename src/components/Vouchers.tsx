@@ -80,7 +80,7 @@ export default function Vouchers() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filterOrigen, setFilterOrigen] = useState<string>('all');
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const [archivo, setArchivo] = useState<File | null>(null);
   const [quitarArchivo, setQuitarArchivo] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -230,6 +230,7 @@ export default function Vouchers() {
               onChange={e => setBuscarDesde(e.target.value)}
               className="px-2 py-2 rounded-lg border border-gray-200 text-sm" />
           </label>
+          {can('proveedores', 'crear') && (<>
           <button onClick={buscarEnZammad} disabled={buscando} title="Busca los emails a soporte@ con factura en el asunto (también se hace solo cada 30 minutos)"
             className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-60">
             {buscando ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Buscar en Zammad
@@ -238,6 +239,7 @@ export default function Vouchers() {
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
             <Plus size={16} /> Nueva factura
           </button>
+          </>)}
         </div>
       </div>
 
@@ -467,8 +469,8 @@ export default function Vouchers() {
                         <button onClick={() => verArchivo(voucher.archivoPath!)} title={voucher.archivoNombre || 'Ver archivo'}
                           className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600"><Paperclip size={16} /></button>
                       )}
-                      <button onClick={() => startEdit(voucher)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600"><Edit2 size={16} /></button>
-                      <button onClick={() => setDeleteConfirm(voucher.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>
+                      {can('proveedores', 'editar') && <button onClick={() => startEdit(voucher)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600"><Edit2 size={16} /></button>}
+                      {can('proveedores', 'eliminar') && <button onClick={() => setDeleteConfirm(voucher.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>}
                     </div>
                   </td>
                 </tr>
