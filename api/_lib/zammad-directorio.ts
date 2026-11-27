@@ -18,8 +18,11 @@ export interface UsuarioZammad {
   zammadId: number;
   login: string;
   nombre: string;
+  apellido: string;
   email: string;                 // el de Zammad, o vacío
+  departamento: string;          // campo "Departamento" de Zammad (viene del AD si Zammad lo sincroniza)
   organizacionId: number;
+  activo: boolean;
 }
 
 function env(name: string): string | undefined {
@@ -59,9 +62,17 @@ export function normalizarUsuario(u: any): UsuarioZammad | null {
   const zammadId = Number(u?.id);
   const login = String(u?.login ?? '').trim();
   if (!Number.isInteger(zammadId) || zammadId <= 0 || !login) return null;
-  const nombre = [u?.firstname, u?.lastname].map(x => String(x ?? '').trim()).filter(Boolean).join(' ') || login;
+  const pila = String(u?.firstname ?? '').trim();
+  const apellido = String(u?.lastname ?? '').trim();
+  const nombre = [pila, apellido].filter(Boolean).join(' ') || login;
   const email = String(u?.email ?? '').trim().toLowerCase();
-  return { zammadId, login, nombre, email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : '', organizacionId: Number(u?.organization_id) || 0 };
+  return {
+    zammadId, login, nombre, apellido,
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : '',
+    departamento: String(u?.department ?? '').trim(),
+    organizacionId: Number(u?.organization_id) || 0,
+    activo: u?.active !== false,
+  };
 }
 
 export function habilitado(u: any, organizaciones = organizacionesHabilitadas()): boolean {
@@ -77,18 +88,18 @@ export function correoParaCuenta(u: UsuarioZammad): string {
 
 let cache: { hasta: number; usuarios: UsuarioZammad[] } | null = null;
 
-/** Usuarios activos de las organizaciones habilitadas, ordenados por nombre. */
-export async function usuariosHabilitados(): Promise<UsuarioZammad[]> {
+/** Todos los miembros (activos e inactivos) de las organizaciones habilitadas, ordenados por nombre. */
+export async function miembrosOrganizaciones(forzar = false): Promise<UsuarioZammad[]> {
   const z = config();
   if (!z) throw new Error('La conexión con Zammad no está configurada en el servidor (ZAMMAD_URL y ZAMMAD_TOKEN).');
-  if (cache && cache.hasta > Date.now()) return cache.usuarios;
+  if (!forzar && cache && cache.hasta > Date.now()) return cache.usuarios;
   const orgs = organizacionesHabilitadas();
   const salida: UsuarioZammad[] = [];
   for (let pagina = 1; pagina <= MAX_PAGINAS; pagina++) {
     const lote = await zGet(z, `users?page=${pagina}&per_page=${POR_PAGINA}`);
     if (!Array.isArray(lote)) throw new Error('Zammad devolvió una respuesta inesperada.');
     for (const u of lote) {
-      if (!habilitado(u, orgs)) continue;
+      if (!orgs.includes(Number(u?.organization_id))) continue;
       const n = normalizarUsuario(u);
       if (n) salida.push(n);
     }
@@ -97,6 +108,11 @@ export async function usuariosHabilitados(): Promise<UsuarioZammad[]> {
   salida.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   cache = { hasta: Date.now() + CACHE_MS, usuarios: salida };
   return salida;
+}
+
+/** Solo los activos (para dar de alta cuentas). */
+export async function usuariosHabilitados(): Promise<UsuarioZammad[]> {
+  return (await miembrosOrganizaciones()).filter(u => u.activo);
 }
 
 /** Un usuario puntual, siempre releído de Zammad (no se confía en lo que manda el navegador). null si no es elegible. */
