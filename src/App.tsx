@@ -1,6 +1,7 @@
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { MODULO_DE_PAGINA } from './config/accesoPaginas';
 import SinAcceso from './components/SinAcceso';
+import CambiarContrasenaObligatorio from './components/CambiarContrasenaObligatorio';
 import AdministracionUsuarios from './components/AdministracionUsuarios';
 import { AppProvider, useApp } from './context/AppContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -53,7 +54,7 @@ function PageRouter() {
 }
 
 function AppContent() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
     return (
@@ -68,6 +69,11 @@ function AppContent() {
 
   if (!isAuthenticated) {
     return <Login />;
+  }
+
+  // Contraseña temporal entregada por un administrador: antes de usar la app hay que elegir la propia.
+  if (user?.debeCambiarClave) {
+    return <CambiarContrasenaObligatorio />;
   }
 
   return (

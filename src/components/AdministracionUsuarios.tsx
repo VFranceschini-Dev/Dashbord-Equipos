@@ -118,7 +118,7 @@ function CampoContrasena({ valor, onChange, etiqueta }: { valor: string; onChang
           {copiado ? <CheckCircle size={15} /> : <Copy size={15} />}
         </button>
       </div>
-      <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Mínimo 8 caracteres. Pasásela al usuario por un medio seguro; después puede cambiarla desde el menú.</p>
+      <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Mínimo 8 caracteres. Es temporal: pasásela por un medio seguro y la persona va a tener que elegir la suya la primera vez que ingrese.</p>
     </div>
   );
 }
@@ -158,7 +158,7 @@ function ModalUsuario({ usuario, esUnoMismo, onClose, onGuardado }: {
       const permisos = compactarPermisos(form.rol, form.permisos);
       if (!usuario) {
         const creado = await crearUsuarioSistema({ nombre: form.nombre.trim(), email: form.email.trim(), password: form.password, rol: form.rol, area: form.area.trim(), permisos });
-        onGuardado(creado, `Usuario creado: ${creado.email}. Pasale la contraseña temporal.`);
+        onGuardado(creado, `Usuario creado: ${creado.email}. Pasale la contraseña temporal; al ingresar va a elegir la suya.`);
       } else {
         const { usuario: actualizado, aviso } = await actualizarUsuarioSistema(usuario.id, {
           nombre: form.nombre.trim(), area: form.area.trim(), rol: form.rol, permisos, ...(cambiarClave ? { password: form.password } : {}),
